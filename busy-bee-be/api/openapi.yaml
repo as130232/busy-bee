@@ -1,0 +1,115 @@
+openapi: 3.1.0
+info:
+  title: Busy Bee API
+  description: 開會錄音 → STT → LLM → PRD/Tech Spec 的 AI 輔助工具後端 API。
+  version: 0.1.0
+
+servers:
+  - url: http://localhost:8080
+    description: 本地開發
+  - url: https://busy-bee-api.example.run.app
+    description: Cloud Run（部署後更新）
+
+tags:
+  - name: infra
+    description: 健康檢查等基礎端點
+  - name: users
+    description: 用戶
+
+paths:
+  /health:
+    get:
+      tags: [infra]
+      summary: 健康檢查
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: 服務正常
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          status: { type: string, example: ok }
+                          env: { type: string, example: local }
+
+  /api/v1/users/sync:
+    post:
+      tags: [users]
+      summary: 登入後同步用戶（以 firebase_uid upsert）
+      description: 前端完成 Google 登入後呼叫；非白名單 email 回 403。
+      operationId: syncUser
+      responses:
+        "200":
+          description: 同步成功，回傳用戶資料
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+components:
+  securitySchemes:
+    firebaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Firebase ID token
+
+  schemas:
+    Envelope:
+      type: object
+      description: 統一 response envelope
+      required: [errCode, msg]
+      properties:
+        errCode:
+          type: integer
+          description: 0 = 成功；非 0 為業務錯誤碼（HTTP status 三碼 + 兩碼流水號）
+          example: 0
+        msg:
+          type: string
+          example: success
+        traceId:
+          type: string
+          example: 43499282e559d33a
+
+    User:
+      type: object
+      required: [id, email, displayName, avatarUrl, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        avatarUrl: { type: string }
+        createdAt: { type: string, format: date-time }
+
+  responses:
+    Unauthorized:
+      description: 未帶有效 Firebase ID token（errCode 40101）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Envelope"
+    Forbidden:
+      description: email 不在白名單（errCode 40301）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Envelope"
+
+security:
+  - firebaseAuth: []
