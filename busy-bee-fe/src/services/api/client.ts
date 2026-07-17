@@ -35,3 +35,35 @@ async function request<T>(path: string, init: RequestInit, idToken?: string): Pr
 export function syncUser(idToken: string): Promise<User> {
   return request<User>('/api/v1/users/sync', { method: 'POST' }, idToken)
 }
+
+export type Meeting = components['schemas']['Meeting']
+
+export interface CreateMeetingResult {
+  meeting: Meeting
+  upload: { url: string; headers: Record<string, string> }
+}
+
+/** 建立會議並取得 GCS 直傳 signed URL */
+export function createMeeting(
+  idToken: string,
+  input: { title: string; contentType: string },
+): Promise<CreateMeetingResult> {
+  return request<CreateMeetingResult>(
+    '/api/v1/meetings',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+    idToken,
+  )
+}
+
+/** 音訊直傳完成後觸發背景處理 */
+export function completeUpload(idToken: string, meetingId: string): Promise<{ meeting: Meeting }> {
+  return request<{ meeting: Meeting }>(
+    `/api/v1/meetings/${meetingId}/complete-upload`,
+    { method: 'POST' },
+    idToken,
+  )
+}
