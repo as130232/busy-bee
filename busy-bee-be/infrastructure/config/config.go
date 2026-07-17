@@ -14,6 +14,12 @@ type Config struct {
 	DB     DBConfig
 	Redis  RedisConfig
 	Auth   AuthConfig
+	GCS    GCSConfig
+}
+
+type GCSConfig struct {
+	Bucket      string
+	SignerEmail string
 }
 
 type AuthConfig struct {
@@ -75,6 +81,10 @@ func Load() (*Config, error) {
 		Auth: AuthConfig{
 			FirebaseProjectID: lookup("FIREBASE_PROJECT_ID", ""),
 			AllowedEmails:     splitCSV(lookup("ALLOWED_EMAILS", "")),
+		},
+		GCS: GCSConfig{
+			Bucket:      lookup("GCS_BUCKET", ""),
+			SignerEmail: lookup("GCS_SIGNER_EMAIL", ""),
 		},
 	}, nil
 }

@@ -108,6 +108,23 @@ func TestLoad_AuthConfig(t *testing.T) {
 	}
 }
 
+func TestLoad_GCSConfig(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("GCS_BUCKET", "my-bucket")
+	t.Setenv("GCS_SIGNER_EMAIL", "sa@proj.iam.gserviceaccount.com")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.GCS.Bucket != "my-bucket" {
+		t.Errorf("GCS.Bucket = %q, want my-bucket", cfg.GCS.Bucket)
+	}
+	if cfg.GCS.SignerEmail != "sa@proj.iam.gserviceaccount.com" {
+		t.Errorf("GCS.SignerEmail = %q", cfg.GCS.SignerEmail)
+	}
+}
+
 func TestLoad_AllowedEmailsEmptyByDefault(t *testing.T) {
 	t.Chdir(t.TempDir())
 
