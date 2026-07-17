@@ -9,6 +9,7 @@ var msg = map[ErrCode]string{
 	Unauthorized: "unauthorized",
 	Forbidden:    "forbidden",
 	NotFound:     "resource not found",
+	Conflict:     "resource state conflict",
 	Internal:     "internal server error",
 }
 

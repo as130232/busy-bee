@@ -12,6 +12,7 @@ const (
 	Unauthorized ErrCode = 40101
 	Forbidden    ErrCode = 40301
 	NotFound     ErrCode = 40401
+	Conflict     ErrCode = 40901
 	Internal     ErrCode = 50001
 )
 
@@ -21,6 +22,7 @@ var httpStatus = map[ErrCode]int{
 	Unauthorized: http.StatusUnauthorized,
 	Forbidden:    http.StatusForbidden,
 	NotFound:     http.StatusNotFound,
+	Conflict:     http.StatusConflict,
 	Internal:     http.StatusInternalServerError,
 }
 

@@ -23,6 +23,10 @@ func (f *fakeRepo) UpsertByFirebaseUID(_ context.Context, id domainuser.Identity
 	return f.returnUser, f.err
 }
 
+func (f *fakeRepo) GetByFirebaseUID(_ context.Context, _ string) (domainuser.User, error) {
+	return f.returnUser, f.err
+}
+
 func TestSync_UpsertsAndReturnsUser(t *testing.T) {
 	want := domainuser.User{ID: uuid.New(), FirebaseUID: "u1", Email: "a@x.com"}
 	repo := &fakeRepo{returnUser: want}

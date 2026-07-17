@@ -10,11 +10,15 @@ import (
 	"syscall"
 	"time"
 
+	appmeeting "github.com/as130232/busy-bee/busy-bee-be/application/meeting"
 	appuser "github.com/as130232/busy-bee/busy-bee-be/application/user"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/config"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/db"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/firebaseauth"
+	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/gcs"
+	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/queue"
 	httpserver "github.com/as130232/busy-bee/busy-bee-be/interface/http"
+	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
 	userhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/user"
 )
 
@@ -43,9 +47,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	audioStorage, err := gcs.New(ctx, cfg.GCS.Bucket, cfg.GCS.SignerEmail)
+	if err != nil {
+		slog.Error("gcs init failed", "err", err)
+		os.Exit(1)
+	}
+	defer audioStorage.Close()
+
+	userRepo := db.NewUserRepo(pool)
+	meetingRepo := db.NewMeetingRepo(pool)
+	taskQueue := queue.NewNoop()
+
 	deps := httpserver.Deps{
 		Verifier:    verifier,
-		UserHandler: userhandler.NewHandler(appuser.NewSyncUC(db.NewUserRepo(pool))),
+		UserRepo:    userRepo,
+		UserHandler: userhandler.NewHandler(appuser.NewSyncUC(userRepo)),
+		MeetingHandler: meetinghandler.NewHandler(
+			appmeeting.NewCreateUC(meetingRepo, audioStorage),
+			appmeeting.NewCompleteUploadUC(meetingRepo, audioStorage, taskQueue),
+		),
 	}
 	srv := httpserver.NewServer(cfg, deps)
 

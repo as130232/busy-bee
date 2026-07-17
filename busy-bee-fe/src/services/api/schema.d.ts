@@ -41,6 +41,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/meetings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 建立會議並取得音訊直傳 URL
+         * @description 回傳的 upload.url 供前端直接 PUT 音訊到 GCS（需帶 upload.headers）；上傳完成後呼叫 complete-upload。
+         */
+        post: operations["createMeeting"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/meetings/{id}/complete-upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 音訊直傳完成，觸發背景處理
+         * @description 驗證物件已存在後將狀態推進為 pending 並排入處理佇列；對已處理中的會議冪等。
+         */
+        post: operations["completeMeetingUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -64,6 +104,20 @@ export interface components {
             email: string;
             displayName: string;
             avatarUrl: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        Meeting: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            /** @enum {string} */
+            status: "scheduled" | "pending" | "transcribing" | "analyzing" | "completed" | "failed";
+            durationSeconds: number;
+            errorMessage?: string;
+            /** Format: date-time */
+            scheduledAt?: string;
+            remindBeforeMin: number;
             /** Format: date-time */
             createdAt: string;
         };
@@ -144,6 +198,113 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    createMeeting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @example 架構討論會議 */
+                    title: string;
+                    /**
+                     * @description 音訊 MIME type（audio/mpeg, audio/mp4, audio/x-m4a, audio/webm, audio/wav）
+                     * @example audio/webm
+                     */
+                    contentType: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 建立成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            meeting: components["schemas"]["Meeting"];
+                            upload: {
+                                url: string;
+                                headers: {
+                                    [key: string]: string;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+            /** @description title 空白或 contentType 不支援（errCode 40001） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    completeMeetingUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已進入處理佇列（或已在處理中） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            meeting: components["schemas"]["Meeting"];
+                        };
+                    };
+                };
+            };
+            /** @description 音訊尚未上傳（errCode 40001） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 會議不存在或非本人所有（errCode 40401） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 狀態衝突（errCode 40901） */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
         };
     };
 }

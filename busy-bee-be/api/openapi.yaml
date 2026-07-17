@@ -15,6 +15,8 @@ tags:
     description: 健康檢查等基礎端點
   - name: users
     description: 用戶
+  - name: meetings
+    description: 會議
 
 paths:
   /health:
@@ -62,6 +64,108 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /api/v1/meetings:
+    post:
+      tags: [meetings]
+      summary: 建立會議並取得音訊直傳 URL
+      description: 回傳的 upload.url 供前端直接 PUT 音訊到 GCS（需帶 upload.headers）；上傳完成後呼叫 complete-upload。
+      operationId: createMeeting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, contentType]
+              properties:
+                title: { type: string, example: 架構討論會議 }
+                contentType:
+                  type: string
+                  description: 音訊 MIME type（audio/mpeg, audio/mp4, audio/x-m4a, audio/webm, audio/wav）
+                  example: audio/webm
+      responses:
+        "200":
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [meeting, upload]
+                        properties:
+                          meeting:
+                            $ref: "#/components/schemas/Meeting"
+                          upload:
+                            type: object
+                            required: [url, headers]
+                            properties:
+                              url: { type: string }
+                              headers:
+                                type: object
+                                additionalProperties: { type: string }
+        "400":
+          description: title 空白或 contentType 不支援（errCode 40001）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/meetings/{id}/complete-upload:
+    post:
+      tags: [meetings]
+      summary: 音訊直傳完成，觸發背景處理
+      description: 驗證物件已存在後將狀態推進為 pending 並排入處理佇列；對已處理中的會議冪等。
+      operationId: completeMeetingUpload
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 已進入處理佇列（或已在處理中）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [meeting]
+                        properties:
+                          meeting:
+                            $ref: "#/components/schemas/Meeting"
+        "400":
+          description: 音訊尚未上傳（errCode 40001）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 會議不存在或非本人所有（errCode 40401）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: 狀態衝突（errCode 40901）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
 components:
   securitySchemes:
     firebaseAuth:
@@ -95,6 +199,21 @@ components:
         email: { type: string, format: email }
         displayName: { type: string }
         avatarUrl: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    Meeting:
+      type: object
+      required: [id, title, status, durationSeconds, remindBeforeMin, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        status:
+          type: string
+          enum: [scheduled, pending, transcribing, analyzing, completed, failed]
+        durationSeconds: { type: integer }
+        errorMessage: { type: string }
+        scheduledAt: { type: string, format: date-time }
+        remindBeforeMin: { type: integer }
         createdAt: { type: string, format: date-time }
 
   responses:

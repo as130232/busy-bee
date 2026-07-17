@@ -2,8 +2,10 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	domainuser "github.com/as130232/busy-bee/busy-bee-be/domain/user"
@@ -19,6 +21,17 @@ var _ domainuser.Repository = (*UserRepo)(nil)
 
 func NewUserRepo(pool *pgxpool.Pool) *UserRepo {
 	return &UserRepo{q: sqlcgen.New(pool)}
+}
+
+func (r *UserRepo) GetByFirebaseUID(ctx context.Context, firebaseUID string) (domainuser.User, error) {
+	row, err := r.q.GetUserByFirebaseUID(ctx, firebaseUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domainuser.User{}, domainuser.ErrNotFound
+		}
+		return domainuser.User{}, fmt.Errorf("db.GetUserByFirebaseUID: %w", err)
+	}
+	return toDomainUser(row), nil
 }
 
 func (r *UserRepo) UpsertByFirebaseUID(ctx context.Context, id domainuser.Identity) (domainuser.User, error) {

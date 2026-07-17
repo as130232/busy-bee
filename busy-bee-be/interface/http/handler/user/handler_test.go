@@ -25,6 +25,10 @@ func (f *fakeRepo) UpsertByFirebaseUID(_ context.Context, id domainuser.Identity
 	return u, nil
 }
 
+func (f *fakeRepo) GetByFirebaseUID(_ context.Context, _ string) (domainuser.User, error) {
+	return f.returnUser, nil
+}
+
 func TestSync_ReturnsUserEnvelope(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := NewHandler(appuser.NewSyncUC(&fakeRepo{returnUser: domainuser.User{ID: uuid.New()}}))

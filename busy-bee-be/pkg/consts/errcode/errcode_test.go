@@ -16,6 +16,7 @@ func TestHTTPStatus(t *testing.T) {
 		{"unauthorized maps to 401", Unauthorized, http.StatusUnauthorized},
 		{"forbidden maps to 403", Forbidden, http.StatusForbidden},
 		{"not found maps to 404", NotFound, http.StatusNotFound},
+		{"conflict maps to 409", Conflict, http.StatusConflict},
 		{"internal maps to 500", Internal, http.StatusInternalServerError},
 		{"unknown code maps to 500", ErrCode(99999), http.StatusInternalServerError},
 	}

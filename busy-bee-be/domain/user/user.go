@@ -3,10 +3,14 @@ package user
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// ErrNotFound 用戶不存在（尚未 /users/sync）。
+var ErrNotFound = errors.New("user not found")
 
 // User 資料庫中的用戶。
 type User struct {
@@ -35,4 +39,5 @@ type TokenVerifier interface {
 // Repository 用戶資料存取 port（pgx 實作在 infrastructure/db）。
 type Repository interface {
 	UpsertByFirebaseUID(ctx context.Context, identity Identity) (User, error)
+	GetByFirebaseUID(ctx context.Context, firebaseUID string) (User, error)
 }

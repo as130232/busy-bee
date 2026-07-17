@@ -8,6 +8,7 @@ import (
 
 	domainuser "github.com/as130232/busy-bee/busy-bee-be/domain/user"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/config"
+	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
 	userhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/user"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/middleware"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/response"
@@ -23,8 +24,10 @@ type (
 
 // Deps 路由所需的依賴，由 main（或測試）組裝注入。
 type Deps struct {
-	Verifier    domainuser.TokenVerifier
-	UserHandler *userhandler.Handler
+	Verifier       domainuser.TokenVerifier
+	UserRepo       domainuser.Repository
+	UserHandler    *userhandler.Handler
+	MeetingHandler *meetinghandler.Handler
 }
 
 // NewEngine 組裝 middleware 鏈與路由。順序：Recovery 最外層 → RequestID → Logger。
@@ -51,6 +54,11 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 	if deps.Verifier != nil {
 		v1 := e.Group("/api/v1", middleware.Auth(deps.Verifier, cfg.Auth.AllowedEmails))
 		v1.POST("/users/sync", deps.UserHandler.Sync)
+
+		// 需要 DB 用戶身分的路由再掛 ResolveUser
+		authed := v1.Group("", middleware.ResolveUser(deps.UserRepo))
+		authed.POST("/meetings", deps.MeetingHandler.Create)
+		authed.POST("/meetings/:id/complete-upload", deps.MeetingHandler.CompleteUpload)
 	}
 
 	return e
