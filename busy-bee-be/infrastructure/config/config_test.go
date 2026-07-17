@@ -84,6 +84,42 @@ func TestLoad_OSEnvTakesPrecedenceOverDotEnv(t *testing.T) {
 	}
 }
 
+func TestLoad_AuthConfig(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("FIREBASE_PROJECT_ID", "busy-bee-prod")
+	t.Setenv("ALLOWED_EMAILS", "a@x.com, B@X.com ,c@x.com")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Auth.FirebaseProjectID != "busy-bee-prod" {
+		t.Errorf("FirebaseProjectID = %q, want busy-bee-prod", cfg.Auth.FirebaseProjectID)
+	}
+	want := []string{"a@x.com", "B@X.com", "c@x.com"}
+	if len(cfg.Auth.AllowedEmails) != len(want) {
+		t.Fatalf("AllowedEmails = %v, want %v (comma-separated, trimmed)", cfg.Auth.AllowedEmails, want)
+	}
+	for i := range want {
+		if cfg.Auth.AllowedEmails[i] != want[i] {
+			t.Errorf("AllowedEmails[%d] = %q, want %q", i, cfg.Auth.AllowedEmails[i], want[i])
+		}
+	}
+}
+
+func TestLoad_AllowedEmailsEmptyByDefault(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(cfg.Auth.AllowedEmails) != 0 {
+		t.Errorf("AllowedEmails = %v, want empty", cfg.Auth.AllowedEmails)
+	}
+}
+
 func TestLoad_AppEnvSelectsDotEnvFile(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, ".env.qa"), []byte("DB_URL=postgres://qa\n"), 0o600); err != nil {

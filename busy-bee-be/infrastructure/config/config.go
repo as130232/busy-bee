@@ -13,6 +13,12 @@ type Config struct {
 	Log    LogConfig
 	DB     DBConfig
 	Redis  RedisConfig
+	Auth   AuthConfig
+}
+
+type AuthConfig struct {
+	FirebaseProjectID string
+	AllowedEmails     []string // email 白名單；空 = fail-closed 拒絕所有人
 }
 
 type ServerConfig struct {
@@ -66,7 +72,25 @@ func Load() (*Config, error) {
 			Addr:     lookup("REDIS_ADDR", ""),
 			Password: lookup("REDIS_PASSWORD", ""),
 		},
+		Auth: AuthConfig{
+			FirebaseProjectID: lookup("FIREBASE_PROJECT_ID", ""),
+			AllowedEmails:     splitCSV(lookup("ALLOWED_EMAILS", "")),
+		},
 	}, nil
+}
+
+func splitCSV(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 func getEnv(key, def string) string {
