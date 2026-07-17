@@ -7,7 +7,8 @@
 
 ## 當前焦點
 
-尚未開始；下一步：實作 Phase 1.1 Monorepo 目錄結構與 go.mod 初始化。
+Phase 1 已完成（後端骨架 + 基建 + 本地環境）。
+下一步：實作 Phase 2.1 migrations 骨架 + users 表（golang-migrate）。
 
 ---
 
@@ -28,7 +29,7 @@
 
 | 狀態 | 階段 | 里程碑 |
 |------|------|--------|
-| ⬜ | Phase 1 — 後端骨架與基建 | M1-A |
+| ✅ | Phase 1 — 後端骨架與基建 | M1-A |
 | ⬜ | Phase 2 — DB 與 Auth | M1-A |
 | ⬜ | Phase 3 — 前端骨架與登入 | M1-A |
 | ⬜ | Phase 4 — 部署管線 | M1-A |
@@ -44,18 +45,17 @@
 ---
 
 ## Phase 1：後端骨架與基建
-
-> 里程碑：M1-A
+> 里程碑：M1-A | ✅ 完成於 2026-07-17
 > 建立 Go 專案骨架與橫向基建（apperr / config / response），對齊 sport-hub 模式。
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ⬜ | 1.1 | Monorepo 目錄與 go.mod | `busy-bee-be/go.mod` | Go 1.26；busy-bee-fe/ 佔位 | — |
-| ⬜ | 1.2 | apperr 與 errcode 基建 | `busy-bee-be/pkg/apperr/`, `busy-bee-be/pkg/consts/errcode/` | Code + Params + Cause，移植 sport-hub 模式 | — |
-| ⬜ | 1.3 | env config 載入 | `busy-bee-be/infrastructure/config/` | .env.local 優先序；無 YAML | — |
-| ⬜ | 1.4 | Gin server + health check | `busy-bee-be/cmd/server/main.go`, `busy-bee-be/interface/http/server.go` | graceful shutdown、logger middleware | — |
-| ⬜ | 1.5 | response envelope | `busy-bee-be/interface/http/response/` | OK / Fail；apperr → HTTP status 映射 | — |
-| ⬜ | 1.6 | Docker Compose 本地環境 | `docker-compose.yml` | PostgreSQL + Redis | — |
+| ✅ | 1.1 | Monorepo 目錄與 go.mod | `busy-bee-be/go.mod` | Go 1.26；busy-bee-fe/ 佔位；已加入 project go.work | `8cec0df` |
+| ✅ | 1.2 | apperr 與 errcode 基建 | `busy-bee-be/pkg/apperr/`, `busy-bee-be/pkg/consts/errcode/` | Code + Params + Cause；ClientMsg 不含 cause | `c0eb117` |
+| ✅ | 1.3 | env config 載入 | `busy-bee-be/infrastructure/config/` | OS env > .env.{APP_ENV} > 預設值 | `a83ebde` |
+| ✅ | 1.4 | Gin server + health check | `busy-bee-be/cmd/server/main.go`, `busy-bee-be/interface/http/server.go` | Recovery→RequestID→Logger；SIGTERM graceful shutdown 已實測 | `89cc7a9` |
+| ✅ | 1.5 | response envelope | `busy-bee-be/interface/http/response/` | OK / Fail；unknown error 不外洩 cause | `0c0a732` |
+| ✅ | 1.6 | Docker Compose 本地環境 | `docker-compose.yml` | PG16 + Redis7 healthcheck 通過；含 .env.example | `9fd11b5` |
 
 ---
 
@@ -245,6 +245,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
+| 2026-07-17 | Phase 1 全部完成（1.1–1.6：骨架、apperr、config、server、response、compose）；TDD 全程；分支 feat/phase-1-backend-skeleton | `8cec0df..9fd11b5` |
 
 ---
 
