@@ -7,8 +7,8 @@
 
 ## 當前焦點
 
-Phase 2 已完成（DB + Firebase Auth + /users/sync + OpenAPI 初版）。
-下一步：實作 Phase 3.1 Vite React PWA scaffold；動工前需先建立 Firebase 專案（console 手動步驟）。
+Phase 3 已完成（前端 scaffold + Google 登入 + API client + Dashboard shell，登入實測通過）。
+下一步：實作 Phase 4.1 Dockerfile（multi-stage、含 ffmpeg）。
 
 ---
 
@@ -31,7 +31,7 @@ Phase 2 已完成（DB + Firebase Auth + /users/sync + OpenAPI 初版）。
 |------|------|--------|
 | ✅ | Phase 1 — 後端骨架與基建 | M1-A |
 | ✅ | Phase 2 — DB 與 Auth | M1-A |
-| ⬜ | Phase 3 — 前端骨架與登入 | M1-A |
+| ✅ | Phase 3 — 前端骨架與登入 | M1-A |
 | ⬜ | Phase 4 — 部署管線 | M1-A |
 | ⏸ | Phase 5 — 上傳流程 | M1-B |
 | ⏸ | Phase 6 — 任務佇列與 STT | M1-B |
@@ -75,15 +75,14 @@ Phase 2 已完成（DB + Firebase Auth + /users/sync + OpenAPI 初版）。
 ---
 
 ## Phase 3：前端骨架與登入（F-AUTH）
-
-> 里程碑：M1-A
+> 里程碑：M1-A | ✅ 完成於 2026-07-17
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ⬜ | 3.1 | Vite React PWA scaffold | `busy-bee-fe/` | manifest + service worker 骨架 | — |
-| ⬜ | 3.2 | Google 登入流程 | `busy-bee-fe/src/pages/`, `busy-bee-fe/src/services/` | Firebase SDK；登入後呼叫 /users/sync | — |
-| ⬜ | 3.3 | API client 生成 | `busy-bee-fe/src/services/api/` | 由 openapi.yaml 生成 TS client | — |
-| ⬜ | 3.4 | Dashboard shell + auth guard | `busy-bee-fe/src/pages/` | 路由、未登入導向登入頁 | — |
+| ✅ | 3.1 | Vite React PWA scaffold | `busy-bee-fe/` | vite-plugin-pwa manifest + SW；dev proxy 到後端 | `41de695` |
+| ✅ | 3.2 | Google 登入流程 | `busy-bee-fe/src/hooks/useAuth.tsx`, `busy-bee-fe/src/services/firebase.ts` | signInWithPopup + 後端 sync；403 登出並提示；實測通過 | `f9d77f4` |
+| ✅ | 3.3 | API client 生成 | `busy-bee-fe/src/services/api/` | openapi-typescript 型別 + envelope 解析 ApiError | `82a3d0d` |
+| ✅ | 3.4 | Dashboard shell + auth guard | `busy-bee-fe/src/pages/`, `busy-bee-fe/src/components/RequireAuth.tsx` | /login 公開、/ 受保護；session 恢復重同步 | `f9d77f4` |
 
 ---
 
@@ -246,6 +245,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 |------|---------|--------|
 | 2026-07-17 | Phase 1 全部完成（1.1–1.6：骨架、apperr、config、server、response、compose）；TDD 全程；分支 feat/phase-1-backend-skeleton | `8cec0df..9fd11b5` |
 | 2026-07-17 | Phase 2 全部完成（2.1–2.6：migrations、sqlc、WithTx、auth 白名單、/users/sync、openapi）；分支 feat/phase-2-db-auth | `0d560c1..ee6a642` |
+| 2026-07-17 | Phase 3 全部完成（3.1–3.4：scaffold、Google 登入、API client、Dashboard）；Firebase 專案 busy-bee-502710 建立；登入人工驗收通過 | `41de695..f9d77f4` |
 
 ---
 
