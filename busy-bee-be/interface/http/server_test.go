@@ -16,7 +16,7 @@ func testEngine(t *testing.T) *TestableEngine {
 		Server: config.ServerConfig{Env: "local", Port: "8080"},
 		Log:    config.LogConfig{Level: "error"},
 	}
-	return NewEngine(cfg)
+	return NewEngine(cfg, Deps{})
 }
 
 // TestableEngine 是 *gin.Engine 的別名，避免測試直接 import gin。

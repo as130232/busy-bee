@@ -10,8 +10,12 @@ import (
 	"syscall"
 	"time"
 
+	appuser "github.com/as130232/busy-bee/busy-bee-be/application/user"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/config"
+	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/db"
+	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/firebaseauth"
 	httpserver "github.com/as130232/busy-bee/busy-bee-be/interface/http"
+	userhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/user"
 )
 
 const shutdownTimeout = 10 * time.Second
@@ -24,7 +28,26 @@ func main() {
 	}
 	setupLogger(cfg)
 
-	srv := httpserver.NewServer(cfg)
+	ctx := context.Background()
+
+	pool, err := db.New(ctx, cfg.DB.URL)
+	if err != nil {
+		slog.Error("db connect failed", "err", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	verifier, err := firebaseauth.New(ctx, cfg.Auth.FirebaseProjectID)
+	if err != nil {
+		slog.Error("firebase auth init failed", "err", err)
+		os.Exit(1)
+	}
+
+	deps := httpserver.Deps{
+		Verifier:    verifier,
+		UserHandler: userhandler.NewHandler(appuser.NewSyncUC(db.NewUserRepo(pool))),
+	}
+	srv := httpserver.NewServer(cfg, deps)
 
 	go func() {
 		slog.Info("server starting", "addr", srv.Addr, "env", cfg.Server.Env)
