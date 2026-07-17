@@ -29,6 +29,8 @@ Busy Bee 是一個專為開發團隊/技術主管設計的 AI 輔助工具：
 
 小型多用戶（固定團隊成員共用），Firebase Auth Google Login。非公開 SaaS，無需配額/帳單邏輯。
 
+**資料可見性（MVP）**：會議與 artifacts 僅擁有者本人可見（所有查詢均以 `user_id` 過濾）。團隊共享/協作為 post-MVP 範疇。
+
 ---
 
 ## 2. 技術選型
