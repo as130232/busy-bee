@@ -7,8 +7,8 @@
 
 ## 當前焦點
 
-Phase 3 已完成（前端 scaffold + Google 登入 + API client + Dashboard shell，登入實測通過）。
-下一步：實作 Phase 4.1 Dockerfile（multi-stage、含 ffmpeg）。
+Phase 4 部分完成（4.1 Dockerfile 已完成；4.2-4.4 暫緩，等待 production DB 決定）。
+下一步：實作 Phase 5.1 meetings 表 migration + sqlc query。
 
 ---
 
@@ -32,8 +32,8 @@ Phase 3 已完成（前端 scaffold + Google 登入 + API client + Dashboard she
 | ✅ | Phase 1 — 後端骨架與基建 | M1-A |
 | ✅ | Phase 2 — DB 與 Auth | M1-A |
 | ✅ | Phase 3 — 前端骨架與登入 | M1-A |
-| ⬜ | Phase 4 — 部署管線 | M1-A |
-| ⏸ | Phase 5 — 上傳流程 | M1-B |
+| ⏸ | Phase 4 — 部署管線 | M1-A |
+| ⬜ | Phase 5 — 上傳流程 | M1-B |
 | ⏸ | Phase 6 — 任務佇列與 STT | M1-B |
 | ⏸ | Phase 7 — WebSocket 通知 | M1-B |
 | ⏸ | Phase 8 — 錄音 UI | M1-B |
@@ -90,13 +90,14 @@ Phase 3 已完成（前端 scaffold + Google 登入 + API client + Dashboard she
 
 > 里程碑：M1-A
 > M1-A 驗收：可登入看到空 Dashboard、CI/CD 跑通。
+> 2026-07-17 起 4.2-4.4 暫緩：Supabase 免費額度已滿，production DB 待定（Neon 或 Supabase 空位）；優先開發 M1-B 核心功能（本機開發不受影響）。
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ⬜ | 4.1 | Dockerfile | `busy-bee-be/Dockerfile` | multi-stage；含 ffmpeg | — |
-| ⬜ | 4.2 | Cloud Run 部署 + Secret Manager | — | min-instances=1、CPU always allocated | — |
-| ⬜ | 4.3 | Firebase Hosting 部署 | `busy-bee-fe/firebase.json` | | — |
-| ⬜ | 4.4 | GitHub Actions CI/CD | `.github/workflows/deploy.yml` | test → build → deploy | — |
+| ✅ | 4.1 | Dockerfile | `busy-bee-be/Dockerfile` | multi-stage、非 root、含 ffmpeg；容器煙霧測試通過 | `d1ed1ce` |
+| ⏸ | 4.2 | Cloud Run 部署 + Secret Manager | — | 待 production DB 決定；首發可 min-instances=0（worker Phase 6 才需要常駐） | — |
+| ⏸ | 4.3 | Firebase Hosting 部署 | `busy-bee-fe/firebase.json` | 待 4.2（前端登入依賴後端在雲上） | — |
+| ⏸ | 4.4 | GitHub Actions CI/CD | `.github/workflows/deploy.yml` | 待 4.2；test/build 部分可先行 | — |
 
 ---
 
@@ -107,7 +108,7 @@ Phase 3 已完成（前端 scaffold + Google 登入 + API client + Dashboard she
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ⏸ | 5.1 | meetings 表 migration + query | `busy-bee-be/db/migrations/`, `busy-bee-be/db/query/meetings.sql` | 狀態機欄位；待 Phase 2 完成 | — |
+| ⬜ | 5.1 | meetings 表 migration + query | `busy-bee-be/db/migrations/`, `busy-bee-be/db/query/meetings.sql` | 狀態機欄位 + remind_before_min | — |
 | ⏸ | 5.2 | GCS infra | `busy-bee-be/infrastructure/gcs/` | signed URL 產生（大小/類型限制）、下載 | — |
 | ⏸ | 5.3 | POST /meetings | `busy-bee-be/interface/http/handler/meeting/`, `busy-bee-be/application/meeting/create.go` | 建記錄 + 回 signed URL | — |
 | ⏸ | 5.4 | POST /meetings/{id}/complete-upload | 同上 | 驗證物件存在 → 狀態 pending | — |
@@ -246,6 +247,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-17 | Phase 1 全部完成（1.1–1.6：骨架、apperr、config、server、response、compose）；TDD 全程；分支 feat/phase-1-backend-skeleton | `8cec0df..9fd11b5` |
 | 2026-07-17 | Phase 2 全部完成（2.1–2.6：migrations、sqlc、WithTx、auth 白名單、/users/sync、openapi）；分支 feat/phase-2-db-auth | `0d560c1..ee6a642` |
 | 2026-07-17 | Phase 3 全部完成（3.1–3.4：scaffold、Google 登入、API client、Dashboard）；Firebase 專案 busy-bee-502710 建立；登入人工驗收通過 | `41de695..f9d77f4` |
+| 2026-07-17 | Phase 4.1 Dockerfile 完成；4.2-4.4 暫緩（Supabase 額度滿，production DB 待定）；決策：優先開發 M1-B 核心功能 | `d1ed1ce` |
 
 ---
 

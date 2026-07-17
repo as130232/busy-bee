@@ -29,7 +29,7 @@
 |------|------|---------|
 | 後端語言 | Go 1.26 | 與 sport-hub 一致，開發者主力語言 |
 | HTTP framework | Gin v1.12.x | 與 sport-hub 一致，middleware 生態完整 |
-| 資料庫 | PostgreSQL（Cloud SQL） | 關聯資料 + 未來 pgvector 升級路徑 |
+| 資料庫 | PostgreSQL（本地 Docker；production 託管待定：Neon / Supabase 空位） | 關聯資料 + 未來 pgvector 升級路徑；原 Cloud SQL 方案因成本改免費託管 |
 | DB 存取 | sqlc + pgx v5 | Type-safe SQL，無 ORM（ADR-005） |
 | Migration | golang-migrate | CLI + embedded，CI 可跑 |
 | 任務佇列 | Asynq + Redis | 持久化、retry、延遲任務三合一（ADR-003） |
@@ -272,6 +272,7 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 
 | 項目 | 狀態 | 理由 | 對應 PLAN.md |
 |------|------|------|-------------|
+| Production 部署（Cloud Run / Hosting / CI-CD） | ⏸ 暫緩 | Supabase 免費額度滿，production DB 待定（Neon 或 Supabase 空位）；本機開發不受影響 | Phase 4.2-4.4 ⏸ |
 | OTel tracing / circuit breaker / singleflight / L1L2 快取 | ⏸ 暫緩 | sport-hub 的進階模式，本專案流量不需要，避免過度設計 | — |
 | 即時逐字稿 streaming | ⏸ 暫緩 | WebSocket 架構已預留；等 MVP 驗證後再評估 | — |
 | pgvector 語意搜尋 | ⏸ 暫緩 | post-MVP 升級路徑，見 ADR-006 | — |
