@@ -2,7 +2,7 @@
 
 > 最後更新：2026-07-17
 >
-> **注意**：本文件描述已核准的目標架構。標有**（計畫中，尚未實作）**的模組尚未完成；隨 `docs/PLAN.md` 各 Phase 完成後逐步移除標註並補實作細節。Phase 1（骨架 / apperr / config / response / compose）已實作。
+> **注意**：本文件描述已核准的目標架構。標有**（計畫中，尚未實作）**的模組尚未完成；隨 `docs/PLAN.md` 各 Phase 完成後逐步移除標註並補實作細節。Phase 1-2（骨架 / apperr / config / response / compose / migrations / auth 白名單 / users-sync）已實作。
 
 ---
 
@@ -284,7 +284,6 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 
 | 項目 | 規劃位置 | 對應 PRODUCT.md | 預計 Phase |
 |------|---------|----------------|----------|
-| users 表 + auth middleware + /users/sync | `busy-bee-be/db/`, `busy-bee-be/interface/http/middleware/` | F-AUTH | Phase 2 |
 | 前端登入 + Dashboard | `busy-bee-fe/src/` | F-AUTH | Phase 3 |
 | CI/CD + Cloud Run + Hosting | `.github/workflows/`, `busy-bee-be/Dockerfile` | — | Phase 4 |
 | GCS signed URL 上傳流程 | `busy-bee-be/infrastructure/gcs/` | F-UPLOAD | Phase 5 |

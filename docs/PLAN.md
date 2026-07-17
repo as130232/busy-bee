@@ -7,8 +7,8 @@
 
 ## 當前焦點
 
-Phase 1 已完成（後端骨架 + 基建 + 本地環境）。
-下一步：實作 Phase 2.1 migrations 骨架 + users 表（golang-migrate）。
+Phase 2 已完成（DB + Firebase Auth + /users/sync + OpenAPI 初版）。
+下一步：實作 Phase 3.1 Vite React PWA scaffold；動工前需先建立 Firebase 專案（console 手動步驟）。
 
 ---
 
@@ -30,7 +30,7 @@ Phase 1 已完成（後端骨架 + 基建 + 本地環境）。
 | 狀態 | 階段 | 里程碑 |
 |------|------|--------|
 | ✅ | Phase 1 — 後端骨架與基建 | M1-A |
-| ⬜ | Phase 2 — DB 與 Auth | M1-A |
+| ✅ | Phase 2 — DB 與 Auth | M1-A |
 | ⬜ | Phase 3 — 前端骨架與登入 | M1-A |
 | ⬜ | Phase 4 — 部署管線 | M1-A |
 | ⏸ | Phase 5 — 上傳流程 | M1-B |
@@ -60,18 +60,17 @@ Phase 1 已完成（後端骨架 + 基建 + 本地環境）。
 ---
 
 ## Phase 2：DB 與 Auth（F-AUTH）
-
-> 里程碑：M1-A
+> 里程碑：M1-A | ✅ 完成於 2026-07-17
 > 資料庫接入與 Firebase 身份驗證，完成用戶同步。
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ⬜ | 2.1 | migrations 骨架 + users 表 | `busy-bee-be/db/migrations/` | golang-migrate；uuid PK、firebase_uid UK | — |
-| ⬜ | 2.2 | sqlc 設定 + users query | `busy-bee-be/db/sqlc.yaml`, `busy-bee-be/db/query/users.sql` | 產出至 infrastructure/db/sqlcgen | — |
-| ⬜ | 2.3 | pgx pool + WithTx helper | `busy-bee-be/infrastructure/db/` | transaction boundary 供 application 層用 | — |
-| ⬜ | 2.4 | Firebase auth middleware | `busy-bee-be/interface/http/middleware/auth.go` | Admin SDK 驗 JWT + email 白名單檢查（env），user 注入 ctx | — |
-| ⬜ | 2.5 | POST /users/sync | `busy-bee-be/interface/http/handler/user/` | 以 firebase_uid upsert；非白名單回 403 | — |
-| ⬜ | 2.6 | openapi.yaml 初版 | `busy-bee-be/api/openapi.yaml` | health + users/sync；後續 endpoint 先寫 spec | — |
+| ✅ | 2.1 | migrations 骨架 + users 表 | `busy-bee-be/db/migrations/` | embedded + cmd/migrate；up/down 實測可逆 | `0d560c1` |
+| ✅ | 2.2 | sqlc 設定 + users query | `busy-bee-be/db/sqlc.yaml`, `busy-bee-be/db/query/users.sql` | upsert by firebase_uid；產出 sqlcgen | `fa9237f` |
+| ✅ | 2.3 | pgx pool + WithTx helper | `busy-bee-be/infrastructure/db/` | commit/rollback/panic 皆有整合測試 | `d4978ef` |
+| ✅ | 2.4 | Firebase auth middleware | `busy-bee-be/interface/http/middleware/auth.go` | TokenVerifier port；白名單 fail-closed、大小寫不敏感 | `460edd7` |
+| ✅ | 2.5 | POST /users/sync | `busy-bee-be/interface/http/handler/user/` | Deps 注入組裝；200/401 煙霧測試通過 | `4a0c408` |
+| ✅ | 2.6 | openapi.yaml 初版 | `busy-bee-be/api/openapi.yaml` | health + users/sync + Envelope schema | `ee6a642` |
 
 ---
 
@@ -246,6 +245,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
 | 2026-07-17 | Phase 1 全部完成（1.1–1.6：骨架、apperr、config、server、response、compose）；TDD 全程；分支 feat/phase-1-backend-skeleton | `8cec0df..9fd11b5` |
+| 2026-07-17 | Phase 2 全部完成（2.1–2.6：migrations、sqlc、WithTx、auth 白名單、/users/sync、openapi）；分支 feat/phase-2-db-auth | `0d560c1..ee6a642` |
 
 ---
 
