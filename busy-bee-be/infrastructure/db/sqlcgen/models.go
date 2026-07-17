@@ -10,6 +10,22 @@ import (
 	"github.com/google/uuid"
 )
 
+type Meeting struct {
+	ID              uuid.UUID
+	UserID          uuid.UUID
+	Title           string
+	AudioGcsPath    string
+	Status          string
+	Transcript      string
+	DurationSeconds int32
+	ErrorMessage    string
+	ScheduledAt     *time.Time
+	RemindBeforeMin int32
+	ProcessedAt     *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type User struct {
 	ID          uuid.UUID
 	FirebaseUid string
