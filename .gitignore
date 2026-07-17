@@ -1,0 +1,18 @@
+# env
+.env
+.env.local
+.env.*.local
+
+# Go
+busy-bee-be/bin/
+*.test
+*.out
+
+# Node
+node_modules/
+busy-bee-fe/dist/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
