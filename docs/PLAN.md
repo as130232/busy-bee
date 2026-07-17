@@ -69,8 +69,8 @@
 | ⬜ | 2.1 | migrations 骨架 + users 表 | `busy-bee-be/db/migrations/` | golang-migrate；uuid PK、firebase_uid UK | — |
 | ⬜ | 2.2 | sqlc 設定 + users query | `busy-bee-be/db/sqlc.yaml`, `busy-bee-be/db/query/users.sql` | 產出至 infrastructure/db/sqlcgen | — |
 | ⬜ | 2.3 | pgx pool + WithTx helper | `busy-bee-be/infrastructure/db/` | transaction boundary 供 application 層用 | — |
-| ⬜ | 2.4 | Firebase auth middleware | `busy-bee-be/interface/http/middleware/auth.go` | Admin SDK 驗 JWT，user 注入 ctx | — |
-| ⬜ | 2.5 | POST /users/sync | `busy-bee-be/interface/http/handler/user/` | 以 firebase_uid upsert | — |
+| ⬜ | 2.4 | Firebase auth middleware | `busy-bee-be/interface/http/middleware/auth.go` | Admin SDK 驗 JWT + email 白名單檢查（env），user 注入 ctx | — |
+| ⬜ | 2.5 | POST /users/sync | `busy-bee-be/interface/http/handler/user/` | 以 firebase_uid upsert；非白名單回 403 | — |
 | ⬜ | 2.6 | openapi.yaml 初版 | `busy-bee-be/api/openapi.yaml` | health + users/sync；後續 endpoint 先寫 spec | — |
 
 ---
@@ -202,8 +202,8 @@
 | ⏸ | 11.1 | push_subscriptions 表 + 訂閱 API | `busy-bee-be/db/migrations/`, handler | 待 Phase 4 完成（需 HTTPS 環境） | — |
 | ⏸ | 11.2 | VAPID key + web-push 發送 | `busy-bee-be/infrastructure/` | private key 存 Secret Manager | — |
 | ⏸ | 11.3 | SW push handler + 前端訂閱 | `busy-bee-fe/public/sw.js` | iOS 限制載明於 UI | — |
-| ⏸ | 11.4 | scheduled meeting CRUD | 前後端 | scheduled 狀態的未來會議 | — |
-| ⏸ | 11.5 | ProcessAt 延遲提醒排程 | `busy-bee-be/infrastructure/queue/` | 變更時取消重排 | — |
+| ⏸ | 11.4 | scheduled meeting CRUD | 前後端 | scheduled 狀態的未來會議；提醒提前時間可設定（預設 15 分） | — |
+| ⏸ | 11.5 | ProcessAt 延遲提醒排程 | `busy-bee-be/infrastructure/queue/` | scheduled_at 或提前時間變更時取消重排 | — |
 
 ---
 

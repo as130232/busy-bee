@@ -102,6 +102,7 @@ type Meeting struct {
     DurationSeconds int
     ErrorMessage    string
     ScheduledAt     *time.Time
+    RemindBeforeMin int      // 提醒提前分鐘數，預設 15（PRODUCT.md Q3）
     ProcessedAt     *time.Time
 }
 ```
