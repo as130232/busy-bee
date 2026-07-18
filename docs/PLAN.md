@@ -7,8 +7,8 @@
 
 ## 當前焦點
 
-Phase 4 部分完成（4.1 Dockerfile 已完成；4.2-4.4 暫緩，等待 production DB 決定）。
-下一步：實作 Phase 5.1 meetings 表 migration + sqlc query。
+Phase 5 已完成（三段式 GCS 直傳鏈路，上傳實測通過）。
+下一步：實作 Phase 6.1 Asynq client/server 接入（需 Groq API key 於 6.3 前備妥）。
 
 ---
 
@@ -33,8 +33,8 @@ Phase 4 部分完成（4.1 Dockerfile 已完成；4.2-4.4 暫緩，等待 produc
 | ✅ | Phase 2 — DB 與 Auth | M1-A |
 | ✅ | Phase 3 — 前端骨架與登入 | M1-A |
 | ⏸ | Phase 4 — 部署管線 | M1-A |
-| ⬜ | Phase 5 — 上傳流程 | M1-B |
-| ⏸ | Phase 6 — 任務佇列與 STT | M1-B |
+| ✅ | Phase 5 — 上傳流程 | M1-B |
+| ⬜ | Phase 6 — 任務佇列與 STT | M1-B |
 | ⏸ | Phase 7 — WebSocket 通知 | M1-B |
 | ⏸ | Phase 8 — 錄音 UI | M1-B |
 | ⏸ | Phase 9 — LLM 文件生成 | M2-A |
@@ -102,18 +102,17 @@ Phase 4 部分完成（4.1 Dockerfile 已完成；4.2-4.4 暫緩，等待 produc
 ---
 
 ## Phase 5：上傳流程（F-UPLOAD）
-
-> 里程碑：M1-B
+> 里程碑：M1-B | ✅ 完成於 2026-07-18
 > GCS signed URL 三段式直傳（詳見 ARCHITECTURE.md ADR-001）。
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ⬜ | 5.1 | meetings 表 migration + query | `busy-bee-be/db/migrations/`, `busy-bee-be/db/query/meetings.sql` | 狀態機欄位 + remind_before_min | — |
-| ⏸ | 5.2 | GCS infra | `busy-bee-be/infrastructure/gcs/` | signed URL 產生（大小/類型限制）、下載 | — |
-| ⏸ | 5.3 | POST /meetings | `busy-bee-be/interface/http/handler/meeting/`, `busy-bee-be/application/meeting/create.go` | 建記錄 + 回 signed URL | — |
-| ⏸ | 5.4 | POST /meetings/{id}/complete-upload | 同上 | 驗證物件存在 → 狀態 pending | — |
-| ⏸ | 5.5 | GCS bucket CORS 設定 | — | 允許 FE domain；lifecycle 規則 | — |
-| ⏸ | 5.6 | 拖曳/選檔上傳 UI | `busy-bee-fe/src/components/` | 直傳 GCS + 進度顯示 + 失敗重試 | — |
+| ✅ | 5.1 | meetings 表 migration + query | `busy-bee-be/db/migrations/`, `busy-bee-be/db/query/meetings.sql` | 狀態機 + 樂觀鎖 UpdateStatus + owner-only | `324273c` |
+| ✅ | 5.2 | GCS infra | `busy-bee-be/infrastructure/gcs/` | IAM impersonation 簽名（零金鑰檔）；真實上傳整合測試 | `cb5496b` |
+| ✅ | 5.3 | POST /meetings | `busy-bee-be/application/meeting/create.go` | 建記錄（scheduled）+ signed URL；content-type 白名單 | `30197a3` |
+| ✅ | 5.4 | POST /meetings/{id}/complete-upload | `busy-bee-be/application/meeting/complete_upload.go` | 驗物件存在 → pending；冪等；ResolveUser middleware | `30197a3` |
+| ✅ | 5.5 | GCS bucket CORS 設定 | — | bucket busy-bee-502710-audio（asia-east1）+ CORS，併入 5.2 | `cb5496b` |
+| ✅ | 5.6 | 拖曳/選檔上傳 UI | `busy-bee-fe/src/components/UploadZone.tsx` | XHR 進度 + 失敗重試；上傳實測通過 | `a0876cf` |
 
 ---
 
@@ -248,6 +247,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-17 | Phase 2 全部完成（2.1–2.6：migrations、sqlc、WithTx、auth 白名單、/users/sync、openapi）；分支 feat/phase-2-db-auth | `0d560c1..ee6a642` |
 | 2026-07-17 | Phase 3 全部完成（3.1–3.4：scaffold、Google 登入、API client、Dashboard）；Firebase 專案 busy-bee-502710 建立；登入人工驗收通過 | `41de695..f9d77f4` |
 | 2026-07-17 | Phase 4.1 Dockerfile 完成；4.2-4.4 暫緩（Supabase 額度滿，production DB 待定）；決策：優先開發 M1-B 核心功能 | `d1ed1ce` |
+| 2026-07-18 | Phase 5 全部完成（5.1–5.6：狀態機、GCS impersonation 簽名、三段式上傳 API、上傳 UI）；上傳人工驗收通過 | `324273c..a0876cf` |
 
 ---
 
