@@ -11,6 +11,7 @@ import (
 	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
 	userhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/user"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/middleware"
+	"github.com/as130232/busy-bee/busy-bee-be/interface/http/ws"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/response"
 	"github.com/as130232/busy-bee/busy-bee-be/pkg/apperr"
 	"github.com/as130232/busy-bee/busy-bee-be/pkg/consts/errcode"
@@ -28,6 +29,7 @@ type Deps struct {
 	UserRepo       domainuser.Repository
 	UserHandler    *userhandler.Handler
 	MeetingHandler *meetinghandler.Handler
+	Hub            *ws.Hub
 }
 
 // NewEngine 組裝 middleware 鏈與路由。順序：Recovery 最外層 → RequestID → Logger。
@@ -59,6 +61,11 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 		authed := v1.Group("", middleware.ResolveUser(deps.UserRepo))
 		authed.POST("/meetings", deps.MeetingHandler.Create)
 		authed.POST("/meetings/:id/complete-upload", deps.MeetingHandler.CompleteUpload)
+	}
+
+	// WS 不掛 Auth middleware（瀏覽器帶不了 header），第一則訊息驗證（ADR-002）
+	if deps.Hub != nil {
+		e.GET("/api/v1/ws", deps.Hub.Handler(deps.Verifier, deps.UserRepo, cfg.Auth.AllowedEmails))
 	}
 
 	return e

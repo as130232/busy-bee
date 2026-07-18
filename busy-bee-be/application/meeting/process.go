@@ -15,13 +15,23 @@ import (
 // 各階段冪等（ADR-009）：已有產物的階段直接跳過，retry 不重複呼叫外部 API。
 // 失敗時回傳錯誤交由 Asynq retry；標記 failed 是 worker 在最後一次重試後的決定（MarkFailed）。
 type ProcessUC struct {
-	repo    domainmeeting.Repository
-	storage domainmeeting.AudioStorage
-	stt     domainmeeting.STTClient
+	repo     domainmeeting.Repository
+	storage  domainmeeting.AudioStorage
+	stt      domainmeeting.STTClient
+	notifier domainmeeting.StatusNotifier
 }
 
-func NewProcessUC(repo domainmeeting.Repository, storage domainmeeting.AudioStorage, stt domainmeeting.STTClient) *ProcessUC {
-	return &ProcessUC{repo: repo, storage: storage, stt: stt}
+func NewProcessUC(repo domainmeeting.Repository, storage domainmeeting.AudioStorage, stt domainmeeting.STTClient, notifier domainmeeting.StatusNotifier) *ProcessUC {
+	return &ProcessUC{repo: repo, storage: storage, stt: stt, notifier: notifier}
+}
+
+func (uc *ProcessUC) notify(ctx context.Context, m domainmeeting.Meeting) {
+	uc.notifier.NotifyStatus(ctx, domainmeeting.StatusEvent{
+		MeetingID:    m.ID,
+		UserID:       m.UserID,
+		Status:       m.Status,
+		ErrorMessage: m.ErrorMessage,
+	})
 }
 
 func (uc *ProcessUC) Execute(ctx context.Context, meetingID uuid.UUID) error {
@@ -44,6 +54,7 @@ func (uc *ProcessUC) Execute(ctx context.Context, meetingID uuid.UUID) error {
 		if m, err = uc.repo.UpdateStatus(ctx, m.ID, domainmeeting.StatusPending, domainmeeting.StatusTranscribing); err != nil {
 			return fmt.Errorf("process to transcribing: %w", err)
 		}
+		uc.notify(ctx, m)
 		slog.InfoContext(ctx, "meeting.process.transcribing", "meeting_id", m.ID)
 	}
 
@@ -68,21 +79,25 @@ func (uc *ProcessUC) Execute(ctx context.Context, meetingID uuid.UUID) error {
 		if m, err = uc.repo.UpdateStatus(ctx, m.ID, domainmeeting.StatusTranscribing, domainmeeting.StatusAnalyzing); err != nil {
 			return fmt.Errorf("process to analyzing: %w", err)
 		}
+		uc.notify(ctx, m)
 	}
 
 	// analyzing 階段：LLM 文件生成於 Phase 9 接入，目前直接完成（僅逐字稿）
-	if _, err = uc.repo.SetCompleted(ctx, m.ID); err != nil {
+	if m, err = uc.repo.SetCompleted(ctx, m.ID); err != nil {
 		return fmt.Errorf("process set completed: %w", err)
 	}
+	uc.notify(ctx, m)
 	slog.InfoContext(ctx, "meeting.process.completed", "meeting_id", m.ID)
 	return nil
 }
 
 // MarkFailed 由 worker 在最後一次重試失敗後呼叫。
 func (uc *ProcessUC) MarkFailed(ctx context.Context, meetingID uuid.UUID, cause error) {
-	if _, err := uc.repo.SetFailed(ctx, meetingID, cause.Error()); err != nil {
+	m, err := uc.repo.SetFailed(ctx, meetingID, cause.Error())
+	if err != nil {
 		slog.ErrorContext(ctx, "meeting.process.mark_failed_error", "meeting_id", meetingID, "err", err)
 		return
 	}
+	uc.notify(ctx, m)
 	slog.WarnContext(ctx, "meeting.process.failed", "meeting_id", meetingID, "cause", cause)
 }

@@ -21,6 +21,7 @@ import (
 	httpserver "github.com/as130232/busy-bee/busy-bee-be/interface/http"
 	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
 	userhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/user"
+	"github.com/as130232/busy-bee/busy-bee-be/interface/http/ws"
 	"github.com/as130232/busy-bee/busy-bee-be/worker"
 )
 
@@ -61,9 +62,12 @@ func main() {
 	userRepo := db.NewUserRepo(pool)
 	meetingRepo := db.NewMeetingRepo(pool)
 
+	hub := ws.NewHub()
+	defer hub.Close()
+
 	// 記憶體佇列（ADR-010）：worker 與 HTTP 同 binary；重啟遺失由 Sweeper 掃 DB 復原
 	sttClient := stt.New(cfg.Groq.APIKey)
-	processUC := appmeeting.NewProcessUC(meetingRepo, audioStorage, sttClient)
+	processUC := appmeeting.NewProcessUC(meetingRepo, audioStorage, sttClient, hub)
 	taskQueue := queue.NewMemory(256, queue.DefaultRetryDelays)
 	taskQueue.Start(ctx, 2, processUC.Execute, processUC.MarkFailed) // 外部 API bound，低併發
 
@@ -79,6 +83,7 @@ func main() {
 			appmeeting.NewCreateUC(meetingRepo, audioStorage),
 			appmeeting.NewCompleteUploadUC(meetingRepo, audioStorage, taskQueue),
 		),
+		Hub: hub,
 	}
 	srv := httpserver.NewServer(cfg, deps)
 

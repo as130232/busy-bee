@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -14,12 +15,12 @@ import (
 
 // processFakeRepo 模擬 repo 狀態流轉，記錄呼叫軌跡。
 type processFakeRepo struct {
-	meeting        domainmeeting.Meeting
-	transitions    []string
-	savedText      string
-	savedDuration  int
-	completedCall  bool
-	failedMessage  string
+	meeting       domainmeeting.Meeting
+	transitions   []string
+	savedText     string
+	savedDuration int
+	completedCall bool
+	failedMessage string
 }
 
 func (f *processFakeRepo) Create(_ context.Context, m domainmeeting.Meeting) (domainmeeting.Meeting, error) {
@@ -56,6 +57,7 @@ func (f *processFakeRepo) SetCompleted(_ context.Context, _ uuid.UUID) (domainme
 func (f *processFakeRepo) SetFailed(_ context.Context, _ uuid.UUID, msg string) (domainmeeting.Meeting, error) {
 	f.failedMessage = msg
 	f.meeting.Status = domainmeeting.StatusFailed
+	f.meeting.ErrorMessage = msg
 	return f.meeting, nil
 }
 
@@ -93,17 +95,39 @@ func (f *fakeSTT) Transcribe(_ context.Context, _ io.Reader, _ int64, filename s
 func newProcessMeeting(status domainmeeting.Status, transcript string) domainmeeting.Meeting {
 	return domainmeeting.Meeting{
 		ID:           uuid.New(),
+		UserID:       uuid.New(),
 		Status:       status,
 		Transcript:   transcript,
 		AudioGCSPath: "audio/u/m.webm",
 	}
 }
 
+type fakeNotifier struct {
+	mu     sync.Mutex
+	events []domainmeeting.StatusEvent
+}
+
+func (f *fakeNotifier) NotifyStatus(_ context.Context, e domainmeeting.StatusEvent) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.events = append(f.events, e)
+}
+
+func (f *fakeNotifier) statuses() []domainmeeting.Status {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]domainmeeting.Status, len(f.events))
+	for i, e := range f.events {
+		out[i] = e.Status
+	}
+	return out
+}
+
 func TestProcess_FullPipelineFromPending(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusPending, "")}
 	st := &processFakeStorage{content: "audio-bytes"}
 	stt := &fakeSTT{result: domainmeeting.TranscribeResult{Text: "會議逐字稿", DurationSeconds: 65}}
-	uc := NewProcessUC(repo, st, stt)
+	uc := NewProcessUC(repo, st, stt, &fakeNotifier{})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
 		t.Fatalf("Execute() error = %v", err)
@@ -127,7 +151,7 @@ func TestProcess_FullPipelineFromPending(t *testing.T) {
 func TestProcess_CompletedIsIdempotentNoop(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusCompleted, "done")}
 	stt := &fakeSTT{}
-	uc := NewProcessUC(repo, &processFakeStorage{}, stt)
+	uc := NewProcessUC(repo, &processFakeStorage{}, stt, &fakeNotifier{})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
 		t.Fatalf("Execute() on completed = %v, want nil", err)
@@ -144,7 +168,7 @@ func TestProcess_RetrySkipsSTTWhenTranscriptExists(t *testing.T) {
 	// 模擬上次跑到一半失敗重試：已在 transcribing 且 transcript 已存在
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusTranscribing, "既有逐字稿")}
 	stt := &fakeSTT{}
-	uc := NewProcessUC(repo, &processFakeStorage{}, stt)
+	uc := NewProcessUC(repo, &processFakeStorage{}, stt, &fakeNotifier{})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
 		t.Fatalf("Execute() error = %v", err)
@@ -160,7 +184,7 @@ func TestProcess_RetrySkipsSTTWhenTranscriptExists(t *testing.T) {
 func TestProcess_STTErrorPropagates(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusPending, "")}
 	boom := errors.New("groq 500")
-	uc := NewProcessUC(repo, &processFakeStorage{content: "x"}, &fakeSTT{err: boom})
+	uc := NewProcessUC(repo, &processFakeStorage{content: "x"}, &fakeSTT{err: boom}, &fakeNotifier{})
 
 	err := uc.Execute(context.Background(), repo.meeting.ID)
 	if !errors.Is(err, boom) {
@@ -173,7 +197,7 @@ func TestProcess_STTErrorPropagates(t *testing.T) {
 
 func TestProcess_ScheduledNotReady(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusScheduled, "")}
-	uc := NewProcessUC(repo, &processFakeStorage{}, &fakeSTT{})
+	uc := NewProcessUC(repo, &processFakeStorage{}, &fakeSTT{}, &fakeNotifier{})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err == nil {
 		t.Fatal("Execute() on scheduled meeting should error (audio not confirmed)")
@@ -182,7 +206,7 @@ func TestProcess_ScheduledNotReady(t *testing.T) {
 
 func TestMarkFailed_RecordsMessage(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusTranscribing, "")}
-	uc := NewProcessUC(repo, &processFakeStorage{}, &fakeSTT{})
+	uc := NewProcessUC(repo, &processFakeStorage{}, &fakeSTT{}, &fakeNotifier{})
 
 	uc.MarkFailed(context.Background(), repo.meeting.ID, errors.New("groq unreachable"))
 
@@ -193,4 +217,50 @@ func TestMarkFailed_RecordsMessage(t *testing.T) {
 
 func (f *processFakeRepo) ListUnfinishedIDs(_ context.Context) ([]uuid.UUID, error) {
 	return nil, nil
+}
+
+func TestProcess_EmitsStatusEvents(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusPending, "")}
+	st := &processFakeStorage{content: "audio"}
+	stt := &fakeSTT{result: domainmeeting.TranscribeResult{Text: "t", DurationSeconds: 5}}
+	n := &fakeNotifier{}
+	uc := NewProcessUC(repo, st, stt, n)
+
+	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	want := []domainmeeting.Status{
+		domainmeeting.StatusTranscribing,
+		domainmeeting.StatusAnalyzing,
+		domainmeeting.StatusCompleted,
+	}
+	got := n.statuses()
+	if len(got) != len(want) {
+		t.Fatalf("events = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("event[%d] = %s, want %s", i, got[i], want[i])
+		}
+	}
+	if n.events[0].UserID != repo.meeting.UserID {
+		t.Error("event missing UserID (hub 需要它路由到正確用戶)")
+	}
+}
+
+func TestMarkFailed_EmitsFailedEvent(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusTranscribing, "")}
+	n := &fakeNotifier{}
+	uc := NewProcessUC(repo, &processFakeStorage{}, &fakeSTT{}, n)
+
+	uc.MarkFailed(context.Background(), repo.meeting.ID, errors.New("boom"))
+
+	got := n.statuses()
+	if len(got) != 1 || got[0] != domainmeeting.StatusFailed {
+		t.Fatalf("events = %v, want [failed]", got)
+	}
+	if n.events[0].ErrorMessage == "" {
+		t.Error("failed event should carry error message")
+	}
 }
