@@ -7,8 +7,8 @@
 
 ## 當前焦點
 
-Phase 9 已完成（Gemini 生成 PRD + Tech Spec，e2e 真實生成驗證通過，防幻覺規則生效）。
-下一步：實作 Phase 10.1 meetings list/detail API（讓逐字稿與文件在 UI 可見）。
+Phase 10 已完成（列表/搜尋/詳情/retry，UI 可見文件；逐字稿去重修正）。M2-A 里程碑達成（MVP 核心流程完整）。
+下一步：實作 Phase 8.1 useRecorder hook（瀏覽器錄音，M1-B 最後一塊）。
 
 ---
 
@@ -39,7 +39,7 @@ Phase 9 已完成（Gemini 生成 PRD + Tech Spec，e2e 真實生成驗證通過
 | ✅ | Phase 7 — WebSocket 通知 | M1-B |
 | ⏸ | Phase 8 — 錄音 UI | M1-B |
 | ✅ | Phase 9 — LLM 文件生成 | M2-A |
-| ⏸ | Phase 10 — 歷史與搜尋 | M2-A |
+| ✅ | Phase 10 — 歷史與搜尋 | M2-A |
 | ⏸ | Phase 11 — 提醒與推播 | M2-B |
 | ⏸ | Phase 12 — Production 完善 | M2-B |
 
@@ -193,11 +193,12 @@ Phase 9 已完成（Gemini 生成 PRD + Tech Spec，e2e 真實生成驗證通過
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ⏸ | 10.1 | meetings list/detail API | `busy-bee-be/interface/http/handler/meeting/` | 一律 user_id 過濾；待 Phase 9 | — |
-| ⏸ | 10.2 | ILIKE 搜尋 API | `busy-bee-be/application/meeting/search.go` | title + transcript | — |
-| ⏸ | 10.3 | 列表/詳情 UI + Markdown 渲染 | `busy-bee-fe/src/pages/` | | — |
-| ⏸ | 10.4 | 搜尋 UI | `busy-bee-fe/src/components/` | | — |
-| ⏸ | 10.5 | 失敗會議顯示 + 手動 retry | 前後端 | 重新 enqueue | — |
+| ✅ | 10.1 | meetings list/detail API | `busy-bee-be/application/meeting/list.go` | owner-only；列表不含 transcript | `5eeb122` |
+| ✅ | 10.2 | ILIKE 搜尋 API | `busy-bee-be/db/query/meetings.sql` | title + transcript；跨用戶隔離整合測試 | `5eeb122` |
+| ✅ | 10.3 | 列表/詳情 UI + Markdown 渲染 | `busy-bee-fe/src/pages/MeetingDetailPage.tsx` | PRD/TechSpec/逐字稿三頁籤；WS 事件自動刷新 | `16fcd89` |
+| ✅ | 10.4 | 搜尋 UI | `busy-bee-fe/src/pages/DashboardPage.tsx` | 防抖 300ms | `16fcd89` |
+| ✅ | 10.5 | 失敗會議顯示 + 手動 retry | 前後端 | failed→pending 樂觀鎖 + 重新入列 | `5eeb122, 16fcd89` |
+| ✅ | 10.6 | 逐字稿去重修正 | `busy-bee-be/infrastructure/stt/client.go` | 分段組稿去除 Whisper 相鄰重複幻覺；實測驗證 | `2f8a98d` |
 
 ---
 
@@ -262,6 +263,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-18 | Phase 6R 完成：ADR-010 移除 Redis（記憶體佇列 + Sweeper）；無 Redis e2e 復原驗證通過 | `b64bcb2` |
 | 2026-07-18 | Phase 7 完成（hub + 首訊驗證 + 事件發布 + 前端即時更新）；人工驗收通過；決定開發順序調整為 9 → 10 → 8 | `275ea01..60e25d8` |
 | 2026-07-18 | Phase 9 完成（artifacts、Gemini client、雙模板、冪等生成、查詢 API）；模型名修正為 gemini-3-flash-preview；真實生成 e2e 通過 | `369234b..cfd2833` |
+| 2026-07-19 | Phase 10 完成（list/search/detail/retry API + UI、逐字稿去重）；M2-A 達成；人工驗收通過 | `5eeb122..2f8a98d` |
 
 ---
 
