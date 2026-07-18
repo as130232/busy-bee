@@ -10,6 +10,14 @@ import (
 	"github.com/google/uuid"
 )
 
+type Artifact struct {
+	ID           uuid.UUID
+	MeetingID    uuid.UUID
+	ArtifactType string
+	Content      string
+	CreatedAt    time.Time
+}
+
 type Meeting struct {
 	ID              uuid.UUID
 	UserID          uuid.UUID
