@@ -7,8 +7,8 @@
 
 ## 當前焦點
 
-Phase 8 已完成（瀏覽器錄音，錄音→STT→文件全鏈路人工驗收通過）。M1-B + M2-A 全數達成。
-下一步：恢復 Phase 4（部署）——待 production DB 決定（Neon 或 Supabase 空位）；或先做 Phase 12 完善。
+Phase 4 部署完成（Neon DB + Cloud Run + Firebase Hosting，production 上線：https://busy-bee-502710.web.app）。
+下一步：4.4 GitHub Actions CI/CD；之後 Phase 12 完善、Phase 11 提醒推播。
 
 ---
 
@@ -91,14 +91,14 @@ Phase 8 已完成（瀏覽器錄音，錄音→STT→文件全鏈路人工驗收
 
 > 里程碑：M1-A
 > M1-A 驗收：可登入看到空 Dashboard、CI/CD 跑通。
-> 2026-07-17 起 4.2-4.4 暫緩：Supabase 免費額度已滿，production DB 待定（Neon 或 Supabase 空位）；優先開發 M1-B 核心功能（本機開發不受影響）。
+> 2026-07-19 恢復：production DB 採 Neon 免費方案（Singapore）。上線網址 https://busy-bee-502710.web.app；API https://busy-bee-api-897794325314.asia-east1.run.app。
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ✅ | 4.1 | Dockerfile | `busy-bee-be/Dockerfile` | multi-stage、非 root、含 ffmpeg；容器煙霧測試通過 | `d1ed1ce` |
-| ⏸ | 4.2 | Cloud Run 部署 + Secret Manager | — | 待 production DB 決定；首發可 min-instances=0（worker Phase 6 才需要常駐） | — |
-| ⏸ | 4.3 | Firebase Hosting 部署 | `busy-bee-fe/firebase.json` | 待 4.2（前端登入依賴後端在雲上） | — |
-| ⏸ | 4.4 | GitHub Actions CI/CD | `.github/workflows/deploy.yml` | 待 4.2；test/build 部分可先行 | — |
+| ✅ | 4.1 | Dockerfile | `busy-bee-be/Dockerfile` | multi-stage、非 root、含 ffmpeg；交叉編譯避開 QEMU panic | `d1ed1ce, f4fb15d` |
+| ✅ | 4.2 | Cloud Run 部署 + Secret Manager | — | Neon migration v3；三 secrets；min-instances=1 + no-cpu-throttling；runtime SA = busy-bee-storage（self signBlob） | — |
+| ✅ | 4.3 | Firebase Hosting 部署 | `busy-bee-fe/firebase.json` | /api rewrite → Cloud Run；WS 直連（VITE_WS_BASE）；bucket CORS 加 hosting domains | `f4fb15d` |
+| ⬜ | 4.4 | GitHub Actions CI/CD | `.github/workflows/deploy.yml` | WIF + test/build/deploy | — |
 
 ---
 
@@ -265,6 +265,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-18 | Phase 9 完成（artifacts、Gemini client、雙模板、冪等生成、查詢 API）；模型名修正為 gemini-3-flash-preview；真實生成 e2e 通過 | `369234b..cfd2833` |
 | 2026-07-19 | Phase 10 完成（list/search/detail/retry API + UI、逐字稿去重）；M2-A 達成；人工驗收通過 | `5eeb122..2f8a98d` |
 | 2026-07-19 | Phase 8 完成（useRecorder + RecorderPanel）；錄音→STT→文件全鏈路人工驗收通過；M1-B 達成 | `cc151fc` |
+| 2026-07-19 | Phase 4 部署完成（Neon + Secret Manager + Cloud Run + Hosting）；production 上線；4.4 CI/CD 待做 | `f4fb15d` |
 
 ---
 

@@ -29,7 +29,7 @@
 |------|------|---------|
 | 後端語言 | Go 1.26 | 與 sport-hub 一致，開發者主力語言 |
 | HTTP framework | Gin v1.12.x | 與 sport-hub 一致，middleware 生態完整 |
-| 資料庫 | PostgreSQL（本地 Docker；production 託管待定：Neon / Supabase 空位） | 關聯資料 + 未來 pgvector 升級路徑；原 Cloud SQL 方案因成本改免費託管 |
+| 資料庫 | PostgreSQL（本地 Docker；production：Neon 免費方案，Singapore） | 關聯資料 + pgvector 升級路徑；$0、直連（非 pooler，pgx prepared statement 相容） |
 | DB 存取 | sqlc + pgx v5 | Type-safe SQL，無 ORM（ADR-005） |
 | Migration | golang-migrate | CLI + embedded，CI 可跑 |
 | 任務佇列 | in-process 記憶體佇列 + DB 復原掃描 | 無 Redis、$0、單 instance 足夠（ADR-010，取代 ADR-003） |
@@ -155,7 +155,7 @@ type LLMClient interface {
 
 | 依賴 | 角色 | failover 策略 |
 |------|------|--------------|
-| Cloud SQL（PostgreSQL） | 主資料庫 | 斷線時 API 回 503；無讀寫分離（單庫） |
+| Neon（PostgreSQL，production） | 主資料庫 | 斷線時 API 回 503；scale-to-zero 喚醒由 pgx pool 重連吸收 |
 | GCS | 音訊儲存 | 斷線時無法產 signed URL → 上傳功能回 503 |
 | Groq API | STT | 記憶體佇列 backoff retry；達上限標 failed，Sweeper 週期復原 |
 | Gemini API | LLM 文件生成 | 同上；LLMClient interface 隔離，可換供應商（ADR-007） |
