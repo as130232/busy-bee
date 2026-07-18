@@ -42,7 +42,7 @@
 | 身份驗證 | Firebase Auth（Google Login） | 小團隊快速落地 |
 | 前端 | React + Vite（PWA） | |
 | 前端部署 | Firebase Hosting | |
-| 後端部署 | GCP Cloud Run | min-instances=1（ADR-004） |
+| 後端部署 | GCP Cloud Run | min-instances=0 scale-to-zero（ADR-004 修訂）+ no-cpu-throttling |
 
 ---
 
@@ -218,7 +218,7 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 
 #### ADR-004: HTTP server 與 Asynq worker 同 binary、同 Cloud Run service
 
-- **狀態**：採納（流量成長後重新評估拆分）
+- **狀態**：採納（**2026-07-19 修訂**：改 `min-instances=0`（scale-to-zero）。原常駐理由是 Asynq 需輪詢 Redis；ADR-010 改記憶體佇列 + Sweeper 後，instance 回收造成的處理中斷可由下次喚醒的 Sweeper 復原（冪等），常駐已無必要。維持 `--no-cpu-throttling` 讓 instance 存活期間背景處理有 CPU。月費 ~$12 → ~$0-2；代價：無人在線時文件生成延後到下次喚醒）
 - **背景**：Cloud Run 是 request-driven；Asynq worker 主動從 Redis 拉任務，無 HTTP 流量時 instance 被凍結，任務不會被處理。
 - **決策**：同 binary 同 service，設 `min-instances=1` + CPU always allocated。
 - **後果**：部署簡單、成本可控（單常駐 instance）；代價是 HTTP 與 worker 資源共享，重負載互相影響。
