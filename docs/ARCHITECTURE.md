@@ -2,7 +2,7 @@
 
 > 最後更新：2026-07-17
 >
-> **注意**：本文件描述已核准的目標架構。標有**（計畫中，尚未實作）**的模組尚未完成；隨 `docs/PLAN.md` 各 Phase 完成後逐步移除標註並補實作細節。Phase 1-3、5-7（後端骨架與 auth、前端登入與 Dashboard、GCS 三段式上傳、記憶體佇列 + Groq STT 管線、WS 即時狀態）已實作。
+> **注意**：本文件描述已核准的目標架構。標有**（計畫中，尚未實作）**的模組尚未完成；隨 `docs/PLAN.md` 各 Phase 完成後逐步移除標註並補實作細節。Phase 1-3、5-7、9（後端骨架與 auth、前端登入與 Dashboard、GCS 三段式上傳、記憶體佇列 + Groq STT 管線、WS 即時狀態、Gemini 文件生成）已實作。
 
 ---
 
@@ -37,7 +37,7 @@
 | Logger | slog（stdlib） | 結構化，無額外依賴 |
 | 設定管理 | env-based（.env.local） | 同 sport-hub，無 YAML |
 | STT | Groq Whisper Large v3 | 成本低、速度快、中英夾雜佳 |
-| LLM | Gemini 3.0-flash（`google.golang.org/genai`） | 已有 key；interface 隔離可抽換（ADR-007） |
+| LLM | Gemini（`google.golang.org/genai`；預設 gemini-flash-latest，env 可切 gemini-3-flash-preview） | 已有 key；interface 隔離可抽換（ADR-007） |
 | 音訊儲存 | GCS | 與 Cloud Run 同區低延遲 |
 | 身份驗證 | Firebase Auth（Google Login） | 小團隊快速落地 |
 | 前端 | React + Vite（PWA） | |
@@ -293,7 +293,6 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 |------|---------|----------------|----------|
 | CI/CD + Cloud Run + Hosting | `.github/workflows/`, `busy-bee-be/Dockerfile` | — | Phase 4 |
 | useRecorder 錄音 | `busy-bee-fe/src/hooks/` | F-RECORD | Phase 8 |
-| Gemini 文件生成 | `busy-bee-be/infrastructure/llm/` | F-DOCGEN | Phase 9 |
 | 歷史 / 搜尋 | `busy-bee-be/application/meeting/search.go` | F-HISTORY、F-SEARCH | Phase 10 |
 | Web Push 提醒 | `busy-bee-fe/public/sw.js` 等 | F-REMIND | Phase 11 |
 

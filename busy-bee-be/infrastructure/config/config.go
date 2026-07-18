@@ -92,7 +92,7 @@ func Load() (*Config, error) {
 		},
 		Gemini: GeminiConfig{
 			APIKey: lookup("GEMINI_API_KEY", ""),
-			Model:  lookup("GEMINI_MODEL", "gemini-3.0-flash"),
+			Model:  lookup("GEMINI_MODEL", "gemini-flash-latest"),
 		},
 	}, nil
 }

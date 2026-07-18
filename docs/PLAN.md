@@ -7,8 +7,8 @@
 
 ## 當前焦點
 
-Phase 7 已完成（WS 即時狀態，上傳後畫面即時流動實測通過）。
-下一步：實作 Phase 9.1 artifacts 表 + Gemini 文件生成（調整順序：9 → 10 → 8，先攻核心價值）。
+Phase 9 已完成（Gemini 生成 PRD + Tech Spec，e2e 真實生成驗證通過，防幻覺規則生效）。
+下一步：實作 Phase 10.1 meetings list/detail API（讓逐字稿與文件在 UI 可見）。
 
 ---
 
@@ -38,7 +38,7 @@ Phase 7 已完成（WS 即時狀態，上傳後畫面即時流動實測通過）
 | ✅ | Phase 6R — 佇列簡化（移除 Redis） | M1-B |
 | ✅ | Phase 7 — WebSocket 通知 | M1-B |
 | ⏸ | Phase 8 — 錄音 UI | M1-B |
-| ⏸ | Phase 9 — LLM 文件生成 | M2-A |
+| ✅ | Phase 9 — LLM 文件生成 | M2-A |
 | ⏸ | Phase 10 — 歷史與搜尋 | M2-A |
 | ⏸ | Phase 11 — 提醒與推播 | M2-B |
 | ⏸ | Phase 12 — Production 完善 | M2-B |
@@ -172,17 +172,17 @@ Phase 7 已完成（WS 即時狀態，上傳後畫面即時流動實測通過）
 ---
 
 ## Phase 9：LLM 文件生成（F-DOCGEN）
-
-> 里程碑：M2-A
+> 里程碑：M2-A | ✅ 完成於 2026-07-18
+> e2e：真實 Gemini（gemini-3-flash-preview）生成 PRD + Tech Spec；防幻覺規則生效（未討論章節標註「會議未討論」）。
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ⏸ | 9.1 | artifacts 表 migration + query | `busy-bee-be/db/migrations/`, `busy-bee-be/db/query/artifacts.sql` | 待 Phase 6 完成 | — |
-| ⏸ | 9.2 | Gemini client | `busy-bee-be/infrastructure/llm/` | 實作 domain LLMClient interface | — |
-| ⏸ | 9.3 | PRD prompt template | `busy-bee-be/infrastructure/llm/prompts/` | 章節模板依 PRODUCT.md Q2（人工必審） | — |
-| ⏸ | 9.4 | Tech Spec prompt template | 同上 | 人工必審 | — |
-| ⏸ | 9.5 | worker 整合生成階段 | `busy-bee-be/application/meeting/process.go` | analyzing 階段；冪等 | — |
-| ⏸ | 9.6 | artifacts 查詢 API | `busy-bee-be/interface/http/handler/meeting/` | | — |
+| ✅ | 9.1 | artifacts 表 migration + query | `busy-bee-be/db/migrations/`, `busy-bee-be/db/query/artifacts.sql` | UNIQUE(meeting,type) 冪等 upsert | `369234b` |
+| ✅ | 9.2 | Gemini client | `busy-bee-be/infrastructure/llm/gemini.go` | genai SDK；模型 env 可切換（預設 gemini-flash-latest） | `cfd2833` |
+| ✅ | 9.3 | PRD prompt template | `busy-bee-be/infrastructure/llm/prompts/prd.md` | Q2 七章骨架 + 防幻覺鐵則；embedded | `cfd2833` |
+| ✅ | 9.4 | Tech Spec prompt template | `busy-bee-be/infrastructure/llm/prompts/tech_spec.md` | 同上 | `cfd2833` |
+| ✅ | 9.5 | worker 整合生成階段 | `busy-bee-be/application/meeting/process.go` | 逐文件冪等（retry 只補缺的） | `cfd2833` |
+| ✅ | 9.6 | artifacts 查詢 API | `busy-bee-be/interface/http/handler/meeting/` | GET /meetings/{id}/artifacts；owner-only | `cfd2833` |
 
 ---
 
@@ -261,6 +261,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-18 | Phase 6 全部完成（6.1–6.6：Asynq、ProcessUC、Groq STT、ffmpeg、冪等、retry）；修復完成任務擋重排 bug；e2e 繁中逐字稿驗證通過 | `06c9930..e610142` |
 | 2026-07-18 | Phase 6R 完成：ADR-010 移除 Redis（記憶體佇列 + Sweeper）；無 Redis e2e 復原驗證通過 | `b64bcb2` |
 | 2026-07-18 | Phase 7 完成（hub + 首訊驗證 + 事件發布 + 前端即時更新）；人工驗收通過；決定開發順序調整為 9 → 10 → 8 | `275ea01..60e25d8` |
+| 2026-07-18 | Phase 9 完成（artifacts、Gemini client、雙模板、冪等生成、查詢 API）；模型名修正為 gemini-3-flash-preview；真實生成 e2e 通過 | `369234b..cfd2833` |
 
 ---
 
