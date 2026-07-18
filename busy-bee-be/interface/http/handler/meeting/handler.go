@@ -12,14 +12,22 @@ import (
 	"github.com/as130232/busy-bee/busy-bee-be/pkg/consts/errcode"
 )
 
-type Handler struct {
-	createUC         *appmeeting.CreateUC
-	completeUploadUC *appmeeting.CompleteUploadUC
-	listArtifactsUC  *appmeeting.ListArtifactsUC
+// HandlerUCs Handler 依賴的 use cases。
+type HandlerUCs struct {
+	Create         *appmeeting.CreateUC
+	CompleteUpload *appmeeting.CompleteUploadUC
+	ListArtifacts  *appmeeting.ListArtifactsUC
+	List           *appmeeting.ListUC
+	Get            *appmeeting.GetUC
+	Retry          *appmeeting.RetryUC
 }
 
-func NewHandler(createUC *appmeeting.CreateUC, completeUploadUC *appmeeting.CompleteUploadUC, listArtifactsUC *appmeeting.ListArtifactsUC) *Handler {
-	return &Handler{createUC: createUC, completeUploadUC: completeUploadUC, listArtifactsUC: listArtifactsUC}
+type Handler struct {
+	uc HandlerUCs
+}
+
+func NewHandler(uc HandlerUCs) *Handler {
+	return &Handler{uc: uc}
 }
 
 // Create POST /api/v1/meetings — 建立會議並回傳直傳 signed URL。
@@ -36,7 +44,7 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	out, err := h.createUC.Execute(c.Request.Context(), userID, appmeeting.CreateInput{
+	out, err := h.uc.Create.Execute(c.Request.Context(), userID, appmeeting.CreateInput{
 		Title:       req.Title,
 		ContentType: req.ContentType,
 	})
@@ -61,7 +69,7 @@ func (h *Handler) CompleteUpload(c *gin.Context) {
 		return
 	}
 
-	m, err := h.completeUploadUC.Execute(c.Request.Context(), userID, meetingID)
+	m, err := h.uc.CompleteUpload.Execute(c.Request.Context(), userID, meetingID)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -82,10 +90,68 @@ func (h *Handler) ListArtifacts(c *gin.Context) {
 		return
 	}
 
-	list, err := h.listArtifactsUC.Execute(c.Request.Context(), userID, meetingID)
+	list, err := h.uc.ListArtifacts.Execute(c.Request.Context(), userID, meetingID)
 	if err != nil {
 		response.Fail(c, err)
 		return
 	}
 	response.OK(c, gin.H{"artifacts": toArtifactResponses(list)})
+}
+
+// List GET /api/v1/meetings?search= — 本人會議列表（新→舊）。
+func (h *Handler) List(c *gin.Context) {
+	userID, ok := domainuser.IDFrom(c.Request.Context())
+	if !ok {
+		response.Fail(c, apperr.New(errcode.Unauthorized))
+		return
+	}
+
+	list, err := h.uc.List.Execute(c.Request.Context(), userID, c.Query("search"))
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.OK(c, gin.H{"meetings": toMeetingListResponses(list)})
+}
+
+// Get GET /api/v1/meetings/:id — 會議詳情（含 transcript）。
+func (h *Handler) Get(c *gin.Context) {
+	userID, ok := domainuser.IDFrom(c.Request.Context())
+	if !ok {
+		response.Fail(c, apperr.New(errcode.Unauthorized))
+		return
+	}
+	meetingID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "id"))
+		return
+	}
+
+	m, err := h.uc.Get.Execute(c.Request.Context(), userID, meetingID)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.OK(c, gin.H{"meeting": toMeetingDetailResponse(m)})
+}
+
+// Retry POST /api/v1/meetings/:id/retry — 失敗會議重新排入處理。
+func (h *Handler) Retry(c *gin.Context) {
+	userID, ok := domainuser.IDFrom(c.Request.Context())
+	if !ok {
+		response.Fail(c, apperr.New(errcode.Unauthorized))
+		return
+	}
+	meetingID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "id"))
+		return
+	}
+
+	m, err := h.uc.Retry.Execute(c.Request.Context(), userID, meetingID)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.OK(c, gin.H{"meeting": toMeetingResponse(m)})
 }

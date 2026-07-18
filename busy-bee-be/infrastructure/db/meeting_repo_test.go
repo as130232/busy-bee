@@ -104,3 +104,42 @@ func TestMeetingRepo_UpdateStatus_OptimisticCheck(t *testing.T) {
 		t.Fatalf("err = %v, want ErrStatusConflict", err)
 	}
 }
+
+func TestMeetingRepo_ListForUser_SearchAndOwnerFilter(t *testing.T) {
+	pool := testPool(t)
+	u := testUser(t, pool)
+	other := testUser(t, pool)
+	repo := NewMeetingRepo(pool)
+	ctx := context.Background()
+
+	m1, _ := repo.Create(ctx, domainmeeting.Meeting{UserID: u.ID, Title: "架構評審會議", Status: domainmeeting.StatusCompleted})
+	repo.SaveTranscript(ctx, m1.ID, "今天討論了 pgvector 的導入", 60)
+	repo.Create(ctx, domainmeeting.Meeting{UserID: u.ID, Title: "每週例會", Status: domainmeeting.StatusPending})
+	repo.Create(ctx, domainmeeting.Meeting{UserID: other.ID, Title: "別人的架構會議", Status: domainmeeting.StatusPending})
+
+	all, err := repo.ListForUser(ctx, u.ID, "")
+	if err != nil {
+		t.Fatalf("ListForUser() error = %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("len = %d, want 2 (owner-only)", len(all))
+	}
+	if all[0].Title != "每週例會" {
+		t.Errorf("order wrong: first = %q, want newest first", all[0].Title)
+	}
+
+	byTitle, _ := repo.ListForUser(ctx, u.ID, "架構")
+	if len(byTitle) != 1 || byTitle[0].Title != "架構評審會議" {
+		t.Errorf("search by title = %+v, want only 架構評審會議 (not other's)", byTitle)
+	}
+
+	byTranscript, _ := repo.ListForUser(ctx, u.ID, "pgvector")
+	if len(byTranscript) != 1 {
+		t.Errorf("search by transcript len = %d, want 1", len(byTranscript))
+	}
+
+	none, _ := repo.ListForUser(ctx, u.ID, "不存在的關鍵字xyz")
+	if len(none) != 0 {
+		t.Errorf("no-match search len = %d, want 0", len(none))
+	}
+}

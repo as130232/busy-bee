@@ -370,3 +370,7 @@ func TestProcess_LLMErrorPropagatesWithoutCompletion(t *testing.T) {
 		t.Error("must not complete when generation failed")
 	}
 }
+
+func (f *processFakeRepo) ListForUser(_ context.Context, _ uuid.UUID, _ string) ([]domainmeeting.Meeting, error) {
+	return []domainmeeting.Meeting{f.meeting}, nil
+}

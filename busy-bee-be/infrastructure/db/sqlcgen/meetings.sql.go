@@ -110,6 +110,55 @@ func (q *Queries) GetMeetingForUser(ctx context.Context, arg GetMeetingForUserPa
 	return i, err
 }
 
+const listMeetingsForUser = `-- name: ListMeetingsForUser :many
+SELECT id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at FROM meetings
+WHERE user_id = $1
+  AND ($2::text = ''
+       OR title ILIKE '%' || $2 || '%'
+       OR transcript ILIKE '%' || $2 || '%')
+ORDER BY created_at DESC
+LIMIT 100
+`
+
+type ListMeetingsForUserParams struct {
+	UserID uuid.UUID
+	Search string
+}
+
+func (q *Queries) ListMeetingsForUser(ctx context.Context, arg ListMeetingsForUserParams) ([]Meeting, error) {
+	rows, err := q.db.Query(ctx, listMeetingsForUser, arg.UserID, arg.Search)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Meeting
+	for rows.Next() {
+		var i Meeting
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Title,
+			&i.AudioGcsPath,
+			&i.Status,
+			&i.Transcript,
+			&i.DurationSeconds,
+			&i.ErrorMessage,
+			&i.ScheduledAt,
+			&i.RemindBeforeMin,
+			&i.ProcessedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUnfinishedMeetingIDs = `-- name: ListUnfinishedMeetingIDs :many
 SELECT id FROM meetings
 WHERE status IN ('pending', 'transcribing', 'analyzing')

@@ -210,3 +210,7 @@ func (f *fakeQueue) EnqueueProcessMeeting(_ context.Context, id uuid.UUID) error
 func (f *fakeRepo) ListUnfinishedIDs(_ context.Context) ([]uuid.UUID, error) {
 	return nil, nil
 }
+
+func (f *fakeRepo) ListForUser(_ context.Context, _ uuid.UUID, _ string) ([]domainmeeting.Meeting, error) {
+	return []domainmeeting.Meeting{f.getResult}, f.getErr
+}

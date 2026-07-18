@@ -60,11 +60,14 @@ func testRouter(t *testing.T) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	repo, st, q := &fakeRepo{}, &fakeStorage{}, &fakeQueue{}
-	h := NewHandler(
-		appmeeting.NewCreateUC(repo, st),
-		appmeeting.NewCompleteUploadUC(repo, st, q),
-		appmeeting.NewListArtifactsUC(repo, &fakeArtifactRepo{}),
-	)
+	h := NewHandler(HandlerUCs{
+		Create:         appmeeting.NewCreateUC(repo, st),
+		CompleteUpload: appmeeting.NewCompleteUploadUC(repo, st, q),
+		ListArtifacts:  appmeeting.NewListArtifactsUC(repo, &fakeArtifactRepo{}),
+		List:           appmeeting.NewListUC(repo),
+		Get:            appmeeting.NewGetUC(repo),
+		Retry:          appmeeting.NewRetryUC(repo, q),
+	})
 
 	e := gin.New()
 	injectIdentity := func(c *gin.Context) {
@@ -186,4 +189,8 @@ func TestListArtifacts_ReturnsDocs(t *testing.T) {
 	if !strings.Contains(w.Body.String(), `"prd"`) || !strings.Contains(w.Body.String(), `"tech_spec"`) {
 		t.Errorf("body missing artifact types: %s", w.Body.String())
 	}
+}
+
+func (f *fakeRepo) ListForUser(_ context.Context, _ uuid.UUID, _ string) ([]domainmeeting.Meeting, error) {
+	return []domainmeeting.Meeting{{ID: uuid.New(), Title: "會議A", Status: domainmeeting.StatusCompleted}}, nil
 }

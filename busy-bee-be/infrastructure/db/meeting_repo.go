@@ -114,6 +114,21 @@ func (r *MeetingRepo) SetFailed(ctx context.Context, id uuid.UUID, errorMessage 
 	return toDomainMeeting(row), nil
 }
 
+func (r *MeetingRepo) ListForUser(ctx context.Context, userID uuid.UUID, search string) ([]domainmeeting.Meeting, error) {
+	rows, err := r.q.ListMeetingsForUser(ctx, sqlcgen.ListMeetingsForUserParams{
+		UserID: userID,
+		Search: search,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("db.ListMeetingsForUser: %w", err)
+	}
+	out := make([]domainmeeting.Meeting, len(rows))
+	for i, row := range rows {
+		out[i] = toDomainMeeting(row)
+	}
+	return out, nil
+}
+
 func (r *MeetingRepo) ListUnfinishedIDs(ctx context.Context) ([]uuid.UUID, error) {
 	ids, err := r.q.ListUnfinishedMeetingIDs(ctx)
 	if err != nil {

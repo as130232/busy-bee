@@ -60,7 +60,10 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 		// 需要 DB 用戶身分的路由再掛 ResolveUser
 		authed := v1.Group("", middleware.ResolveUser(deps.UserRepo))
 		authed.POST("/meetings", deps.MeetingHandler.Create)
+		authed.GET("/meetings", deps.MeetingHandler.List)
+		authed.GET("/meetings/:id", deps.MeetingHandler.Get)
 		authed.POST("/meetings/:id/complete-upload", deps.MeetingHandler.CompleteUpload)
+		authed.POST("/meetings/:id/retry", deps.MeetingHandler.Retry)
 		authed.GET("/meetings/:id/artifacts", deps.MeetingHandler.ListArtifacts)
 	}
 

@@ -27,6 +27,15 @@ SET status = 'completed', processed_at = now(), error_message = '', updated_at =
 WHERE id = $1 AND status = 'analyzing'
 RETURNING *;
 
+-- name: ListMeetingsForUser :many
+SELECT * FROM meetings
+WHERE user_id = $1
+  AND (sqlc.arg(search)::text = ''
+       OR title ILIKE '%' || sqlc.arg(search) || '%'
+       OR transcript ILIKE '%' || sqlc.arg(search) || '%')
+ORDER BY created_at DESC
+LIMIT 100;
+
 -- name: ListUnfinishedMeetingIDs :many
 SELECT id FROM meetings
 WHERE status IN ('pending', 'transcribing', 'analyzing')

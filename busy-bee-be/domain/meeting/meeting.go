@@ -74,4 +74,6 @@ type Repository interface {
 	SetFailed(ctx context.Context, id uuid.UUID, errorMessage string) (Meeting, error)
 	// ListUnfinishedIDs 列出未完成（pending/transcribing/analyzing）會議，供復原掃描。
 	ListUnfinishedIDs(ctx context.Context) ([]uuid.UUID, error)
+	// ListForUser 列出本人會議（新→舊）；search 非空時以關鍵字過濾 title/transcript。
+	ListForUser(ctx context.Context, userID uuid.UUID, search string) ([]Meeting, error)
 }

@@ -90,11 +90,14 @@ func main() {
 		Verifier:    verifier,
 		UserRepo:    userRepo,
 		UserHandler: userhandler.NewHandler(appuser.NewSyncUC(userRepo)),
-		MeetingHandler: meetinghandler.NewHandler(
-			appmeeting.NewCreateUC(meetingRepo, audioStorage),
-			appmeeting.NewCompleteUploadUC(meetingRepo, audioStorage, taskQueue),
-			appmeeting.NewListArtifactsUC(meetingRepo, artifactRepo),
-		),
+		MeetingHandler: meetinghandler.NewHandler(meetinghandler.HandlerUCs{
+			Create:         appmeeting.NewCreateUC(meetingRepo, audioStorage),
+			CompleteUpload: appmeeting.NewCompleteUploadUC(meetingRepo, audioStorage, taskQueue),
+			ListArtifacts:  appmeeting.NewListArtifactsUC(meetingRepo, artifactRepo),
+			List:           appmeeting.NewListUC(meetingRepo),
+			Get:            appmeeting.NewGetUC(meetingRepo),
+			Retry:          appmeeting.NewRetryUC(meetingRepo, taskQueue),
+		}),
 		Hub: hub,
 	}
 	srv := httpserver.NewServer(cfg, deps)

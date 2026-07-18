@@ -68,3 +68,24 @@ func toArtifactResponses(list []domainartifact.Artifact) []artifactResponse {
 	}
 	return out
 }
+
+// meetingDetailResponse 詳情含 transcript；列表不含（省流量）。
+type meetingDetailResponse struct {
+	meetingResponse
+	Transcript string `json:"transcript"`
+}
+
+func toMeetingDetailResponse(m domainmeeting.Meeting) meetingDetailResponse {
+	return meetingDetailResponse{
+		meetingResponse: toMeetingResponse(m),
+		Transcript:      m.Transcript,
+	}
+}
+
+func toMeetingListResponses(list []domainmeeting.Meeting) []meetingResponse {
+	out := make([]meetingResponse, len(list))
+	for i, m := range list {
+		out[i] = toMeetingResponse(m)
+	}
+	return out
+}
