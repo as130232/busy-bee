@@ -26,8 +26,11 @@ export function useMeetingStatusSocket(onEvent: (e: MeetingStatusEvent) => void)
 
     const connect = () => {
       if (closed) return
+      // Firebase Hosting 不代理 WebSocket：production 直連 Cloud Run（VITE_WS_BASE）；
+      // 本地開發走 Vite proxy（同源）。
       const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-      ws = new WebSocket(`${proto}://${location.host}/api/v1/ws`)
+      const base = import.meta.env.VITE_WS_BASE ?? `${proto}://${location.host}`
+      ws = new WebSocket(`${base}/api/v1/ws`)
 
       ws.onopen = async () => {
         const fbUser = auth.currentUser
