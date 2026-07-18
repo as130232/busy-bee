@@ -7,8 +7,8 @@
 
 ## 當前焦點
 
-Phase 10 已完成（列表/搜尋/詳情/retry，UI 可見文件；逐字稿去重修正）。M2-A 里程碑達成（MVP 核心流程完整）。
-下一步：實作 Phase 8.1 useRecorder hook（瀏覽器錄音，M1-B 最後一塊）。
+Phase 8 已完成（瀏覽器錄音，錄音→STT→文件全鏈路人工驗收通過）。M1-B + M2-A 全數達成。
+下一步：恢復 Phase 4（部署）——待 production DB 決定（Neon 或 Supabase 空位）；或先做 Phase 12 完善。
 
 ---
 
@@ -37,7 +37,7 @@ Phase 10 已完成（列表/搜尋/詳情/retry，UI 可見文件；逐字稿去
 | ✅ | Phase 6 — 任務佇列與 STT | M1-B |
 | ✅ | Phase 6R — 佇列簡化（移除 Redis） | M1-B |
 | ✅ | Phase 7 — WebSocket 通知 | M1-B |
-| ⏸ | Phase 8 — 錄音 UI | M1-B |
+| ✅ | Phase 8 — 錄音 UI | M1-B |
 | ✅ | Phase 9 — LLM 文件生成 | M2-A |
 | ✅ | Phase 10 — 歷史與搜尋 | M2-A |
 | ⏸ | Phase 11 — 提醒與推播 | M2-B |
@@ -164,10 +164,10 @@ Phase 10 已完成（列表/搜尋/詳情/retry，UI 可見文件；逐字稿去
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ⏸ | 8.1 | useRecorder hook | `busy-bee-fe/src/hooks/useRecorder.ts` | MediaRecorder；不寫死 mime type；待 Phase 5 | — |
-| ⏸ | 8.2 | 錄音 UI | `busy-bee-fe/src/components/` | 開始/暫停/結束、離開警告 | — |
-| ⏸ | 8.3 | 錄音接上傳流程 | `busy-bee-fe/src/` | 結束後走 F-UPLOAD 直傳 | — |
-| ⏸ | 8.4 | 瀏覽器相容性處理 | `busy-bee-fe/src/hooks/` | Safari mp4/aac；不支援時明確錯誤 | — |
+| ✅ | 8.1 | useRecorder hook | `busy-bee-fe/src/hooks/useRecorder.ts` | mime 自動偵測；1s chunk；停止釋放麥克風 | `cc151fc` |
+| ✅ | 8.2 | 錄音 UI | `busy-bee-fe/src/components/RecorderPanel.tsx` | 開始/暫停/繼續/捨棄；beforeunload 警告 | `cc151fc` |
+| ✅ | 8.3 | 錄音接上傳流程 | 同上 | 結束即走直傳；失敗可重試 | `cc151fc` |
+| ✅ | 8.4 | 瀏覽器相容性處理 | `busy-bee-fe/src/hooks/useRecorder.ts` | Safari mp4 fallback；權限拒絕明確指引 | `cc151fc` |
 
 ---
 
@@ -264,6 +264,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-18 | Phase 7 完成（hub + 首訊驗證 + 事件發布 + 前端即時更新）；人工驗收通過；決定開發順序調整為 9 → 10 → 8 | `275ea01..60e25d8` |
 | 2026-07-18 | Phase 9 完成（artifacts、Gemini client、雙模板、冪等生成、查詢 API）；模型名修正為 gemini-3-flash-preview；真實生成 e2e 通過 | `369234b..cfd2833` |
 | 2026-07-19 | Phase 10 完成（list/search/detail/retry API + UI、逐字稿去重）；M2-A 達成；人工驗收通過 | `5eeb122..2f8a98d` |
+| 2026-07-19 | Phase 8 完成（useRecorder + RecorderPanel）；錄音→STT→文件全鏈路人工驗收通過；M1-B 達成 | `cc151fc` |
 
 ---
 
