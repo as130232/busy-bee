@@ -7,8 +7,8 @@
 
 ## 當前焦點
 
-Phase 5 已完成（三段式 GCS 直傳鏈路，上傳實測通過）。
-下一步：實作 Phase 6.1 Asynq client/server 接入（需 Groq API key 於 6.3 前備妥）。
+Phase 6 已完成（Asynq worker + Groq STT 管線，e2e 實測產出繁中逐字稿）。
+下一步：實作 Phase 7.1 WS hub 連線管理（F-STATUS 即時通知）。
 
 ---
 
@@ -34,8 +34,8 @@ Phase 5 已完成（三段式 GCS 直傳鏈路，上傳實測通過）。
 | ✅ | Phase 3 — 前端骨架與登入 | M1-A |
 | ⏸ | Phase 4 — 部署管線 | M1-A |
 | ✅ | Phase 5 — 上傳流程 | M1-B |
-| ⬜ | Phase 6 — 任務佇列與 STT | M1-B |
-| ⏸ | Phase 7 — WebSocket 通知 | M1-B |
+| ✅ | Phase 6 — 任務佇列與 STT | M1-B |
+| ⬜ | Phase 7 — WebSocket 通知 | M1-B |
 | ⏸ | Phase 8 — 錄音 UI | M1-B |
 | ⏸ | Phase 9 — LLM 文件生成 | M2-A |
 | ⏸ | Phase 10 — 歷史與搜尋 | M2-A |
@@ -117,17 +117,17 @@ Phase 5 已完成（三段式 GCS 直傳鏈路，上傳實測通過）。
 ---
 
 ## Phase 6：任務佇列與 STT（F-PIPELINE）
-
-> 里程碑：M1-B
+> 里程碑：M1-B | ✅ 完成於 2026-07-18
+> e2e 驗證：真實上傳音訊 → Groq STT → completed，繁中逐字稿入庫。
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ⏸ | 6.1 | Asynq client/server 接入 | `busy-bee-be/infrastructure/queue/` | 與 HTTP 同 binary；graceful shutdown；待 Phase 5 | — |
-| ⏸ | 6.2 | process_meeting worker | `busy-bee-be/worker/process_meeting.go`, `busy-bee-be/application/meeting/process.go` | 狀態機推進 | — |
-| ⏸ | 6.3 | Groq Whisper client | `busy-bee-be/infrastructure/stt/` | 實作 domain STTClient interface | — |
-| ⏸ | 6.4 | ffmpeg 壓縮 fallback | `busy-bee-be/infrastructure/stt/` | 超過大小上限時轉 16kbps mono mp3 | — |
-| ⏸ | 6.5 | 冪等處理 | `busy-bee-be/application/meeting/process.go` | 每階段先查 status，已完成則跳過 | — |
-| ⏸ | 6.6 | retry 上限與 failed 處理 | `busy-bee-be/worker/` | 記錄 error_message | — |
+| ✅ | 6.1 | Asynq client/server 接入 | `busy-bee-be/infrastructure/queue/asynq.go` | TaskID 去重；已結束任務可重排（Inspector）；測試用獨立 Redis DB | `06c9930, e610142` |
+| ✅ | 6.2 | process_meeting worker | `busy-bee-be/worker/process_meeting.go`, `busy-bee-be/application/meeting/process.go` | 分階段冪等狀態機；最後一次重試失敗才標 failed | `7368987` |
+| ✅ | 6.3 | Groq Whisper client | `busy-bee-be/infrastructure/stt/client.go` | 串流 multipart；繁中 prompt 引導 | `b8608e7, e610142` |
+| ✅ | 6.4 | ffmpeg 壓縮 fallback | `busy-bee-be/infrastructure/stt/compress.go` | 超限轉 16kbps mono mp3；真實 ffmpeg 測試 | `b8608e7` |
+| ✅ | 6.5 | 冪等處理 | `busy-bee-be/application/meeting/process.go` | transcript 已存在跳過 STT（不重複扣費） | `7368987` |
+| ✅ | 6.6 | retry 上限與 failed 處理 | `busy-bee-be/worker/process_meeting.go` | MaxRetry 3；error_message 入庫；cmd/enqueue 手動重排 | `b8608e7` |
 
 ---
 
@@ -248,6 +248,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-17 | Phase 3 全部完成（3.1–3.4：scaffold、Google 登入、API client、Dashboard）；Firebase 專案 busy-bee-502710 建立；登入人工驗收通過 | `41de695..f9d77f4` |
 | 2026-07-17 | Phase 4.1 Dockerfile 完成；4.2-4.4 暫緩（Supabase 額度滿，production DB 待定）；決策：優先開發 M1-B 核心功能 | `d1ed1ce` |
 | 2026-07-18 | Phase 5 全部完成（5.1–5.6：狀態機、GCS impersonation 簽名、三段式上傳 API、上傳 UI）；上傳人工驗收通過 | `324273c..a0876cf` |
+| 2026-07-18 | Phase 6 全部完成（6.1–6.6：Asynq、ProcessUC、Groq STT、ffmpeg、冪等、retry）；修復完成任務擋重排 bug；e2e 繁中逐字稿驗證通過 | `06c9930..e610142` |
 
 ---
 

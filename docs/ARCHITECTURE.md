@@ -2,7 +2,7 @@
 
 > 最後更新：2026-07-17
 >
-> **注意**：本文件描述已核准的目標架構。標有**（計畫中，尚未實作）**的模組尚未完成；隨 `docs/PLAN.md` 各 Phase 完成後逐步移除標註並補實作細節。Phase 1-3、5（後端骨架與 auth、前端登入與 Dashboard、GCS 三段式上傳）已實作。
+> **注意**：本文件描述已核准的目標架構。標有**（計畫中，尚未實作）**的模組尚未完成；隨 `docs/PLAN.md` 各 Phase 完成後逐步移除標註並補實作細節。Phase 1-3、5-6（後端骨架與 auth、前端登入與 Dashboard、GCS 三段式上傳、Asynq + Groq STT 管線）已實作。
 
 ---
 
@@ -286,7 +286,6 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 | 項目 | 規劃位置 | 對應 PRODUCT.md | 預計 Phase |
 |------|---------|----------------|----------|
 | CI/CD + Cloud Run + Hosting | `.github/workflows/`, `busy-bee-be/Dockerfile` | — | Phase 4 |
-| Asynq + Groq STT 管線 | `busy-bee-be/worker/`, `busy-bee-be/infrastructure/stt/` | F-PIPELINE | Phase 6 |
 | WS hub + Redis Pub/Sub | `busy-bee-be/interface/http/handler/ws.go` | F-STATUS | Phase 7 |
 | useRecorder 錄音 | `busy-bee-fe/src/hooks/` | F-RECORD | Phase 8 |
 | Gemini 文件生成 | `busy-bee-be/infrastructure/llm/` | F-DOCGEN | Phase 9 |
