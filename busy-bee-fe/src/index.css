@@ -143,3 +143,88 @@ button.secondary {
 .status-failed {
   background: #fecaca;
 }
+
+.search {
+  padding: 0.6em 1em;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1em;
+}
+
+.meeting-link {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.meeting-link:hover span:first-child {
+  color: #d97706;
+}
+
+.small {
+  font-size: 0.8em;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.detail-header h1 {
+  flex: 1;
+  font-size: 1.3rem;
+  margin: 0;
+}
+
+.failed-box {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tab {
+  background: #fff;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.tab.active {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.doc {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  line-height: 1.7;
+  overflow-wrap: break-word;
+}
+
+.doc h1 {
+  font-size: 1.4rem;
+}
+
+.doc h2 {
+  font-size: 1.15rem;
+  border-bottom: 1px solid #f3f4f6;
+  padding-bottom: 0.3rem;
+}
+
+.transcript {
+  white-space: pre-wrap;
+}

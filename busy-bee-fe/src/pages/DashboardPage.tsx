@@ -1,16 +1,33 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { UploadZone } from '../components/UploadZone'
 import { useAuth } from '../hooks/useAuth'
 import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
-import type { Meeting } from '../services/api/client'
+import { listMeetings, type Meeting } from '../services/api/client'
+import { getIdToken } from '../services/token'
 
 export function DashboardPage() {
   const { user, signOut } = useAuth()
-  const [uploaded, setUploaded] = useState<Meeting[]>([])
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [search, setSearch] = useState('')
+
+  const load = useCallback(async (keyword: string) => {
+    try {
+      const { meetings } = await listMeetings(await getIdToken(), keyword)
+      setMeetings(meetings)
+    } catch {
+      // 列表載入失敗不阻斷頁面；上傳與 WS 更新仍可用
+    }
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => void load(search), search ? 300 : 0) // 搜尋防抖
+    return () => clearTimeout(timer)
+  }, [search, load])
 
   useMeetingStatusSocket((e) => {
-    setUploaded((prev) =>
+    setMeetings((prev) =>
       prev.map((m) =>
         m.id === e.meetingId
           ? { ...m, status: e.status as Meeting['status'], errorMessage: e.errorMessage }
@@ -33,18 +50,34 @@ export function DashboardPage() {
         </button>
       </header>
       <section className="content">
-        <UploadZone onUploaded={(m) => setUploaded((prev) => [m, ...prev])} />
-        {uploaded.length > 0 && (
+        <UploadZone onUploaded={() => void load(search)} />
+
+        <input
+          className="search"
+          type="search"
+          placeholder="搜尋會議標題或逐字稿…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+
+        {meetings.length === 0 ? (
+          <p className="muted center">{search ? '沒有符合的會議。' : '尚無會議紀錄，上傳第一個錄音吧。'}</p>
+        ) : (
           <ul className="meeting-list">
-            {uploaded.map((m) => (
+            {meetings.map((m) => (
               <li key={m.id}>
-                <span>{m.title}</span>
+                <Link to={`/meetings/${m.id}`} className="meeting-link">
+                  <span>{m.title}</span>
+                  <span className="muted small">
+                    {m.durationSeconds > 0 && `${Math.round(m.durationSeconds / 60)} 分鐘 · `}
+                    {new Date(m.createdAt).toLocaleDateString()}
+                  </span>
+                </Link>
                 <span className={`status status-${m.status}`}>{m.status}</span>
               </li>
             ))}
           </ul>
         )}
-        <p className="muted">錄音功能與即時處理狀態即將推出（M1-B）。</p>
       </section>
     </main>
   )

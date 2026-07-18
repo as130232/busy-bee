@@ -65,6 +65,36 @@ paths:
           $ref: "#/components/responses/Forbidden"
 
   /api/v1/meetings:
+    get:
+      tags: [meetings]
+      summary: 本人會議列表（新→舊，可關鍵字搜尋）
+      operationId: listMeetings
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema: { type: string }
+          description: 關鍵字（比對 title 與 transcript，ILIKE）
+      responses:
+        "200":
+          description: 列表（不含 transcript）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [meetings]
+                        properties:
+                          meetings:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/Meeting"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     post:
       tags: [meetings]
       summary: 建立會議並取得音訊直傳 URL
@@ -117,6 +147,80 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+
+  /api/v1/meetings/{id}:
+    get:
+      tags: [meetings]
+      summary: 會議詳情（含逐字稿）
+      operationId: getMeeting
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 詳情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [meeting]
+                        properties:
+                          meeting:
+                            $ref: "#/components/schemas/MeetingDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 不存在或非本人（errCode 40401）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /api/v1/meetings/{id}/retry:
+    post:
+      tags: [meetings]
+      summary: 重跑失敗的會議
+      operationId: retryMeeting
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 已重新排入（status 回到 pending）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [meeting]
+                        properties:
+                          meeting:
+                            $ref: "#/components/schemas/Meeting"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 不存在或非本人
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "409":
+          description: 非 failed 狀態不可重跑（errCode 40901）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
 
   /api/v1/meetings/{id}/complete-upload:
     post:
@@ -252,6 +356,14 @@ components:
         scheduledAt: { type: string, format: date-time }
         remindBeforeMin: { type: integer }
         createdAt: { type: string, format: date-time }
+
+    MeetingDetail:
+      allOf:
+        - $ref: "#/components/schemas/Meeting"
+        - type: object
+          required: [transcript]
+          properties:
+            transcript: { type: string }
 
     Artifact:
       type: object

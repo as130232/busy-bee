@@ -4,6 +4,7 @@ import { RequireAuth } from './components/RequireAuth'
 import { AuthProvider } from './hooks/useAuth'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
+import { MeetingDetailPage } from './pages/MeetingDetailPage'
 
 export default function App() {
   return (
@@ -16,6 +17,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <DashboardPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/meetings/:id"
+            element={
+              <RequireAuth>
+                <MeetingDetailPage />
               </RequireAuth>
             }
           />

@@ -67,3 +67,31 @@ export function completeUpload(idToken: string, meetingId: string): Promise<{ me
     idToken,
   )
 }
+
+export type MeetingDetail = components['schemas']['MeetingDetail']
+export type Artifact = components['schemas']['Artifact']
+
+/** 本人會議列表（可帶關鍵字搜尋） */
+export function listMeetings(idToken: string, search = ''): Promise<{ meetings: Meeting[] }> {
+  const q = search ? `?search=${encodeURIComponent(search)}` : ''
+  return request<{ meetings: Meeting[] }>(`/api/v1/meetings${q}`, { method: 'GET' }, idToken)
+}
+
+/** 會議詳情（含逐字稿） */
+export function getMeeting(idToken: string, meetingId: string): Promise<{ meeting: MeetingDetail }> {
+  return request<{ meeting: MeetingDetail }>(`/api/v1/meetings/${meetingId}`, { method: 'GET' }, idToken)
+}
+
+/** 會議的 AI 生成文件 */
+export function listArtifacts(idToken: string, meetingId: string): Promise<{ artifacts: Artifact[] }> {
+  return request<{ artifacts: Artifact[] }>(
+    `/api/v1/meetings/${meetingId}/artifacts`,
+    { method: 'GET' },
+    idToken,
+  )
+}
+
+/** 重跑失敗的會議 */
+export function retryMeeting(idToken: string, meetingId: string): Promise<{ meeting: Meeting }> {
+  return request<{ meeting: Meeting }>(`/api/v1/meetings/${meetingId}/retry`, { method: 'POST' }, idToken)
+}

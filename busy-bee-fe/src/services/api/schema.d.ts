@@ -48,13 +48,48 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** 本人會議列表（新→舊，可關鍵字搜尋） */
+        get: operations["listMeetings"];
         put?: never;
         /**
          * 建立會議並取得音訊直傳 URL
          * @description 回傳的 upload.url 供前端直接 PUT 音訊到 GCS（需帶 upload.headers）；上傳完成後呼叫 complete-upload。
          */
         post: operations["createMeeting"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/meetings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 會議詳情（含逐字稿） */
+        get: operations["getMeeting"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/meetings/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 重跑失敗的會議 */
+        post: operations["retryMeeting"];
         delete?: never;
         options?: never;
         head?: never;
@@ -137,6 +172,9 @@ export interface components {
             remindBeforeMin: number;
             /** Format: date-time */
             createdAt: string;
+        };
+        MeetingDetail: components["schemas"]["Meeting"] & {
+            transcript: string;
         };
         Artifact: {
             /** Format: uuid */
@@ -227,6 +265,34 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
+    listMeetings: {
+        parameters: {
+            query?: {
+                /** @description 關鍵字（比對 title 與 transcript，ILIKE） */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 列表（不含 transcript） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            meetings: components["schemas"]["Meeting"][];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
     createMeeting: {
         parameters: {
             query?: never;
@@ -278,6 +344,87 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    getMeeting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 詳情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            meeting: components["schemas"]["MeetingDetail"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 不存在或非本人（errCode 40401） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    retryMeeting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已重新排入（status 回到 pending） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            meeting: components["schemas"]["Meeting"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 非 failed 狀態不可重跑（errCode 40901） */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
         };
     };
     completeMeetingUpload: {
