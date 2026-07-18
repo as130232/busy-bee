@@ -12,7 +12,6 @@ type Config struct {
 	Server ServerConfig
 	Log    LogConfig
 	DB     DBConfig
-	Redis  RedisConfig
 	Auth   AuthConfig
 	GCS    GCSConfig
 	Groq   GroqConfig
@@ -45,11 +44,6 @@ type DBConfig struct {
 	URL string
 }
 
-type RedisConfig struct {
-	Addr     string
-	Password string
-}
-
 // Load 載入設定。.env.{APP_ENV} 不存在時靜默略過（生產環境只用 OS env）。
 func Load() (*Config, error) {
 	appEnv := getEnv("APP_ENV", "local")
@@ -78,10 +72,6 @@ func Load() (*Config, error) {
 		},
 		DB: DBConfig{
 			URL: lookup("DB_URL", ""),
-		},
-		Redis: RedisConfig{
-			Addr:     lookup("REDIS_ADDR", ""),
-			Password: lookup("REDIS_PASSWORD", ""),
 		},
 		Auth: AuthConfig{
 			FirebaseProjectID: lookup("FIREBASE_PROJECT_ID", ""),

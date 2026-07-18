@@ -22,9 +22,9 @@ import (
 	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
 	userhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/user"
 	"github.com/as130232/busy-bee/busy-bee-be/worker"
-
-	"github.com/hibiken/asynq"
 )
+
+const sweepInterval = 2 * time.Minute
 
 const shutdownTimeout = 10 * time.Second
 
@@ -61,22 +61,15 @@ func main() {
 	userRepo := db.NewUserRepo(pool)
 	meetingRepo := db.NewMeetingRepo(pool)
 
-	taskQueue := queue.NewAsynq(cfg.Redis.Addr, cfg.Redis.Password, 0)
-	defer taskQueue.Close()
-
-	// Asynq worker 與 HTTP server 同 binary（ADR-004）
+	// 記憶體佇列（ADR-010）：worker 與 HTTP 同 binary；重啟遺失由 Sweeper 掃 DB 復原
 	sttClient := stt.New(cfg.Groq.APIKey)
 	processUC := appmeeting.NewProcessUC(meetingRepo, audioStorage, sttClient)
-	asynqSrv := asynq.NewServer(
-		asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password},
-		asynq.Config{Concurrency: 2}, // STT/LLM 皆為外部 API bound，低併發即可
-	)
-	go func() {
-		if err := asynqSrv.Run(worker.NewMux(processUC)); err != nil {
-			slog.Error("asynq server failed", "err", err)
-			os.Exit(1)
-		}
-	}()
+	taskQueue := queue.NewMemory(256, queue.DefaultRetryDelays)
+	taskQueue.Start(ctx, 2, processUC.Execute, processUC.MarkFailed) // 外部 API bound，低併發
+
+	sweepCtx, stopSweeper := context.WithCancel(ctx)
+	defer stopSweeper()
+	go worker.NewSweeper(meetingRepo, taskQueue).Run(sweepCtx, sweepInterval)
 
 	deps := httpserver.Deps{
 		Verifier:    verifier,
@@ -103,8 +96,9 @@ func main() {
 
 	slog.Info("shutting down", "timeout", shutdownTimeout.String())
 
-	// 先停 worker（等待進行中任務結束或歸還佇列），再關 HTTP
-	asynqSrv.Shutdown()
+	// 先停掃描與 worker（等進行中任務收尾），再關 HTTP；未完成任務下次啟動由 Sweeper 復原
+	stopSweeper()
+	taskQueue.Stop(shutdownTimeout)
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()

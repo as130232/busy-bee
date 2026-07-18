@@ -190,3 +190,7 @@ func TestMarkFailed_RecordsMessage(t *testing.T) {
 		t.Fatal("SetFailed not called")
 	}
 }
+
+func (f *processFakeRepo) ListUnfinishedIDs(_ context.Context) ([]uuid.UUID, error) {
+	return nil, nil
+}

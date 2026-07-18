@@ -46,7 +46,7 @@ func TestLoad_OSEnvOverridesDefault(t *testing.T) {
 func TestLoad_DotEnvFile(t *testing.T) {
 	dir := t.TempDir()
 	envFile := filepath.Join(dir, ".env.local")
-	content := "DB_URL=postgres://file-value\n# comment line\n\nREDIS_ADDR=localhost:6379\n"
+	content := "DB_URL=postgres://file-value\n# comment line\n\nGCS_BUCKET=file-bucket\n"
 	if err := os.WriteFile(envFile, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -60,8 +60,8 @@ func TestLoad_DotEnvFile(t *testing.T) {
 	if cfg.DB.URL != "postgres://file-value" {
 		t.Errorf("DB.URL = %q, want value from .env.local", cfg.DB.URL)
 	}
-	if cfg.Redis.Addr != "localhost:6379" {
-		t.Errorf("Redis.Addr = %q, want value from .env.local", cfg.Redis.Addr)
+	if cfg.GCS.Bucket != "file-bucket" {
+		t.Errorf("GCS.Bucket = %q, want value from .env.local", cfg.GCS.Bucket)
 	}
 }
 

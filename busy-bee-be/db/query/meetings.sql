@@ -27,6 +27,11 @@ SET status = 'completed', processed_at = now(), error_message = '', updated_at =
 WHERE id = $1 AND status = 'analyzing'
 RETURNING *;
 
+-- name: ListUnfinishedMeetingIDs :many
+SELECT id FROM meetings
+WHERE status IN ('pending', 'transcribing', 'analyzing')
+ORDER BY created_at;
+
 -- name: SetMeetingFailed :one
 UPDATE meetings
 SET status = 'failed', error_message = $2, updated_at = now()

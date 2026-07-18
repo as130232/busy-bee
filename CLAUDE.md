@@ -27,7 +27,7 @@ Clean Architecture（對齊 sport-hub），依賴方向由外往內：interface 
 
 | 目錄 | 內容 |
 |------|------|
-| `busy-bee-be/` | Go 後端（Gin + sqlc/pgx + Asynq） |
+| `busy-bee-be/` | Go 後端（Gin + sqlc/pgx + in-process 佇列） |
 | `busy-bee-fe/` | React PWA（Vite） |
 
 ---
@@ -86,7 +86,7 @@ Clean Architecture（對齊 sport-hub），依賴方向由外往內：interface 
 ## Worker 規範
 
 - worker 每階段開始前必須檢查 meeting status 與產物是否已存在，已完成階段一律跳過（冪等，ADR-009）
-- 狀態變更必須 publish 到 Redis Pub/Sub（F-STATUS 依賴此事件）
+- 狀態變更必須發布到 in-process notifier（F-STATUS 依賴此事件，ADR-010 單 instance）
 - 新增 goroutine 必須有明確退出條件（context cancel 或 channel close），禁止裸 `go func()`
 
 ---
@@ -118,7 +118,7 @@ Clean Architecture（對齊 sport-hub），依賴方向由外往內：interface 
 ## 常用指令
 
 ```bash
-docker compose up -d      # 本地 PostgreSQL + Redis
+docker compose up -d      # 本地 PostgreSQL
 go run ./cmd/server       # busy-bee-be/：啟動 HTTP + worker
 go test ./...             # 測試
 sqlc generate             # SQL 變更後重新產生

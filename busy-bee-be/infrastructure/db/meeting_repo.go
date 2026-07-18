@@ -114,6 +114,14 @@ func (r *MeetingRepo) SetFailed(ctx context.Context, id uuid.UUID, errorMessage 
 	return toDomainMeeting(row), nil
 }
 
+func (r *MeetingRepo) ListUnfinishedIDs(ctx context.Context) ([]uuid.UUID, error) {
+	ids, err := r.q.ListUnfinishedMeetingIDs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("db.ListUnfinishedMeetingIDs: %w", err)
+	}
+	return ids, nil
+}
+
 func toDomainMeeting(row sqlcgen.Meeting) domainmeeting.Meeting {
 	return domainmeeting.Meeting{
 		ID:              row.ID,

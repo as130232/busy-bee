@@ -150,3 +150,7 @@ func TestCompleteUpload_BadUUID400(t *testing.T) {
 		t.Errorf("status = %d, want 400", w.Code)
 	}
 }
+
+func (f *fakeRepo) ListUnfinishedIDs(_ context.Context) ([]uuid.UUID, error) {
+	return nil, nil
+}

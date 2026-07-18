@@ -72,4 +72,6 @@ type Repository interface {
 	SetCompleted(ctx context.Context, id uuid.UUID) (Meeting, error)
 	// SetFailed 處理中任一狀態 → failed，記錄 error_message。
 	SetFailed(ctx context.Context, id uuid.UUID, errorMessage string) (Meeting, error)
+	// ListUnfinishedIDs 列出未完成（pending/transcribing/analyzing）會議，供復原掃描。
+	ListUnfinishedIDs(ctx context.Context) ([]uuid.UUID, error)
 }

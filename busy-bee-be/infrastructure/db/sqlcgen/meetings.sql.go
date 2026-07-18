@@ -110,6 +110,32 @@ func (q *Queries) GetMeetingForUser(ctx context.Context, arg GetMeetingForUserPa
 	return i, err
 }
 
+const listUnfinishedMeetingIDs = `-- name: ListUnfinishedMeetingIDs :many
+SELECT id FROM meetings
+WHERE status IN ('pending', 'transcribing', 'analyzing')
+ORDER BY created_at
+`
+
+func (q *Queries) ListUnfinishedMeetingIDs(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listUnfinishedMeetingIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const saveMeetingTranscript = `-- name: SaveMeetingTranscript :one
 UPDATE meetings
 SET transcript = $2, duration_seconds = $3, updated_at = now()
