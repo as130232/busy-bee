@@ -8,21 +8,37 @@ import (
 
 	"github.com/google/uuid"
 
+	domainartifact "github.com/as130232/busy-bee/busy-bee-be/domain/artifact"
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 )
 
 // ProcessUC 會議處理管線：pending → transcribing（STT）→ analyzing → completed。
 // 各階段冪等（ADR-009）：已有產物的階段直接跳過，retry 不重複呼叫外部 API。
 // 失敗時回傳錯誤交由 Asynq retry；標記 failed 是 worker 在最後一次重試後的決定（MarkFailed）。
-type ProcessUC struct {
-	repo     domainmeeting.Repository
-	storage  domainmeeting.AudioStorage
-	stt      domainmeeting.STTClient
-	notifier domainmeeting.StatusNotifier
+// ProcessDeps ProcessUC 的依賴（皆為 domain ports）。
+type ProcessDeps struct {
+	Meetings  domainmeeting.Repository
+	Storage   domainmeeting.AudioStorage
+	STT       domainmeeting.STTClient
+	Artifacts domainartifact.Repository
+	LLM       domainartifact.LLMClient
+	Notifier  domainmeeting.StatusNotifier
 }
 
-func NewProcessUC(repo domainmeeting.Repository, storage domainmeeting.AudioStorage, stt domainmeeting.STTClient, notifier domainmeeting.StatusNotifier) *ProcessUC {
-	return &ProcessUC{repo: repo, storage: storage, stt: stt, notifier: notifier}
+type ProcessUC struct {
+	repo      domainmeeting.Repository
+	storage   domainmeeting.AudioStorage
+	stt       domainmeeting.STTClient
+	artifacts domainartifact.Repository
+	llm       domainartifact.LLMClient
+	notifier  domainmeeting.StatusNotifier
+}
+
+func NewProcessUC(d ProcessDeps) *ProcessUC {
+	return &ProcessUC{
+		repo: d.Meetings, storage: d.Storage, stt: d.STT,
+		artifacts: d.Artifacts, llm: d.LLM, notifier: d.Notifier,
+	}
 }
 
 func (uc *ProcessUC) notify(ctx context.Context, m domainmeeting.Meeting) {
@@ -82,12 +98,51 @@ func (uc *ProcessUC) Execute(ctx context.Context, meetingID uuid.UUID) error {
 		uc.notify(ctx, m)
 	}
 
-	// analyzing 階段：LLM 文件生成於 Phase 9 接入，目前直接完成（僅逐字稿）
+	// analyzing 階段：生成 PRD 與 Tech Spec；缺哪份補哪份（冪等，不重複扣費）
+	if m.Status == domainmeeting.StatusAnalyzing {
+		if err := uc.generateArtifacts(ctx, m); err != nil {
+			return err
+		}
+	}
+
 	if m, err = uc.repo.SetCompleted(ctx, m.ID); err != nil {
 		return fmt.Errorf("process set completed: %w", err)
 	}
 	uc.notify(ctx, m)
 	slog.InfoContext(ctx, "meeting.process.completed", "meeting_id", m.ID)
+	return nil
+}
+
+func (uc *ProcessUC) generateArtifacts(ctx context.Context, m domainmeeting.Meeting) error {
+	existing, err := uc.artifacts.ListByMeeting(ctx, m.ID)
+	if err != nil {
+		return fmt.Errorf("process list artifacts: %w", err)
+	}
+	has := make(map[domainartifact.Type]bool, len(existing))
+	for _, a := range existing {
+		has[a.Type] = true
+	}
+
+	generators := []struct {
+		t   domainartifact.Type
+		gen func(context.Context, string) (string, error)
+	}{
+		{domainartifact.TypePRD, uc.llm.GeneratePRD},
+		{domainartifact.TypeTechSpec, uc.llm.GenerateTechSpec},
+	}
+	for _, g := range generators {
+		if has[g.t] {
+			continue
+		}
+		content, err := g.gen(ctx, m.Transcript)
+		if err != nil {
+			return fmt.Errorf("process generate %s: %w", g.t, err)
+		}
+		if _, err := uc.artifacts.Upsert(ctx, m.ID, g.t, content); err != nil {
+			return fmt.Errorf("process save %s: %w", g.t, err)
+		}
+		slog.InfoContext(ctx, "meeting.process.artifact_saved", "meeting_id", m.ID, "type", g.t)
+	}
 	return nil
 }
 

@@ -15,10 +15,16 @@ type Config struct {
 	Auth   AuthConfig
 	GCS    GCSConfig
 	Groq   GroqConfig
+	Gemini GeminiConfig
 }
 
 type GroqConfig struct {
 	APIKey string
+}
+
+type GeminiConfig struct {
+	APIKey string
+	Model  string
 }
 
 type GCSConfig struct {
@@ -83,6 +89,10 @@ func Load() (*Config, error) {
 		},
 		Groq: GroqConfig{
 			APIKey: lookup("GROQ_API_KEY", ""),
+		},
+		Gemini: GeminiConfig{
+			APIKey: lookup("GEMINI_API_KEY", ""),
+			Model:  lookup("GEMINI_MODEL", "gemini-3.0-flash"),
 		},
 	}, nil
 }

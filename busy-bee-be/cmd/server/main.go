@@ -16,6 +16,7 @@ import (
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/db"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/firebaseauth"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/gcs"
+	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/llm"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/queue"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/stt"
 	httpserver "github.com/as130232/busy-bee/busy-bee-be/interface/http"
@@ -65,9 +66,19 @@ func main() {
 	hub := ws.NewHub()
 	defer hub.Close()
 
+	llmClient, err := llm.NewGemini(ctx, cfg.Gemini.APIKey, cfg.Gemini.Model)
+	if err != nil {
+		slog.Error("gemini init failed", "err", err)
+		os.Exit(1)
+	}
+	artifactRepo := db.NewArtifactRepo(pool)
+
 	// 記憶體佇列（ADR-010）：worker 與 HTTP 同 binary；重啟遺失由 Sweeper 掃 DB 復原
 	sttClient := stt.New(cfg.Groq.APIKey)
-	processUC := appmeeting.NewProcessUC(meetingRepo, audioStorage, sttClient, hub)
+	processUC := appmeeting.NewProcessUC(appmeeting.ProcessDeps{
+		Meetings: meetingRepo, Storage: audioStorage, STT: sttClient,
+		Artifacts: artifactRepo, LLM: llmClient, Notifier: hub,
+	})
 	taskQueue := queue.NewMemory(256, queue.DefaultRetryDelays)
 	taskQueue.Start(ctx, 2, processUC.Execute, processUC.MarkFailed) // 外部 API bound，低併發
 
@@ -82,6 +93,7 @@ func main() {
 		MeetingHandler: meetinghandler.NewHandler(
 			appmeeting.NewCreateUC(meetingRepo, audioStorage),
 			appmeeting.NewCompleteUploadUC(meetingRepo, audioStorage, taskQueue),
+			appmeeting.NewListArtifactsUC(meetingRepo, artifactRepo),
 		),
 		Hub: hub,
 	}

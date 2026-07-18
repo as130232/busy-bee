@@ -81,6 +81,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/meetings/{id}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 取回會議的 AI 生成文件（PRD / Tech Spec） */
+        get: operations["listMeetingArtifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -118,6 +135,16 @@ export interface components {
             /** Format: date-time */
             scheduledAt?: string;
             remindBeforeMin: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        Artifact: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            type: "prd" | "tech_spec";
+            /** @description Markdown 全文 */
+            content: string;
             /** Format: date-time */
             createdAt: string;
         };
@@ -298,6 +325,42 @@ export interface operations {
             };
             /** @description 狀態衝突（errCode 40901） */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listMeetingArtifacts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 文件清單（處理未完成時可能為空陣列） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            artifacts: components["schemas"]["Artifact"][];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 會議不存在或非本人所有（errCode 40401） */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

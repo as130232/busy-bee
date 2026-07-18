@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	domainartifact "github.com/as130232/busy-bee/busy-bee-be/domain/artifact"
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 )
 
@@ -127,7 +128,7 @@ func TestProcess_FullPipelineFromPending(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusPending, "")}
 	st := &processFakeStorage{content: "audio-bytes"}
 	stt := &fakeSTT{result: domainmeeting.TranscribeResult{Text: "會議逐字稿", DurationSeconds: 65}}
-	uc := NewProcessUC(repo, st, stt, &fakeNotifier{})
+	uc := newTestProcessUC(repo, st, stt, &fakeNotifier{})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
 		t.Fatalf("Execute() error = %v", err)
@@ -151,7 +152,7 @@ func TestProcess_FullPipelineFromPending(t *testing.T) {
 func TestProcess_CompletedIsIdempotentNoop(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusCompleted, "done")}
 	stt := &fakeSTT{}
-	uc := NewProcessUC(repo, &processFakeStorage{}, stt, &fakeNotifier{})
+	uc := newTestProcessUC(repo, &processFakeStorage{}, stt, &fakeNotifier{})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
 		t.Fatalf("Execute() on completed = %v, want nil", err)
@@ -168,7 +169,7 @@ func TestProcess_RetrySkipsSTTWhenTranscriptExists(t *testing.T) {
 	// 模擬上次跑到一半失敗重試：已在 transcribing 且 transcript 已存在
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusTranscribing, "既有逐字稿")}
 	stt := &fakeSTT{}
-	uc := NewProcessUC(repo, &processFakeStorage{}, stt, &fakeNotifier{})
+	uc := newTestProcessUC(repo, &processFakeStorage{}, stt, &fakeNotifier{})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
 		t.Fatalf("Execute() error = %v", err)
@@ -184,7 +185,7 @@ func TestProcess_RetrySkipsSTTWhenTranscriptExists(t *testing.T) {
 func TestProcess_STTErrorPropagates(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusPending, "")}
 	boom := errors.New("groq 500")
-	uc := NewProcessUC(repo, &processFakeStorage{content: "x"}, &fakeSTT{err: boom}, &fakeNotifier{})
+	uc := newTestProcessUC(repo, &processFakeStorage{content: "x"}, &fakeSTT{err: boom}, &fakeNotifier{})
 
 	err := uc.Execute(context.Background(), repo.meeting.ID)
 	if !errors.Is(err, boom) {
@@ -197,7 +198,7 @@ func TestProcess_STTErrorPropagates(t *testing.T) {
 
 func TestProcess_ScheduledNotReady(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusScheduled, "")}
-	uc := NewProcessUC(repo, &processFakeStorage{}, &fakeSTT{}, &fakeNotifier{})
+	uc := newTestProcessUC(repo, &processFakeStorage{}, &fakeSTT{}, &fakeNotifier{})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err == nil {
 		t.Fatal("Execute() on scheduled meeting should error (audio not confirmed)")
@@ -206,7 +207,7 @@ func TestProcess_ScheduledNotReady(t *testing.T) {
 
 func TestMarkFailed_RecordsMessage(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusTranscribing, "")}
-	uc := NewProcessUC(repo, &processFakeStorage{}, &fakeSTT{}, &fakeNotifier{})
+	uc := newTestProcessUC(repo, &processFakeStorage{}, &fakeSTT{}, &fakeNotifier{})
 
 	uc.MarkFailed(context.Background(), repo.meeting.ID, errors.New("groq unreachable"))
 
@@ -224,7 +225,7 @@ func TestProcess_EmitsStatusEvents(t *testing.T) {
 	st := &processFakeStorage{content: "audio"}
 	stt := &fakeSTT{result: domainmeeting.TranscribeResult{Text: "t", DurationSeconds: 5}}
 	n := &fakeNotifier{}
-	uc := NewProcessUC(repo, st, stt, n)
+	uc := newTestProcessUC(repo, st, stt, n)
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
 		t.Fatalf("Execute() error = %v", err)
@@ -252,7 +253,7 @@ func TestProcess_EmitsStatusEvents(t *testing.T) {
 func TestMarkFailed_EmitsFailedEvent(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusTranscribing, "")}
 	n := &fakeNotifier{}
-	uc := NewProcessUC(repo, &processFakeStorage{}, &fakeSTT{}, n)
+	uc := newTestProcessUC(repo, &processFakeStorage{}, &fakeSTT{}, n)
 
 	uc.MarkFailed(context.Background(), repo.meeting.ID, errors.New("boom"))
 
@@ -262,5 +263,110 @@ func TestMarkFailed_EmitsFailedEvent(t *testing.T) {
 	}
 	if n.events[0].ErrorMessage == "" {
 		t.Error("failed event should carry error message")
+	}
+}
+
+// --- Phase 9：analyzing 階段 fakes 與測試 ---
+
+type fakeArtifactRepo struct {
+	mu       sync.Mutex
+	existing []domainartifact.Artifact
+	saved    map[domainartifact.Type]string
+}
+
+func (f *fakeArtifactRepo) Upsert(_ context.Context, meetingID uuid.UUID, t domainartifact.Type, content string) (domainartifact.Artifact, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.saved == nil {
+		f.saved = make(map[domainartifact.Type]string)
+	}
+	f.saved[t] = content
+	return domainartifact.Artifact{MeetingID: meetingID, Type: t, Content: content}, nil
+}
+
+func (f *fakeArtifactRepo) ListByMeeting(_ context.Context, _ uuid.UUID) ([]domainartifact.Artifact, error) {
+	return f.existing, nil
+}
+
+type fakeLLM struct {
+	prdCalls  int
+	specCalls int
+	err       error
+}
+
+func (f *fakeLLM) GeneratePRD(_ context.Context, transcript string) (string, error) {
+	f.prdCalls++
+	return "# PRD from: " + transcript[:min(10, len(transcript))], f.err
+}
+
+func (f *fakeLLM) GenerateTechSpec(_ context.Context, _ string) (string, error) {
+	f.specCalls++
+	return "# Tech Spec", f.err
+}
+
+func newTestProcessUC(repo *processFakeRepo, st *processFakeStorage, stt *fakeSTT, n *fakeNotifier) *ProcessUC {
+	return NewProcessUC(ProcessDeps{
+		Meetings: repo, Storage: st, STT: stt,
+		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Notifier: n,
+	})
+}
+
+func TestProcess_AnalyzingGeneratesBothDocs(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusAnalyzing, "逐字稿內容在此")}
+	arts := &fakeArtifactRepo{}
+	llm := &fakeLLM{}
+	uc := NewProcessUC(ProcessDeps{
+		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
+		Artifacts: arts, LLM: llm, Notifier: &fakeNotifier{},
+	})
+
+	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if llm.prdCalls != 1 || llm.specCalls != 1 {
+		t.Errorf("llm calls prd=%d spec=%d, want 1/1", llm.prdCalls, llm.specCalls)
+	}
+	if arts.saved[domainartifact.TypePRD] == "" || arts.saved[domainartifact.TypeTechSpec] == "" {
+		t.Errorf("saved = %v, want both docs", arts.saved)
+	}
+	if !repo.completedCall {
+		t.Error("should complete after generation")
+	}
+}
+
+func TestProcess_AnalyzingSkipsExistingDoc(t *testing.T) {
+	// retry 場景：PRD 已生成，只補 Tech Spec（不重複扣費）
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusAnalyzing, "t")}
+	arts := &fakeArtifactRepo{existing: []domainartifact.Artifact{{Type: domainartifact.TypePRD, Content: "old"}}}
+	llm := &fakeLLM{}
+	uc := NewProcessUC(ProcessDeps{
+		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
+		Artifacts: arts, LLM: llm, Notifier: &fakeNotifier{},
+	})
+
+	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if llm.prdCalls != 0 {
+		t.Errorf("prdCalls = %d, want 0 (already exists)", llm.prdCalls)
+	}
+	if llm.specCalls != 1 {
+		t.Errorf("specCalls = %d, want 1", llm.specCalls)
+	}
+}
+
+func TestProcess_LLMErrorPropagatesWithoutCompletion(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusAnalyzing, "t")}
+	llm := &fakeLLM{err: errors.New("gemini 429")}
+	uc := NewProcessUC(ProcessDeps{
+		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
+		Artifacts: &fakeArtifactRepo{}, LLM: llm, Notifier: &fakeNotifier{},
+	})
+
+	if err := uc.Execute(context.Background(), repo.meeting.ID); err == nil {
+		t.Fatal("Execute() should propagate llm error for retry")
+	}
+	if repo.completedCall {
+		t.Error("must not complete when generation failed")
 	}
 }

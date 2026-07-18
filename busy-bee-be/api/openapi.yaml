@@ -166,6 +166,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
 
+  /api/v1/meetings/{id}/artifacts:
+    get:
+      tags: [meetings]
+      summary: 取回會議的 AI 生成文件（PRD / Tech Spec）
+      operationId: listMeetingArtifacts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 文件清單（處理未完成時可能為空陣列）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [artifacts]
+                        properties:
+                          artifacts:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/Artifact"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 會議不存在或非本人所有（errCode 40401）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
 components:
   securitySchemes:
     firebaseAuth:
@@ -214,6 +251,19 @@ components:
         errorMessage: { type: string }
         scheduledAt: { type: string, format: date-time }
         remindBeforeMin: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    Artifact:
+      type: object
+      required: [id, type, content, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type:
+          type: string
+          enum: [prd, tech_spec]
+        content:
+          type: string
+          description: Markdown 全文
         createdAt: { type: string, format: date-time }
 
   responses:

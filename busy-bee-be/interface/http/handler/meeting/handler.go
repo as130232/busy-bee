@@ -15,10 +15,11 @@ import (
 type Handler struct {
 	createUC         *appmeeting.CreateUC
 	completeUploadUC *appmeeting.CompleteUploadUC
+	listArtifactsUC  *appmeeting.ListArtifactsUC
 }
 
-func NewHandler(createUC *appmeeting.CreateUC, completeUploadUC *appmeeting.CompleteUploadUC) *Handler {
-	return &Handler{createUC: createUC, completeUploadUC: completeUploadUC}
+func NewHandler(createUC *appmeeting.CreateUC, completeUploadUC *appmeeting.CompleteUploadUC, listArtifactsUC *appmeeting.ListArtifactsUC) *Handler {
+	return &Handler{createUC: createUC, completeUploadUC: completeUploadUC, listArtifactsUC: listArtifactsUC}
 }
 
 // Create POST /api/v1/meetings — 建立會議並回傳直傳 signed URL。
@@ -66,4 +67,25 @@ func (h *Handler) CompleteUpload(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"meeting": toMeetingResponse(m)})
+}
+
+// ListArtifacts GET /api/v1/meetings/:id/artifacts — 取回生成文件。
+func (h *Handler) ListArtifacts(c *gin.Context) {
+	userID, ok := domainuser.IDFrom(c.Request.Context())
+	if !ok {
+		response.Fail(c, apperr.New(errcode.Unauthorized))
+		return
+	}
+	meetingID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "id"))
+		return
+	}
+
+	list, err := h.listArtifactsUC.Execute(c.Request.Context(), userID, meetingID)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.OK(c, gin.H{"artifacts": toArtifactResponses(list)})
 }

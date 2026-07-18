@@ -4,6 +4,7 @@ import (
 	"time"
 
 	appmeeting "github.com/as130232/busy-bee/busy-bee-be/application/meeting"
+	domainartifact "github.com/as130232/busy-bee/busy-bee-be/domain/artifact"
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 )
 
@@ -46,4 +47,24 @@ func toCreateResponse(out appmeeting.CreateOutput) createResponse {
 		Meeting: toMeetingResponse(out.Meeting),
 		Upload:  uploadResponse{URL: out.Upload.URL, Headers: out.Upload.Headers},
 	}
+}
+
+type artifactResponse struct {
+	ID        string    `json:"id"`
+	Type      string    `json:"type"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+func toArtifactResponses(list []domainartifact.Artifact) []artifactResponse {
+	out := make([]artifactResponse, len(list))
+	for i, a := range list {
+		out[i] = artifactResponse{
+			ID:        a.ID.String(),
+			Type:      string(a.Type),
+			Content:   a.Content,
+			CreatedAt: a.CreatedAt,
+		}
+	}
+	return out
 }

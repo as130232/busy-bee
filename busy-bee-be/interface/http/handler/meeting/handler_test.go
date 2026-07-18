@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	appmeeting "github.com/as130232/busy-bee/busy-bee-be/application/meeting"
+	domainartifact "github.com/as130232/busy-bee/busy-bee-be/domain/artifact"
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 	domainuser "github.com/as130232/busy-bee/busy-bee-be/domain/user"
 )
@@ -59,7 +60,11 @@ func testRouter(t *testing.T) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	repo, st, q := &fakeRepo{}, &fakeStorage{}, &fakeQueue{}
-	h := NewHandler(appmeeting.NewCreateUC(repo, st), appmeeting.NewCompleteUploadUC(repo, st, q))
+	h := NewHandler(
+		appmeeting.NewCreateUC(repo, st),
+		appmeeting.NewCompleteUploadUC(repo, st, q),
+		appmeeting.NewListArtifactsUC(repo, &fakeArtifactRepo{}),
+	)
 
 	e := gin.New()
 	injectIdentity := func(c *gin.Context) {
@@ -69,6 +74,7 @@ func testRouter(t *testing.T) *gin.Engine {
 	// handler 依賴 ctx 內的 userID；測試用固定 user
 	e.POST("/meetings", injectIdentity, withTestUserID(), h.Create)
 	e.POST("/meetings/:id/complete-upload", injectIdentity, withTestUserID(), h.CompleteUpload)
+	e.GET("/meetings/:id/artifacts", injectIdentity, withTestUserID(), h.ListArtifacts)
 	return e
 }
 
@@ -153,4 +159,31 @@ func TestCompleteUpload_BadUUID400(t *testing.T) {
 
 func (f *fakeRepo) ListUnfinishedIDs(_ context.Context) ([]uuid.UUID, error) {
 	return nil, nil
+}
+
+type fakeArtifactRepo struct{}
+
+func (f *fakeArtifactRepo) Upsert(_ context.Context, meetingID uuid.UUID, t domainartifact.Type, content string) (domainartifact.Artifact, error) {
+	return domainartifact.Artifact{MeetingID: meetingID, Type: t, Content: content}, nil
+}
+
+func (f *fakeArtifactRepo) ListByMeeting(_ context.Context, meetingID uuid.UUID) ([]domainartifact.Artifact, error) {
+	return []domainartifact.Artifact{
+		{ID: uuid.New(), MeetingID: meetingID, Type: domainartifact.TypePRD, Content: "# PRD"},
+		{ID: uuid.New(), MeetingID: meetingID, Type: domainartifact.TypeTechSpec, Content: "# Spec"},
+	}, nil
+}
+
+func TestListArtifacts_ReturnsDocs(t *testing.T) {
+	e := testRouter(t)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/meetings/"+uuid.NewString()+"/artifacts", nil)
+	e.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"prd"`) || !strings.Contains(w.Body.String(), `"tech_spec"`) {
+		t.Errorf("body missing artifact types: %s", w.Body.String())
+	}
 }

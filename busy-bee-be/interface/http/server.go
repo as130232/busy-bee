@@ -61,6 +61,7 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 		authed := v1.Group("", middleware.ResolveUser(deps.UserRepo))
 		authed.POST("/meetings", deps.MeetingHandler.Create)
 		authed.POST("/meetings/:id/complete-upload", deps.MeetingHandler.CompleteUpload)
+		authed.GET("/meetings/:id/artifacts", deps.MeetingHandler.ListArtifacts)
 	}
 
 	// WS 不掛 Auth middleware（瀏覽器帶不了 header），第一則訊息驗證（ADR-002）
