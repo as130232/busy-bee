@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { RecorderPanel } from '../components/RecorderPanel'
 import { UploadZone } from '../components/UploadZone'
 import { useAuth } from '../hooks/useAuth'
 import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
@@ -50,6 +51,7 @@ export function DashboardPage() {
         </button>
       </header>
       <section className="content">
+        <RecorderPanel onUploaded={() => void load(search)} />
         <UploadZone onUploaded={() => void load(search)} />
 
         <input
