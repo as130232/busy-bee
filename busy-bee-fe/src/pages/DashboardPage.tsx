@@ -2,11 +2,23 @@ import { useState } from 'react'
 
 import { UploadZone } from '../components/UploadZone'
 import { useAuth } from '../hooks/useAuth'
+import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
 import type { Meeting } from '../services/api/client'
 
 export function DashboardPage() {
   const { user, signOut } = useAuth()
   const [uploaded, setUploaded] = useState<Meeting[]>([])
+
+  useMeetingStatusSocket((e) => {
+    setUploaded((prev) =>
+      prev.map((m) =>
+        m.id === e.meetingId
+          ? { ...m, status: e.status as Meeting['status'], errorMessage: e.errorMessage }
+          : m,
+      ),
+    )
+  })
+
   if (!user) return null // RequireAuth 已保證，防禦性判斷
 
   return (

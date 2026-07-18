@@ -131,6 +131,11 @@ button.secondary {
   background: #fde68a;
 }
 
+.status-transcribing,
+.status-analyzing {
+  background: #bfdbfe;
+}
+
 .status-completed {
   background: #bbf7d0;
 }
