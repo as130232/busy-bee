@@ -252,7 +252,7 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 
 #### ADR-008: Redis 用 Upstash，不用 GCP Memorystore
 
-- **狀態**：採納（有量後重新評估）
+- **狀態**：**已動搖，部署恢復時重新決策**（2026-07-18 補充：Asynq worker 每秒輪詢 Redis，Upstash 按指令計費，idle 即燒數十萬指令/日——免費額度必爆、計量方案可能比 Memorystore 更貴。屆時候選：(A) GCE e2-micro 免費 VM 自架 Redis（零程式碼改動）；(B) 換 Cloud Tasks + max-instances=1（production 無 Redis；TaskQueue 為 domain port，僅動 infrastructure/queue）。本地開發不受影響，維持 Docker Redis + Asynq。）
 - **背景**：Memorystore 最低階 1GB 約 $35/月，是 side project 最大單筆固定開銷。
 - **決策**：MVP 用 Upstash Redis（serverless、free tier、Asynq 相容）。全套月費目標 ≤ $25。
 - **後果**：成本大幅下降；代價是跨網路延遲略高於同 VPC 的 Memorystore（佇列場景可接受）。
