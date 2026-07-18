@@ -61,7 +61,7 @@ func main() {
 	userRepo := db.NewUserRepo(pool)
 	meetingRepo := db.NewMeetingRepo(pool)
 
-	taskQueue := queue.NewAsynq(cfg.Redis.Addr, cfg.Redis.Password)
+	taskQueue := queue.NewAsynq(cfg.Redis.Addr, cfg.Redis.Password, 0)
 	defer taskQueue.Close()
 
 	// Asynq worker 與 HTTP server 同 binary（ADR-004）

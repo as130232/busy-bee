@@ -10,6 +10,9 @@ import (
 	"github.com/hibiken/asynq"
 )
 
+// testRedisDB 測試用獨立 Redis DB，與開發中 server（DB 0）隔離。
+const testRedisDB = 15
+
 func testRedisAddr(t *testing.T) string {
 	t.Helper()
 	addr := os.Getenv("TEST_REDIS_ADDR")
@@ -28,12 +31,12 @@ func TestAsynqQueue_EnqueueAndConsume(t *testing.T) {
 	addr := testRedisAddr(t)
 	meetingID := uuid.New()
 
-	q := NewAsynq(addr, "")
+	q := NewAsynq(addr, "", testRedisDB)
 	t.Cleanup(func() { q.Close() })
 
 	received := make(chan uuid.UUID, 16) // 容納前次測試殘留的任務
 	srv := asynq.NewServer(
-		asynq.RedisClientOpt{Addr: addr},
+		asynq.RedisClientOpt{Addr: addr, DB: testRedisDB},
 		asynq.Config{Concurrency: 1, LogLevel: asynq.ErrorLevel},
 	)
 	mux := asynq.NewServeMux()
@@ -71,11 +74,60 @@ func TestAsynqQueue_EnqueueAndConsume(t *testing.T) {
 	}
 }
 
+func TestAsynqQueue_ReEnqueueAfterCompletionWorks(t *testing.T) {
+	// 回歸測試：已完成任務殘留的 TaskID 不得擋下重新排入（手動 retry 場景）
+	addr := testRedisAddr(t)
+	meetingID := uuid.New()
+
+	q := NewAsynq(addr, "", testRedisDB)
+	t.Cleanup(func() { q.Close() })
+
+	consumed := make(chan uuid.UUID, 16)
+	srv := asynq.NewServer(asynq.RedisClientOpt{Addr: addr, DB: testRedisDB},
+		asynq.Config{Concurrency: 1, LogLevel: asynq.ErrorLevel})
+	mux := asynq.NewServeMux()
+	mux.HandleFunc(TaskTypeProcessMeeting, func(_ context.Context, task *asynq.Task) error {
+		id, _ := ParseProcessMeetingPayload(task.Payload())
+		consumed <- id
+		return nil
+	})
+	if err := srv.Start(mux); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(srv.Shutdown)
+
+	waitFor := func(want uuid.UUID) {
+		t.Helper()
+		deadline := time.After(5 * time.Second)
+		for {
+			select {
+			case got := <-consumed:
+				if got == want {
+					return
+				}
+			case <-deadline:
+				t.Fatal("task not consumed within 5s")
+			}
+		}
+	}
+
+	if err := q.EnqueueProcessMeeting(context.Background(), meetingID); err != nil {
+		t.Fatalf("first enqueue: %v", err)
+	}
+	waitFor(meetingID)
+
+	// 第一次已完成後再排一次，必須能再次被消費
+	if err := q.EnqueueProcessMeeting(context.Background(), meetingID); err != nil {
+		t.Fatalf("re-enqueue after completion: %v", err)
+	}
+	waitFor(meetingID)
+}
+
 func TestAsynqQueue_EnqueueIsIdempotentPerMeeting(t *testing.T) {
 	addr := testRedisAddr(t)
 	meetingID := uuid.New()
 
-	q := NewAsynq(addr, "")
+	q := NewAsynq(addr, "", testRedisDB)
 	t.Cleanup(func() { q.Close() })
 
 	if err := q.EnqueueProcessMeeting(context.Background(), meetingID); err != nil {

@@ -30,7 +30,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	q := queue.NewAsynq(cfg.Redis.Addr, cfg.Redis.Password)
+	q := queue.NewAsynq(cfg.Redis.Addr, cfg.Redis.Password, 0)
 	defer q.Close()
 
 	if err := q.EnqueueProcessMeeting(context.Background(), id); err != nil {

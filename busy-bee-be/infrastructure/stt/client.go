@@ -20,6 +20,9 @@ const (
 	defaultBaseURL        = "https://api.groq.com/openai/v1"
 	defaultModel          = "whisper-large-v3"
 	defaultMaxUploadBytes = 25 * 1024 * 1024 // Groq free tier 上限
+
+	// transcribePrompt 引導 Whisper 中文輸出使用繁體（不影響語言自動偵測）。
+	transcribePrompt = "以下是繁體中文的會議逐字稿，可能夾雜英文技術術語。"
 )
 
 type Client struct {
@@ -129,6 +132,9 @@ func buildMultipart(audio io.Reader, filename, model string) (io.Reader, string,
 				return err
 			}
 			if err := mw.WriteField("response_format", "verbose_json"); err != nil {
+				return err
+			}
+			if err := mw.WriteField("prompt", transcribePrompt); err != nil {
 				return err
 			}
 			fw, err := mw.CreateFormFile("file", filename)
