@@ -7,8 +7,8 @@
 
 ## 當前焦點
 
-Phase 6R 已完成（記憶體佇列 + Sweeper 取代 Asynq/Redis，全系統無 Redis，ADR-010）。
-下一步：實作 Phase 7.1 WS hub 連線管理（F-STATUS；7.3 已因 ADR-010 取消）。
+Phase 7 已完成（WS 即時狀態，上傳後畫面即時流動實測通過）。
+下一步：實作 Phase 9.1 artifacts 表 + Gemini 文件生成（調整順序：9 → 10 → 8，先攻核心價值）。
 
 ---
 
@@ -36,7 +36,7 @@ Phase 6R 已完成（記憶體佇列 + Sweeper 取代 Asynq/Redis，全系統無
 | ✅ | Phase 5 — 上傳流程 | M1-B |
 | ✅ | Phase 6 — 任務佇列與 STT | M1-B |
 | ✅ | Phase 6R — 佇列簡化（移除 Redis） | M1-B |
-| ⬜ | Phase 7 — WebSocket 通知 | M1-B |
+| ✅ | Phase 7 — WebSocket 通知 | M1-B |
 | ⏸ | Phase 8 — 錄音 UI | M1-B |
 | ⏸ | Phase 9 — LLM 文件生成 | M2-A |
 | ⏸ | Phase 10 — 歷史與搜尋 | M2-A |
@@ -143,18 +143,17 @@ Phase 6R 已完成（記憶體佇列 + Sweeper 取代 Asynq/Redis，全系統無
 | ✅ | 6R.3 | 清除 Redis 依賴 | `docker-compose.yml`, `busy-bee-be/cmd/server/main.go` | 移除 asynq/redis/cmd-enqueue；config 移除 RedisConfig | — |
 
 ## Phase 7：WebSocket 通知（F-STATUS）
-
-> 里程碑：M1-B
-> 跨 instance fan-out 設計詳見 ARCHITECTURE.md ADR-002。
+> 里程碑：M1-B | ✅ 完成於 2026-07-18
+> ADR-002 修訂版：單機 in-process hub（ADR-010）。上傳後狀態即時流動實測通過。
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ⏸ | 7.1 | WS hub 連線管理 | `busy-bee-be/interface/http/handler/ws.go` | goroutine 生命週期（人工必審）；待 Phase 6 | — |
-| ⏸ | 7.2 | WS 第一則訊息 JWT 驗證 | 同上 | 驗證前不綁定 user、不推送 | — |
+| ✅ | 7.1 | WS hub 連線管理 | `busy-bee-be/interface/http/ws/hub.go` | 多連線/用戶、慢連線丟訊息；race 測試 | `275ea01` |
+| ✅ | 7.2 | WS 第一則訊息 JWT 驗證 | 同上 | 10s 逾時；白名單；驗證前零推送 | `275ea01` |
 | ❌ | 7.3 | Redis Pub/Sub fan-out | — | 取消：ADR-010 單 instance，改 in-process notifier | — |
-| ⏸ | 7.4 | worker 發布狀態事件 | `busy-bee-be/application/meeting/process.go` | 每次狀態變更發布至 in-process notifier | — |
-| ⏸ | 7.5 | useWebSocket hook | `busy-bee-fe/src/hooks/useWebSocket.ts` | 自動重連 + 重連後拉最新狀態 | — |
-| ⏸ | 7.6 | Dashboard 即時狀態顯示 | `busy-bee-fe/src/components/` | | — |
+| ✅ | 7.4 | worker 發布狀態事件 | `busy-bee-be/application/meeting/process.go` | StatusNotifier port；含 failed 事件 | `275ea01` |
+| ✅ | 7.5 | useWebSocket hook | `busy-bee-fe/src/hooks/useMeetingStatusSocket.ts` | 開連線帶新鮮 token；退避重連 | `60e25d8` |
+| ✅ | 7.6 | Dashboard 即時狀態顯示 | `busy-bee-fe/src/pages/DashboardPage.tsx` | 事件即地更新列表 | `60e25d8` |
 
 ---
 
@@ -260,7 +259,8 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-17 | Phase 4.1 Dockerfile 完成；4.2-4.4 暫緩（Supabase 額度滿，production DB 待定）；決策：優先開發 M1-B 核心功能 | `d1ed1ce` |
 | 2026-07-18 | Phase 5 全部完成（5.1–5.6：狀態機、GCS impersonation 簽名、三段式上傳 API、上傳 UI）；上傳人工驗收通過 | `324273c..a0876cf` |
 | 2026-07-18 | Phase 6 全部完成（6.1–6.6：Asynq、ProcessUC、Groq STT、ffmpeg、冪等、retry）；修復完成任務擋重排 bug；e2e 繁中逐字稿驗證通過 | `06c9930..e610142` |
-| 2026-07-18 | Phase 6R 完成：ADR-010 移除 Redis（記憶體佇列 + Sweeper）；無 Redis e2e 復原驗證通過 | — |
+| 2026-07-18 | Phase 6R 完成：ADR-010 移除 Redis（記憶體佇列 + Sweeper）；無 Redis e2e 復原驗證通過 | `b64bcb2` |
+| 2026-07-18 | Phase 7 完成（hub + 首訊驗證 + 事件發布 + 前端即時更新）；人工驗收通過；決定開發順序調整為 9 → 10 → 8 | `275ea01..60e25d8` |
 
 ---
 
