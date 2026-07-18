@@ -1,6 +1,9 @@
 package meeting
 
-import "context"
+import (
+	"context"
+	"io"
+)
 
 // UploadTarget 前端直傳所需的目標：signed URL 與必帶 headers。
 type UploadTarget struct {
@@ -14,4 +17,6 @@ type AudioStorage interface {
 	SignedUploadURL(ctx context.Context, objectPath, contentType string, maxBytes int64) (UploadTarget, error)
 	// Exists 檢查物件是否已上傳。
 	Exists(ctx context.Context, objectPath string) (bool, error)
+	// Download 讀取物件內容與大小；caller 負責 Close。
+	Download(ctx context.Context, objectPath string) (io.ReadCloser, int64, error)
 }

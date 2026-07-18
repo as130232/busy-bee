@@ -55,6 +55,31 @@ func (q *Queries) CreateMeeting(ctx context.Context, arg CreateMeetingParams) (M
 	return i, err
 }
 
+const getMeeting = `-- name: GetMeeting :one
+SELECT id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at FROM meetings WHERE id = $1
+`
+
+func (q *Queries) GetMeeting(ctx context.Context, id uuid.UUID) (Meeting, error) {
+	row := q.db.QueryRow(ctx, getMeeting, id)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Title,
+		&i.AudioGcsPath,
+		&i.Status,
+		&i.Transcript,
+		&i.DurationSeconds,
+		&i.ErrorMessage,
+		&i.ScheduledAt,
+		&i.RemindBeforeMin,
+		&i.ProcessedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getMeetingForUser = `-- name: GetMeetingForUser :one
 SELECT id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at FROM meetings WHERE id = $1 AND user_id = $2
 `
@@ -66,6 +91,101 @@ type GetMeetingForUserParams struct {
 
 func (q *Queries) GetMeetingForUser(ctx context.Context, arg GetMeetingForUserParams) (Meeting, error) {
 	row := q.db.QueryRow(ctx, getMeetingForUser, arg.ID, arg.UserID)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Title,
+		&i.AudioGcsPath,
+		&i.Status,
+		&i.Transcript,
+		&i.DurationSeconds,
+		&i.ErrorMessage,
+		&i.ScheduledAt,
+		&i.RemindBeforeMin,
+		&i.ProcessedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const saveMeetingTranscript = `-- name: SaveMeetingTranscript :one
+UPDATE meetings
+SET transcript = $2, duration_seconds = $3, updated_at = now()
+WHERE id = $1
+RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at
+`
+
+type SaveMeetingTranscriptParams struct {
+	ID              uuid.UUID
+	Transcript      string
+	DurationSeconds int32
+}
+
+func (q *Queries) SaveMeetingTranscript(ctx context.Context, arg SaveMeetingTranscriptParams) (Meeting, error) {
+	row := q.db.QueryRow(ctx, saveMeetingTranscript, arg.ID, arg.Transcript, arg.DurationSeconds)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Title,
+		&i.AudioGcsPath,
+		&i.Status,
+		&i.Transcript,
+		&i.DurationSeconds,
+		&i.ErrorMessage,
+		&i.ScheduledAt,
+		&i.RemindBeforeMin,
+		&i.ProcessedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const setMeetingCompleted = `-- name: SetMeetingCompleted :one
+UPDATE meetings
+SET status = 'completed', processed_at = now(), error_message = '', updated_at = now()
+WHERE id = $1 AND status = 'analyzing'
+RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at
+`
+
+func (q *Queries) SetMeetingCompleted(ctx context.Context, id uuid.UUID) (Meeting, error) {
+	row := q.db.QueryRow(ctx, setMeetingCompleted, id)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Title,
+		&i.AudioGcsPath,
+		&i.Status,
+		&i.Transcript,
+		&i.DurationSeconds,
+		&i.ErrorMessage,
+		&i.ScheduledAt,
+		&i.RemindBeforeMin,
+		&i.ProcessedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const setMeetingFailed = `-- name: SetMeetingFailed :one
+UPDATE meetings
+SET status = 'failed', error_message = $2, updated_at = now()
+WHERE id = $1 AND status IN ('pending', 'transcribing', 'analyzing')
+RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at
+`
+
+type SetMeetingFailedParams struct {
+	ID           uuid.UUID
+	ErrorMessage string
+}
+
+func (q *Queries) SetMeetingFailed(ctx context.Context, arg SetMeetingFailedParams) (Meeting, error) {
+	row := q.db.QueryRow(ctx, setMeetingFailed, arg.ID, arg.ErrorMessage)
 	var i Meeting
 	err := row.Scan(
 		&i.ID,

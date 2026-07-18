@@ -31,7 +31,7 @@ func TestAsynqQueue_EnqueueAndConsume(t *testing.T) {
 	q := NewAsynq(addr, "")
 	t.Cleanup(func() { q.Close() })
 
-	received := make(chan uuid.UUID, 1)
+	received := make(chan uuid.UUID, 16) // 容納前次測試殘留的任務
 	srv := asynq.NewServer(
 		asynq.RedisClientOpt{Addr: addr},
 		asynq.Config{Concurrency: 1, LogLevel: asynq.ErrorLevel},
@@ -58,13 +58,16 @@ func TestAsynqQueue_EnqueueAndConsume(t *testing.T) {
 		t.Fatalf("EnqueueProcessMeeting() error = %v", err)
 	}
 
-	select {
-	case got := <-received:
-		if got != meetingID {
-			t.Errorf("consumed id = %v, want %v", got, meetingID)
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case got := <-received:
+			if got == meetingID {
+				return // 消費到本次任務；殘留的舊任務忽略
+			}
+		case <-deadline:
+			t.Fatal("task not consumed within 5s")
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("task not consumed within 5s")
 	}
 }
 

@@ -64,5 +64,12 @@ type Meeting struct {
 type Repository interface {
 	Create(ctx context.Context, m Meeting) (Meeting, error)
 	GetForUser(ctx context.Context, id, userID uuid.UUID) (Meeting, error)
+	// Get 不帶 user 過濾，僅供 worker 內部使用。
+	Get(ctx context.Context, id uuid.UUID) (Meeting, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, from, to Status) (Meeting, error)
+	SaveTranscript(ctx context.Context, id uuid.UUID, transcript string, durationSeconds int) (Meeting, error)
+	// SetCompleted analyzing → completed，並記錄 processed_at。
+	SetCompleted(ctx context.Context, id uuid.UUID) (Meeting, error)
+	// SetFailed 處理中任一狀態 → failed，記錄 error_message。
+	SetFailed(ctx context.Context, id uuid.UUID, errorMessage string) (Meeting, error)
 }

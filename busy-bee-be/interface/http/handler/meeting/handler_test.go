@@ -3,6 +3,7 @@ package meeting
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -27,6 +28,18 @@ func (f *fakeRepo) GetForUser(_ context.Context, id, _ uuid.UUID) (domainmeeting
 func (f *fakeRepo) UpdateStatus(_ context.Context, id uuid.UUID, _, to domainmeeting.Status) (domainmeeting.Meeting, error) {
 	return domainmeeting.Meeting{ID: id, Status: to}, nil
 }
+func (f *fakeRepo) Get(_ context.Context, id uuid.UUID) (domainmeeting.Meeting, error) {
+	return domainmeeting.Meeting{ID: id}, nil
+}
+func (f *fakeRepo) SaveTranscript(_ context.Context, id uuid.UUID, _ string, _ int) (domainmeeting.Meeting, error) {
+	return domainmeeting.Meeting{ID: id}, nil
+}
+func (f *fakeRepo) SetCompleted(_ context.Context, id uuid.UUID) (domainmeeting.Meeting, error) {
+	return domainmeeting.Meeting{ID: id}, nil
+}
+func (f *fakeRepo) SetFailed(_ context.Context, id uuid.UUID, _ string) (domainmeeting.Meeting, error) {
+	return domainmeeting.Meeting{ID: id}, nil
+}
 
 type fakeStorage struct{}
 
@@ -34,6 +47,9 @@ func (f *fakeStorage) SignedUploadURL(_ context.Context, _, _ string, _ int64) (
 	return domainmeeting.UploadTarget{URL: "https://signed", Headers: map[string]string{"Content-Type": "audio/webm"}}, nil
 }
 func (f *fakeStorage) Exists(_ context.Context, _ string) (bool, error) { return true, nil }
+func (f *fakeStorage) Download(_ context.Context, _ string) (io.ReadCloser, int64, error) {
+	return io.NopCloser(strings.NewReader("")), 0, nil
+}
 
 type fakeQueue struct{}
 

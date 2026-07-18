@@ -69,6 +69,51 @@ func (r *MeetingRepo) UpdateStatus(ctx context.Context, id uuid.UUID, from, to d
 	return toDomainMeeting(row), nil
 }
 
+func (r *MeetingRepo) Get(ctx context.Context, id uuid.UUID) (domainmeeting.Meeting, error) {
+	row, err := r.q.GetMeeting(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domainmeeting.Meeting{}, domainmeeting.ErrNotFound
+		}
+		return domainmeeting.Meeting{}, fmt.Errorf("db.GetMeeting: %w", err)
+	}
+	return toDomainMeeting(row), nil
+}
+
+func (r *MeetingRepo) SaveTranscript(ctx context.Context, id uuid.UUID, transcript string, durationSeconds int) (domainmeeting.Meeting, error) {
+	row, err := r.q.SaveMeetingTranscript(ctx, sqlcgen.SaveMeetingTranscriptParams{
+		ID:              id,
+		Transcript:      transcript,
+		DurationSeconds: int32(durationSeconds),
+	})
+	if err != nil {
+		return domainmeeting.Meeting{}, fmt.Errorf("db.SaveMeetingTranscript: %w", err)
+	}
+	return toDomainMeeting(row), nil
+}
+
+func (r *MeetingRepo) SetCompleted(ctx context.Context, id uuid.UUID) (domainmeeting.Meeting, error) {
+	row, err := r.q.SetMeetingCompleted(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domainmeeting.Meeting{}, domainmeeting.ErrStatusConflict
+		}
+		return domainmeeting.Meeting{}, fmt.Errorf("db.SetMeetingCompleted: %w", err)
+	}
+	return toDomainMeeting(row), nil
+}
+
+func (r *MeetingRepo) SetFailed(ctx context.Context, id uuid.UUID, errorMessage string) (domainmeeting.Meeting, error) {
+	row, err := r.q.SetMeetingFailed(ctx, sqlcgen.SetMeetingFailedParams{ID: id, ErrorMessage: errorMessage})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domainmeeting.Meeting{}, domainmeeting.ErrStatusConflict
+		}
+		return domainmeeting.Meeting{}, fmt.Errorf("db.SetMeetingFailed: %w", err)
+	}
+	return toDomainMeeting(row), nil
+}
+
 func toDomainMeeting(row sqlcgen.Meeting) domainmeeting.Meeting {
 	return domainmeeting.Meeting{
 		ID:              row.ID,

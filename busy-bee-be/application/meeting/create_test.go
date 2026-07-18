@@ -3,6 +3,7 @@ package meeting
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -37,6 +38,22 @@ func (f *fakeRepo) UpdateStatus(_ context.Context, _ uuid.UUID, from, to domainm
 	return f.updateResult, f.updateErr
 }
 
+func (f *fakeRepo) Get(_ context.Context, _ uuid.UUID) (domainmeeting.Meeting, error) {
+	return f.getResult, f.getErr
+}
+
+func (f *fakeRepo) SaveTranscript(_ context.Context, _ uuid.UUID, _ string, _ int) (domainmeeting.Meeting, error) {
+	return f.getResult, nil
+}
+
+func (f *fakeRepo) SetCompleted(_ context.Context, _ uuid.UUID) (domainmeeting.Meeting, error) {
+	return f.getResult, nil
+}
+
+func (f *fakeRepo) SetFailed(_ context.Context, _ uuid.UUID, _ string) (domainmeeting.Meeting, error) {
+	return f.getResult, nil
+}
+
 type fakeStorage struct {
 	signedPath    string
 	signedType    string
@@ -55,6 +72,10 @@ func (f *fakeStorage) SignedUploadURL(_ context.Context, path, contentType strin
 func (f *fakeStorage) Exists(_ context.Context, path string) (bool, error) {
 	f.existsQueried = path
 	return f.existsResult, f.existsErr
+}
+
+func (f *fakeStorage) Download(_ context.Context, _ string) (io.ReadCloser, int64, error) {
+	return io.NopCloser(strings.NewReader("")), 0, nil
 }
 
 func TestCreate_ReturnsMeetingAndUploadTarget(t *testing.T) {

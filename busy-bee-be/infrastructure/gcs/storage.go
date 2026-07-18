@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -76,6 +77,14 @@ func (s *Storage) SignedUploadURL(ctx context.Context, objectPath, contentType s
 			"x-goog-content-length-range": fmt.Sprintf("0,%d", maxBytes),
 		},
 	}, nil
+}
+
+func (s *Storage) Download(ctx context.Context, objectPath string) (io.ReadCloser, int64, error) {
+	r, err := s.client.Bucket(s.bucket).Object(objectPath).NewReader(ctx)
+	if err != nil {
+		return nil, 0, fmt.Errorf("gcs.Download: %w", err)
+	}
+	return r, r.Attrs.Size, nil
 }
 
 func (s *Storage) Exists(ctx context.Context, objectPath string) (bool, error) {
