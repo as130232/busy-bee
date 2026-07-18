@@ -282,6 +282,7 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 | OTel tracing / circuit breaker / singleflight / L1L2 快取 | ⏸ 暫緩 | sport-hub 的進階模式，本專案流量不需要，避免過度設計 | — |
 | 即時逐字稿 streaming | ⏸ 暫緩 | WebSocket 架構已預留；等 MVP 驗證後再評估 | — |
 | pgvector 語意搜尋 | ⏸ 暫緩 | post-MVP 升級路徑，見 ADR-006 | — |
+| 說話者分離（diarization，A/B/C 標記） | ⏸ 暫緩 | Groq Whisper 不支援。post-MVP 兩條路：(A) 換支援 diarization 的 STT（AssemblyAI / Deepgram / ElevenLabs Scribe），STTClient port 隔離、只動 infrastructure/stt；(B) 實驗 Gemini 直接吃音訊做轉錄+說話者標記一步到位。性別辨識不做（不可靠且無必要，代號已滿足） | — |
 
 ---
 
