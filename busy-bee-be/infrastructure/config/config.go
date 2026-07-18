@@ -15,6 +15,11 @@ type Config struct {
 	Redis  RedisConfig
 	Auth   AuthConfig
 	GCS    GCSConfig
+	Groq   GroqConfig
+}
+
+type GroqConfig struct {
+	APIKey string
 }
 
 type GCSConfig struct {
@@ -85,6 +90,9 @@ func Load() (*Config, error) {
 		GCS: GCSConfig{
 			Bucket:      lookup("GCS_BUCKET", ""),
 			SignerEmail: lookup("GCS_SIGNER_EMAIL", ""),
+		},
+		Groq: GroqConfig{
+			APIKey: lookup("GROQ_API_KEY", ""),
 		},
 	}, nil
 }
