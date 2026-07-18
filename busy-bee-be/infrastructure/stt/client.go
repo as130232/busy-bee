@@ -59,6 +59,31 @@ func New(apiKey string, opts ...Option) *Client {
 type transcriptionResponse struct {
 	Text     string  `json:"text"`
 	Duration float64 `json:"duration"`
+	Segments []struct {
+		Text string `json:"text"`
+	} `json:"segments"`
+}
+
+// assembleText 以分段組稿並去除 Whisper 的相鄰重複幻覺：
+// 段落與前一段相同、或為前一段的尾部子串時捨棄。無分段資料時退回整段 text。
+func assembleText(tr transcriptionResponse) string {
+	if len(tr.Segments) == 0 {
+		return strings.TrimSpace(tr.Text)
+	}
+	var parts []string
+	prev := ""
+	for _, seg := range tr.Segments {
+		s := strings.TrimSpace(seg.Text)
+		if s == "" {
+			continue
+		}
+		if s == prev || (prev != "" && strings.HasSuffix(prev, s)) {
+			continue
+		}
+		parts = append(parts, s)
+		prev = s
+	}
+	return strings.Join(parts, " ")
 }
 
 type errorResponse struct {
@@ -117,7 +142,7 @@ func (c *Client) Transcribe(ctx context.Context, audio io.Reader, sizeBytes int6
 		return domainmeeting.TranscribeResult{}, fmt.Errorf("stt parse response: %w", err)
 	}
 	return domainmeeting.TranscribeResult{
-		Text:            tr.Text,
+		Text:            assembleText(tr),
 		DurationSeconds: int(math.Round(tr.Duration)),
 	}, nil
 }

@@ -160,3 +160,43 @@ func TestTranscribe_OversizedTriggersCompression(t *testing.T) {
 		t.Errorf("sent %d bytes, want smaller than original %d", cap.fileSize, info.Size())
 	}
 }
+
+func TestTranscribe_DedupesConsecutiveRepeatedSegments(t *testing.T) {
+	resp, _ := json.Marshal(map[string]any{
+		"text":     "ignored when segments present",
+		"duration": 61.0,
+		"segments": []map[string]any{
+			{"text": " 大家好，歡迎來到一分鐘學人工智慧"},
+			{"text": " 一分鐘學人工智慧"},          // 上一段尾部重複幻覺（子串）→ 應去除
+			{"text": " 今天我們要用一句話說明什麼是人工智慧"},
+			{"text": " 今天我們要用一句話說明什麼是人工智慧"}, // 完全重複 → 應去除
+			{"text": " 人工智慧簡稱AI"},
+		},
+	})
+	srv := fakeGroqServer(t, http.StatusOK, string(resp), nil)
+
+	c := New("k", WithBaseURL(srv.URL), WithMaxUploadBytes(1<<20))
+	got, err := c.Transcribe(context.Background(), strings.NewReader("x"), 1, "a.mp3")
+	if err != nil {
+		t.Fatalf("Transcribe() error = %v", err)
+	}
+
+	want := "大家好，歡迎來到一分鐘學人工智慧 今天我們要用一句話說明什麼是人工智慧 人工智慧簡稱AI"
+	if got.Text != want {
+		t.Errorf("Text = %q\nwant   %q", got.Text, want)
+	}
+}
+
+func TestTranscribe_NoSegmentsFallsBackToText(t *testing.T) {
+	resp, _ := json.Marshal(map[string]any{"text": "純文字回應", "duration": 3.0})
+	srv := fakeGroqServer(t, http.StatusOK, string(resp), nil)
+
+	c := New("k", WithBaseURL(srv.URL), WithMaxUploadBytes(1<<20))
+	got, err := c.Transcribe(context.Background(), strings.NewReader("x"), 1, "a.mp3")
+	if err != nil {
+		t.Fatalf("Transcribe() error = %v", err)
+	}
+	if got.Text != "純文字回應" {
+		t.Errorf("Text = %q", got.Text)
+	}
+}
