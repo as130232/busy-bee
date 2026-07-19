@@ -1,14 +1,14 @@
 # Busy Bee 開發計畫與進度追蹤
 
 > 依 `docs/PRODUCT.md` 的 F-ID 與優先序切分 Phase，記錄任務狀態與進度。
-> 更新日期：2026-07-17
+> 更新日期：2026-07-19
 
 ---
 
 ## 當前焦點
 
-Phase 12 完成（rate limiting、錯誤畫面、README）。MVP 僅剩 Phase 11（提醒推播）。
-下一步：實作 Phase 11.1 push_subscriptions 表 + 訂閱 API。
+Phase 11 程式完成（後端發送實測 delivered=1）；通知顯示待用戶端排查（macOS 通知設定）。
+下一步：用戶驗收通知顯示 → 部署 production（Cloud Run 補 VAPID env）→ MVP 完成。
 
 ---
 
@@ -40,7 +40,7 @@ Phase 12 完成（rate limiting、錯誤畫面、README）。MVP 僅剩 Phase 11
 | ✅ | Phase 8 — 錄音 UI | M1-B |
 | ✅ | Phase 9 — LLM 文件生成 | M2-A |
 | ✅ | Phase 10 — 歷史與搜尋 | M2-A |
-| ⏸ | Phase 11 — 提醒與推播 | M2-B |
+| 🔄 | Phase 11 — 提醒與推播 | M2-B |
 | ✅ | Phase 12 — Production 完善 | M2-B |
 
 ---
@@ -202,16 +202,16 @@ Phase 12 完成（rate limiting、錯誤畫面、README）。MVP 僅剩 Phase 11
 ---
 
 ## Phase 11：提醒與推播（F-REMIND）
-
-> 里程碑：M2-B
+> 里程碑：M2-B | 🔄 程式完成，人工驗收中
+> 後端發送已實測成功（reminder.sent delivered=1，掃描/防重複/1 分鐘提前皆正確）；通知「顯示」待用戶端環境排查（macOS 通知設定）。
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ⏸ | 11.1 | push_subscriptions 表 + 訂閱 API | `busy-bee-be/db/migrations/`, handler | 待 Phase 4 完成（需 HTTPS 環境） | — |
-| ⏸ | 11.2 | VAPID key + web-push 發送 | `busy-bee-be/infrastructure/` | private key 存 Secret Manager | — |
-| ⏸ | 11.3 | SW push handler + 前端訂閱 | `busy-bee-fe/public/sw.js` | iOS 限制載明於 UI | — |
-| ⏸ | 11.4 | scheduled meeting CRUD | 前後端 | scheduled 狀態的未來會議；提醒提前時間可設定（預設 15 分） | — |
-| ⏸ | 11.5 | 提醒排程（掃描式） | `busy-bee-be/worker/` | ADR-010 後改為定期掃 scheduled_at 觸發推播 | — |
+| ✅ | 11.1 | push_subscriptions 表 + 訂閱 API | `busy-bee-be/db/migrations/000004_*`, `busy-bee-be/interface/http/handler/push/` | reminded_at 防重複 + 部分索引 | `bb48b3a` |
+| ✅ | 11.2 | VAPID key + web-push 發送 | `busy-bee-be/infrastructure/webpush/` | 私鑰 Secret Manager；410 Gone 清訂閱 | `bb48b3a` |
+| ✅ | 11.3 | SW push handler + 前端訂閱 | `busy-bee-fe/src/sw.ts`, `busy-bee-fe/src/components/NotificationToggle.tsx` | injectManifest 自訂 SW；iOS 加入主畫面提示 | `47de677` |
+| ✅ | 11.4 | scheduled meeting CRUD | `busy-bee-be/application/meeting/schedule.go` | 建立/編輯；編輯清 reminded_at；TDD | `bb48b3a` |
+| ✅ | 11.5 | 提醒排程（掃描式） | `busy-bee-be/application/meeting/reminder.go`, `busy-bee-be/worker/reminder.go` | 每分鐘掃；暫時失敗重試、Gone 清除；TDD 4 例 | `bb48b3a` |
 
 ---
 
@@ -267,7 +267,8 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-19 | Phase 8 完成（useRecorder + RecorderPanel）；錄音→STT→文件全鏈路人工驗收通過；M1-B 達成 | `cc151fc` |
 | 2026-07-19 | Phase 4 部署完成（Neon + Secret Manager + Cloud Run + Hosting）；production 上線 | `f4fb15d` |
 | 2026-07-19 | ADR-004 修訂 scale-to-zero（月費 ~$12→~$0-2）；4.4 CI/CD 完成（WIF），首次執行全綠自動部署 revision 00004；Phase 4 全數完成 | `75ec206..88742a1` |
-| 2026-07-19 | Phase 12 完成（rate limiting、錯誤畫面、README）；標題補 Phase 12 完成日期 | `383adc6..` |
+| 2026-07-19 | Phase 12 完成（rate limiting、錯誤畫面、README） | `383adc6..88426d4` |
+| 2026-07-19 | Phase 11 程式完成（訂閱/VAPID/掃描發送/SW/排程 UI）；後端發送實測成功；文件稽核：清除 ARCHITECTURE 5 處過時「計畫中」標籤、補 PRODUCT 驗收勾選 | `bb48b3a..066f846` |
 
 ---
 

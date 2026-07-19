@@ -1,8 +1,8 @@
 # Busy Bee 架構說明
 
-> 最後更新：2026-07-17
+> 最後更新：2026-07-19
 >
-> **注意**：本文件描述已核准的目標架構。標有**（計畫中，尚未實作）**的模組尚未完成；隨 `docs/PLAN.md` 各 Phase 完成後逐步移除標註並補實作細節。Phase 1-3、5-7、9-10（M2-A 全數）已實作；僅剩 Phase 8（錄音）、11-12（提醒與完善）、4（部署）未完成。
+> **注意**：全部 Phase（1-12）均已實作並上線（production：https://busy-bee-502710.web.app）。「已取消 / 暫緩設計」與「post-MVP」項目見 §10。
 
 ---
 
@@ -88,7 +88,7 @@ interface/http/handler/*        worker/process_meeting
 
 ## 4. 核心資料模型 / 介面
 
-### Meeting（domain/meeting/meeting.go）（計畫中，尚未實作）
+### Meeting（domain/meeting/meeting.go）
 
 ```text
 type Meeting struct {
@@ -108,24 +108,33 @@ type Meeting struct {
 
 狀態機：`scheduled → pending → transcribing → analyzing → completed | failed`
 
-### Port interfaces（計畫中，尚未實作）
+### Port interfaces
 
 ```text
-// domain/meeting/repository.go
+// domain/meeting/meeting.go — 主 port + 窄介面（ISP）
 type Repository interface {
-    Create / GetByID / UpdateStatus / SaveTranscript / ListByUser / SearchByKeyword ...
+    Create / GetForUser / Get / UpdateStatus / SaveTranscript /
+    SetCompleted / SetFailed / ListUnfinishedIDs / ListForUser
 }
+type ScheduleRepository interface { CreateScheduled / UpdateSchedule }
+type ReminderRepository interface { ListDueReminders / MarkReminded }
 
 // domain/meeting/stt.go
 type STTClient interface {
-    Transcribe(ctx, audioReader, mimeType) (transcript string, err error)
+    Transcribe(ctx, audio io.Reader, sizeBytes, filename) (TranscribeResult, error)
 }
 
-// domain/artifact/llm.go
+// domain/artifact/artifact.go
 type LLMClient interface {
     GeneratePRD(ctx, transcript) (string, error)
     GenerateTechSpec(ctx, transcript) (string, error)
 }
+
+// domain/push/push.go
+type Sender interface { Send(ctx, Subscription, Message) error }
+
+// domain/meeting/notifier.go、queue.go、storage.go
+StatusNotifier / TaskQueue / AudioStorage
 ```
 
 ### 資料表
@@ -137,7 +146,7 @@ type LLMClient interface {
 
 ## 5. 資料流 / 請求生命週期
 
-一場會議從上傳到產出文件的完整生命週期（計畫中，尚未實作）：
+一場會議從上傳到產出文件的完整生命週期：
 
 1. **建立**：FE `POST /meetings` → auth middleware 驗 JWT → application 建 meeting 記錄 → 回 GCS signed upload URL
 2. **直傳**：FE `PUT {signed URL}` 直傳 GCS（不經後端，ADR-001）
@@ -166,7 +175,7 @@ type LLMClient interface {
 
 ## 7. 錯誤處理
 
-apperr 模式（移植自 sport-hub `pkg/apperr/`）（計畫中，尚未實作）：
+apperr 模式（移植自 sport-hub `pkg/apperr/`）：
 
 - `apperr.New(errcode.XXX, params...)` — 業務錯誤
 - `apperr.Wrap(cause, errcode.XXX)` — 包裝外部錯誤（DB / API）；原始 cause 只進 log，不回傳用戶端
@@ -288,19 +297,16 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 
 ## 11. 計畫中但尚未實作
 
-> 目前**整個系統**均為計畫中。下表列主要模組與對應 Phase，完成後逐項移除。
+> 全部 Phase 已實作完畢，本表清空。post-MVP 候選（pgvector 語意搜尋、diarization 等）記錄於 §10 暫緩表。
 
 | 項目 | 規劃位置 | 對應 PRODUCT.md | 預計 Phase |
 |------|---------|----------------|----------|
-| CI/CD + Cloud Run + Hosting | `.github/workflows/`, `busy-bee-be/Dockerfile` | — | Phase 4 |
-| useRecorder 錄音 | `busy-bee-fe/src/hooks/` | F-RECORD | Phase 8 |
-| Web Push 提醒 | `busy-bee-fe/public/sw.js` 等 | F-REMIND | Phase 11 |
 
 ---
 
 ## 12. 開發指令
 
-> 以下指令隨 Phase 1-2 建立後生效（計畫中，尚未實作）。
+（實際指令以 CLAUDE.md「常用指令」與 CI workflow 為準）
 
 ```bash
 # 本地環境
