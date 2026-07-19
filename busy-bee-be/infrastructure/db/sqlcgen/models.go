@@ -10,6 +10,19 @@ import (
 	"github.com/google/uuid"
 )
 
+type ActionItem struct {
+	ID          uuid.UUID
+	MeetingID   uuid.UUID
+	UserID      uuid.UUID
+	Description string
+	Assignee    string
+	DueText     string
+	Done        bool
+	SortOrder   int32
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Artifact struct {
 	ID           uuid.UUID
 	MeetingID    uuid.UUID
