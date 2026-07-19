@@ -54,7 +54,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </button>
         </div>
       </header>
-      <main className="mx-auto flex max-w-xl flex-col gap-6 px-4 pt-6 pb-[calc(3rem+env(safe-area-inset-bottom))]">
+      <main className="animate-fade-in-up mx-auto flex max-w-xl flex-col gap-6 px-4 pt-6 pb-[calc(3rem+env(safe-area-inset-bottom))]">
         {children}
       </main>
     </div>

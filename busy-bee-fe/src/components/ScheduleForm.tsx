@@ -44,8 +44,8 @@ export function ScheduleForm({ onCreated }: { onCreated?: (m: Meeting) => void }
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setOpen(false)} />
-      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col gap-3 rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:pb-4">
+      <div className="animate-fade-in fixed inset-0 z-40 bg-black/50" onClick={() => setOpen(false)} />
+      <div className="animate-sheet-up sm:animate-fade-in fixed inset-x-0 bottom-0 z-50 flex flex-col gap-3 rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:pb-4">
         <div className="flex items-center justify-between">
           <h2 className="m-0 text-base font-semibold">排程會議提醒</h2>
           <button

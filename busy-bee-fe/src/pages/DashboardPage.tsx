@@ -97,11 +97,15 @@ export function DashboardPage() {
         </p>
       ) : (
         <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
-          {meetings.map((m) => (
-            <li key={m.id}>
+          {meetings.map((m, i) => (
+            <li
+              key={m.id}
+              className="animate-fade-in-up"
+              style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
+            >
               <Link
                 to={`/meetings/${m.id}`}
-                className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-surface-hover"
+                className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-surface-hover active:bg-surface-hover"
               >
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{m.title}</span>

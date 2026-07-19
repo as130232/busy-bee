@@ -25,11 +25,15 @@ export function ActionItemList({
 
   return (
     <ul className="flex flex-col divide-y divide-border">
-      {items.map((item) => {
+      {items.map((item, i) => {
         const meta = [item.assignee, item.dueText].filter(Boolean).join(' · ')
         const title = showMeeting ? meetingTitleOf(item) : undefined
         return (
-          <li key={item.id} className="flex items-start gap-3 py-3">
+          <li
+            key={item.id}
+            className="animate-fade-in-up flex items-start gap-3 py-3"
+            style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
+          >
             <button
               type="button"
               role="checkbox"
@@ -42,7 +46,7 @@ export function ActionItemList({
                   : 'border-border hover:border-accent'
               }`}
             >
-              {item.done && <Check className="size-4" strokeWidth={3} />}
+              {item.done && <Check className="animate-scale-in size-4" strokeWidth={3} />}
             </button>
             <div className="min-w-0 flex-1">
               <p

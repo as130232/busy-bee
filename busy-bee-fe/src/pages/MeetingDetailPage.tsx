@@ -146,7 +146,7 @@ export function MeetingDetailPage() {
         </div>
       )}
 
-      <article className="rounded-xl border border-border bg-surface px-5 py-4">
+      <article key={tab} className="animate-fade-in rounded-xl border border-border bg-surface px-5 py-4">
         {tab === 'action_items' ? (
           meeting.status === 'completed' ? (
             <ActionItemList items={actionItems} onToggle={toggleItem} />

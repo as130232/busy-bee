@@ -80,7 +80,7 @@ export function RecorderPanel({
           type="button"
           aria-label="開始錄音"
           onClick={() => void rec.start()}
-          className={`flex size-24 cursor-pointer items-center justify-center rounded-full bg-gradient-to-b from-amber-400 to-amber-500 text-zinc-900 shadow-[0_0_70px_-10px] shadow-amber-400/60 transition active:scale-95${
+          className={`flex size-24 cursor-pointer items-center justify-center rounded-full bg-gradient-to-b from-amber-400 to-amber-500 text-zinc-900 shadow-[0_0_70px_-10px] shadow-amber-400/60 transition duration-200 hover:scale-105 hover:shadow-[0_0_90px_-8px] hover:shadow-amber-400/70 active:scale-95${
             highlight ? ' animate-pulse ring-4 ring-accent/40 ring-offset-2 ring-offset-bg' : ''
           }`}
         >
@@ -93,13 +93,18 @@ export function RecorderPanel({
   }
 
   return (
-    <div className="flex flex-col items-center gap-5 pt-8 pb-2">
+    <div className="animate-scale-in flex flex-col items-center gap-5 pt-8 pb-2">
       <div className="flex items-center gap-3">
-        <span
-          className={`size-3 rounded-full ${
-            rec.phase === 'paused' ? 'bg-muted' : 'animate-pulse bg-red-500'
-          }`}
-        />
+        <span className="relative flex size-3">
+          {rec.phase === 'recording' && (
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-red-500 opacity-75" />
+          )}
+          <span
+            className={`relative inline-flex size-3 rounded-full ${
+              rec.phase === 'paused' ? 'bg-muted' : 'bg-red-500'
+            }`}
+          />
+        </span>
         <span className="font-mono text-5xl font-medium tabular-nums">{fmt(rec.elapsedSec)}</span>
       </div>
       <div className="flex items-center gap-3">

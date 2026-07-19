@@ -34,7 +34,7 @@ export function PendingActionItems() {
   if (items.length === 0) return null
 
   return (
-    <section className="rounded-xl border border-border bg-surface p-4">
+    <section className="animate-fade-in-up rounded-xl border border-border bg-surface p-4">
       <h2 className="m-0 mb-1 flex items-center gap-2 text-sm font-semibold">
         <ListChecks className="size-4 text-accent" />
         待辦行動項

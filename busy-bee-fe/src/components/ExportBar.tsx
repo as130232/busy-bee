@@ -41,7 +41,11 @@ export function ExportBar({ content, filename }: { content: string; filename: st
         aria-label={copied ? '已複製' : '複製 Markdown'}
         onClick={() => void copy()}
       >
-        {copied ? <Check className="size-4 text-emerald-500" /> : <Copy className="size-4" />}
+        {copied ? (
+          <Check className="animate-scale-in size-4 text-emerald-500" />
+        ) : (
+          <Copy className="size-4" />
+        )}
       </button>
       <button
         type="button"
