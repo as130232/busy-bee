@@ -5,11 +5,13 @@ package llm
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"google.golang.org/genai"
 
+	domainactionitem "github.com/as130232/busy-bee/busy-bee-be/domain/actionitem"
 	domainartifact "github.com/as130232/busy-bee/busy-bee-be/domain/artifact"
 )
 
@@ -17,8 +19,9 @@ import (
 var promptFS embed.FS
 
 const (
-	promptPRD      = "prompts/prd.md"
-	promptTechSpec = "prompts/tech_spec.md"
+	promptPRD         = "prompts/prd.md"
+	promptTechSpec    = "prompts/tech_spec.md"
+	promptActionItems = "prompts/action_items.md"
 )
 
 func buildPrompt(templatePath, transcript string) (string, error) {
@@ -34,7 +37,10 @@ type GeminiClient struct {
 	model  string
 }
 
-var _ domainartifact.LLMClient = (*GeminiClient)(nil)
+var (
+	_ domainartifact.LLMClient   = (*GeminiClient)(nil)
+	_ domainactionitem.Extractor = (*GeminiClient)(nil)
+)
 
 func NewGemini(ctx context.Context, apiKey, model string) (*GeminiClient, error) {
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
@@ -53,6 +59,32 @@ func (c *GeminiClient) GeneratePRD(ctx context.Context, transcript string) (stri
 
 func (c *GeminiClient) GenerateTechSpec(ctx context.Context, transcript string) (string, error) {
 	return c.generate(ctx, promptTechSpec, transcript)
+}
+
+// ExtractActionItems 抽取行動項。prompt 要求無行動項時輸出 `[]`（非空字串），
+// 故 generate 的 empty-response 檢查不會誤判合法的空結果。
+func (c *GeminiClient) ExtractActionItems(ctx context.Context, transcript string) ([]domainactionitem.Extracted, error) {
+	text, err := c.generate(ctx, promptActionItems, transcript)
+	if err != nil {
+		return nil, err
+	}
+	return parseActionItems(text)
+}
+
+// parseActionItems 解析模型輸出的 JSON 陣列，容忍被 ```json fence 包裹的情形。
+func parseActionItems(text string) ([]domainactionitem.Extracted, error) {
+	s := strings.TrimSpace(text)
+	s = strings.TrimPrefix(s, "```json")
+	s = strings.TrimPrefix(s, "```")
+	s = strings.TrimSpace(s)
+	s = strings.TrimSuffix(s, "```")
+	s = strings.TrimSpace(s)
+
+	var items []domainactionitem.Extracted
+	if err := json.Unmarshal([]byte(s), &items); err != nil {
+		return nil, fmt.Errorf("llm.parseActionItems: %w", err)
+	}
+	return items, nil
 }
 
 func (c *GeminiClient) generate(ctx context.Context, templatePath, transcript string) (string, error) {
