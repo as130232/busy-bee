@@ -154,3 +154,54 @@ func toDomainMeeting(row sqlcgen.Meeting) domainmeeting.Meeting {
 		UpdatedAt:       row.UpdatedAt,
 	}
 }
+
+func (r *MeetingRepo) CreateScheduled(ctx context.Context, userID uuid.UUID, p domainmeeting.ScheduleParams) (domainmeeting.Meeting, error) {
+	at := p.ScheduledAt
+	row, err := r.q.CreateScheduledMeeting(ctx, sqlcgen.CreateScheduledMeetingParams{
+		UserID:          userID,
+		Title:           p.Title,
+		ScheduledAt:     &at,
+		RemindBeforeMin: int32(p.RemindBeforeMin),
+	})
+	if err != nil {
+		return domainmeeting.Meeting{}, fmt.Errorf("db.CreateScheduledMeeting: %w", err)
+	}
+	return toDomainMeeting(row), nil
+}
+
+func (r *MeetingRepo) UpdateSchedule(ctx context.Context, id, userID uuid.UUID, p domainmeeting.ScheduleParams) (domainmeeting.Meeting, error) {
+	at := p.ScheduledAt
+	row, err := r.q.UpdateMeetingSchedule(ctx, sqlcgen.UpdateMeetingScheduleParams{
+		ID:              id,
+		UserID:          userID,
+		Title:           p.Title,
+		ScheduledAt:     &at,
+		RemindBeforeMin: int32(p.RemindBeforeMin),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domainmeeting.Meeting{}, domainmeeting.ErrNotFound
+		}
+		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingSchedule: %w", err)
+	}
+	return toDomainMeeting(row), nil
+}
+
+func (r *MeetingRepo) ListDueReminders(ctx context.Context) ([]domainmeeting.Meeting, error) {
+	rows, err := r.q.ListDueReminders(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("db.ListDueReminders: %w", err)
+	}
+	out := make([]domainmeeting.Meeting, len(rows))
+	for i, row := range rows {
+		out[i] = toDomainMeeting(row)
+	}
+	return out, nil
+}
+
+func (r *MeetingRepo) MarkReminded(ctx context.Context, id uuid.UUID) error {
+	if err := r.q.MarkMeetingReminded(ctx, id); err != nil {
+		return fmt.Errorf("db.MarkMeetingReminded: %w", err)
+	}
+	return nil
+}

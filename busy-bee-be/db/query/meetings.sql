@@ -36,6 +36,30 @@ WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT 100;
 
+-- name: CreateScheduledMeeting :one
+INSERT INTO meetings (user_id, title, status, scheduled_at, remind_before_min)
+VALUES ($1, $2, 'scheduled', $3, $4)
+RETURNING *;
+
+-- name: UpdateMeetingSchedule :one
+UPDATE meetings
+SET title = $3, scheduled_at = $4, remind_before_min = $5, reminded_at = NULL, updated_at = now()
+WHERE id = $1 AND user_id = $2 AND status = 'scheduled'
+RETURNING *;
+
+-- name: ListDueReminders :many
+SELECT * FROM meetings
+WHERE status = 'scheduled'
+  AND reminded_at IS NULL
+  AND scheduled_at IS NOT NULL
+  AND scheduled_at - make_interval(mins => remind_before_min) <= now()
+  AND scheduled_at > now() - interval '1 hour'
+ORDER BY scheduled_at
+LIMIT 50;
+
+-- name: MarkMeetingReminded :exec
+UPDATE meetings SET reminded_at = now(), updated_at = now() WHERE id = $1;
+
 -- name: ListUnfinishedMeetingIDs :many
 SELECT id FROM meetings
 WHERE status IN ('pending', 'transcribing', 'analyzing')

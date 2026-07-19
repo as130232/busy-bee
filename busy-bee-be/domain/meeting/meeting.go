@@ -77,3 +77,24 @@ type Repository interface {
 	// ListForUser 列出本人會議（新→舊）；search 非空時以關鍵字過濾 title/transcript。
 	ListForUser(ctx context.Context, userID uuid.UUID, search string) ([]Meeting, error)
 }
+
+// ScheduleParams 排程會議的輸入欄位。
+type ScheduleParams struct {
+	Title           string
+	ScheduledAt     time.Time
+	RemindBeforeMin int
+}
+
+// ScheduleRepository 排程會議專用窄介面（MeetingRepo 一併實作）。
+type ScheduleRepository interface {
+	CreateScheduled(ctx context.Context, userID uuid.UUID, p ScheduleParams) (Meeting, error)
+	// UpdateSchedule 僅 scheduled 狀態且本人可改；會清除 reminded_at（重排提醒）。
+	UpdateSchedule(ctx context.Context, id, userID uuid.UUID, p ScheduleParams) (Meeting, error)
+}
+
+// ReminderRepository 提醒掃描專用窄介面（MeetingRepo 一併實作）。
+type ReminderRepository interface {
+	// ListDueReminders 到達提醒時間且未提醒過的排程會議（過期 1 小時以上不再提醒）。
+	ListDueReminders(ctx context.Context) ([]Meeting, error)
+	MarkReminded(ctx context.Context, id uuid.UUID) error
+}

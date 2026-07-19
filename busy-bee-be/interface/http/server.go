@@ -9,6 +9,7 @@ import (
 	domainuser "github.com/as130232/busy-bee/busy-bee-be/domain/user"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/config"
 	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
+	pushhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/push"
 	userhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/user"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/middleware"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/ws"
@@ -29,6 +30,7 @@ type Deps struct {
 	UserRepo       domainuser.Repository
 	UserHandler    *userhandler.Handler
 	MeetingHandler *meetinghandler.Handler
+	PushHandler    *pushhandler.Handler
 	Hub            *ws.Hub
 }
 
@@ -63,10 +65,18 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 		authed := v1.Group("", middleware.ResolveUser(deps.UserRepo))
 		authed.POST("/meetings", deps.MeetingHandler.Create)
 		authed.GET("/meetings", deps.MeetingHandler.List)
+		authed.POST("/meetings/scheduled", deps.MeetingHandler.CreateScheduled)
 		authed.GET("/meetings/:id", deps.MeetingHandler.Get)
 		authed.POST("/meetings/:id/complete-upload", deps.MeetingHandler.CompleteUpload)
+		authed.PATCH("/meetings/:id/schedule", deps.MeetingHandler.UpdateSchedule)
 		authed.POST("/meetings/:id/retry", deps.MeetingHandler.Retry)
 		authed.GET("/meetings/:id/artifacts", deps.MeetingHandler.ListArtifacts)
+
+		if deps.PushHandler != nil {
+			authed.GET("/push/vapid-public-key", deps.PushHandler.VAPIDPublicKey)
+			authed.POST("/push/subscriptions", deps.PushHandler.Subscribe)
+			authed.DELETE("/push/subscriptions", deps.PushHandler.Unsubscribe)
+		}
 	}
 
 	// WS 不掛 Auth middleware（瀏覽器帶不了 header），第一則訊息驗證（ADR-002）

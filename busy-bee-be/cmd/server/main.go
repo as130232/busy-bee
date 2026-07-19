@@ -11,6 +11,7 @@ import (
 	"time"
 
 	appmeeting "github.com/as130232/busy-bee/busy-bee-be/application/meeting"
+	apppush "github.com/as130232/busy-bee/busy-bee-be/application/push"
 	appuser "github.com/as130232/busy-bee/busy-bee-be/application/user"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/config"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/db"
@@ -19,8 +20,10 @@ import (
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/llm"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/queue"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/stt"
+	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/webpush"
 	httpserver "github.com/as130232/busy-bee/busy-bee-be/interface/http"
 	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
+	pushhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/push"
 	userhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/user"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/ws"
 	"github.com/as130232/busy-bee/busy-bee-be/worker"
@@ -86,6 +89,18 @@ func main() {
 	defer stopSweeper()
 	go worker.NewSweeper(meetingRepo, taskQueue).Run(sweepCtx, sweepInterval)
 
+	// 提醒掃描（F-REMIND，掃描式，ADR-010）：VAPID 未設定則停用
+	pushRepo := db.NewPushRepo(pool)
+	var pushHandler *pushhandler.Handler
+	if cfg.Push.VAPIDPublicKey != "" && cfg.Push.VAPIDPrivateKey != "" {
+		sender := webpush.New(cfg.Push.VAPIDPublicKey, cfg.Push.VAPIDPrivateKey, cfg.Push.SubscriberEmail)
+		reminderUC := appmeeting.NewReminderUC(meetingRepo, pushRepo, sender)
+		go worker.RunReminderSweep(sweepCtx, reminderUC, time.Minute)
+		pushHandler = pushhandler.NewHandler(apppush.NewSubscribeUC(pushRepo), cfg.Push.VAPIDPublicKey)
+	} else {
+		slog.Warn("push reminders disabled: VAPID keys not configured")
+	}
+
 	deps := httpserver.Deps{
 		Verifier:    verifier,
 		UserRepo:    userRepo,
@@ -97,8 +112,10 @@ func main() {
 			List:           appmeeting.NewListUC(meetingRepo),
 			Get:            appmeeting.NewGetUC(meetingRepo),
 			Retry:          appmeeting.NewRetryUC(meetingRepo, taskQueue),
+			Schedule:       appmeeting.NewScheduleUC(meetingRepo),
 		}),
-		Hub: hub,
+		PushHandler: pushHandler,
+		Hub:         hub,
 	}
 	srv := httpserver.NewServer(cfg, deps)
 

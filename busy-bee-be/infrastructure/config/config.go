@@ -16,6 +16,7 @@ type Config struct {
 	GCS    GCSConfig
 	Groq   GroqConfig
 	Gemini GeminiConfig
+	Push   PushConfig
 }
 
 type GroqConfig struct {
@@ -25,6 +26,12 @@ type GroqConfig struct {
 type GeminiConfig struct {
 	APIKey string
 	Model  string
+}
+
+type PushConfig struct {
+	VAPIDPublicKey  string
+	VAPIDPrivateKey string
+	SubscriberEmail string
 }
 
 type GCSConfig struct {
@@ -93,6 +100,11 @@ func Load() (*Config, error) {
 		Gemini: GeminiConfig{
 			APIKey: lookup("GEMINI_API_KEY", ""),
 			Model:  lookup("GEMINI_MODEL", "gemini-flash-latest"),
+		},
+		Push: PushConfig{
+			VAPIDPublicKey:  lookup("VAPID_PUBLIC_KEY", ""),
+			VAPIDPrivateKey: lookup("VAPID_PRIVATE_KEY", ""),
+			SubscriberEmail: lookup("VAPID_SUBSCRIBER_EMAIL", ""),
 		},
 	}, nil
 }

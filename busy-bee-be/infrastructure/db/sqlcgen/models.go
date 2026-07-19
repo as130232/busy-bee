@@ -32,6 +32,16 @@ type Meeting struct {
 	ProcessedAt     *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	RemindedAt      *time.Time
+}
+
+type PushSubscription struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Endpoint  string
+	P256dhKey string
+	AuthKey   string
+	CreatedAt time.Time
 }
 
 type User struct {
