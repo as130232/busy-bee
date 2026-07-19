@@ -22,11 +22,12 @@ export function RecordPage() {
   }, [searchParams, setSearchParams])
 
   return (
-    <>
-      <div className="flex min-h-[58vh] flex-col items-center justify-center">
+    // 撐滿頂欄與底部分頁之間：錄音鈕置於正中，上傳貼近底部
+    <div className="flex min-h-[calc(100dvh-10.5rem)] flex-col">
+      <div className="flex flex-1 flex-col items-center justify-center">
         <RecorderPanel onUploaded={() => navigate('/meetings')} highlight={highlight} />
       </div>
       <UploadZone onUploaded={() => navigate('/meetings')} />
-    </>
+    </div>
   )
 }
