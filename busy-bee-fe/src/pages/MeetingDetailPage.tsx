@@ -3,23 +3,28 @@ import { Link, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { ChevronLeft } from 'lucide-react'
 
+import { ActionItemList } from '../components/ActionItemList'
 import { AppShell } from '../components/AppShell'
 import { StatusBadge } from '../components/StatusBadge'
 import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
 import {
   getMeeting,
   listArtifacts,
+  listMeetingActionItems,
   retryMeeting,
+  toggleActionItem,
+  type ActionItem,
   type Artifact,
   type MeetingDetail,
 } from '../services/api/client'
 import { getIdToken } from '../services/token'
 
-type Tab = 'prd' | 'tech_spec' | 'transcript'
+type Tab = 'prd' | 'tech_spec' | 'action_items' | 'transcript'
 
 const tabLabels: Record<Tab, string> = {
   prd: 'PRD',
   tech_spec: 'Tech Spec',
+  action_items: '行動項',
   transcript: '逐字稿',
 }
 
@@ -27,6 +32,7 @@ export function MeetingDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [meeting, setMeeting] = useState<MeetingDetail | null>(null)
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
+  const [actionItems, setActionItems] = useState<ActionItem[]>([])
   const [tab, setTab] = useState<Tab>('prd')
   const [error, setError] = useState<string | null>(null)
 
@@ -34,9 +40,14 @@ export function MeetingDetailPage() {
     if (!id) return
     try {
       const token = await getIdToken()
-      const [m, a] = await Promise.all([getMeeting(token, id), listArtifacts(token, id)])
+      const [m, a, ai] = await Promise.all([
+        getMeeting(token, id),
+        listArtifacts(token, id),
+        listMeetingActionItems(token, id),
+      ])
       setMeeting(m.meeting)
       setArtifacts(a.artifacts)
+      setActionItems(ai.actionItems)
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : '載入失敗')
@@ -62,6 +73,15 @@ export function MeetingDetailPage() {
     }
   }
 
+  const toggleItem = async (itemId: string, done: boolean) => {
+    setActionItems((prev) => prev.map((it) => (it.id === itemId ? { ...it, done } : it)))
+    try {
+      await toggleActionItem(await getIdToken(), itemId, done)
+    } catch {
+      void load() // 失敗回滾
+    }
+  }
+
   if (error) {
     return (
       <AppShell>
@@ -78,8 +98,12 @@ export function MeetingDetailPage() {
   }
 
   const artifactByType = new Map(artifacts.map((a) => [a.type, a]))
-  const content =
-    tab === 'transcript' ? meeting.transcript : (artifactByType.get(tab)?.content ?? '')
+  const docContent =
+    tab === 'transcript'
+      ? meeting.transcript
+      : tab === 'action_items'
+        ? ''
+        : (artifactByType.get(tab)?.content ?? '')
 
   return (
     <AppShell>
@@ -100,15 +124,13 @@ export function MeetingDetailPage() {
         </div>
       )}
 
-      <nav className="grid grid-cols-3 border-b border-border">
+      <nav className="grid grid-cols-4 border-b border-border">
         {(Object.keys(tabLabels) as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
             className={`-mb-px h-11 cursor-pointer border-b-2 text-sm font-medium transition ${
-              tab === t
-                ? 'border-accent text-fg'
-                : 'border-transparent text-muted hover:text-fg'
+              tab === t ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg'
             }`}
             onClick={() => setTab(t)}
           >
@@ -118,12 +140,18 @@ export function MeetingDetailPage() {
       </nav>
 
       <article className="rounded-xl border border-border bg-surface px-5 py-4">
-        {content ? (
+        {tab === 'action_items' ? (
+          meeting.status === 'completed' ? (
+            <ActionItemList items={actionItems} onToggle={toggleItem} />
+          ) : (
+            <p className="m-0 text-sm text-muted">處理完成後將顯示於此。</p>
+          )
+        ) : docContent ? (
           tab === 'transcript' ? (
-            <p className="text-sm leading-7 whitespace-pre-wrap">{content}</p>
+            <p className="text-sm leading-7 whitespace-pre-wrap">{docContent}</p>
           ) : (
             <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none prose-headings:font-semibold prose-h1:text-xl prose-h2:mt-6 prose-h2:border-b prose-h2:border-border prose-h2:pb-1.5 prose-h2:text-base">
-              <ReactMarkdown>{content}</ReactMarkdown>
+              <ReactMarkdown>{docContent}</ReactMarkdown>
             </div>
           )
         ) : (

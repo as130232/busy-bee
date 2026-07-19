@@ -202,6 +202,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/meetings/{id}/action-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 取回會議的行動項 */
+        get: operations["listMeetingActionItems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/action-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 跨會議的未完成行動項 */
+        get: operations["listPendingActionItems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/action-items/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 標記行動項完成 / 取消完成 */
+        patch: operations["toggleActionItem"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -254,6 +305,23 @@ export interface components {
             content: string;
             /** Format: date-time */
             createdAt: string;
+        };
+        ActionItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            meetingId: string;
+            description: string;
+            /** @description 負責人；會議未指派時為空字串 */
+            assignee: string;
+            /** @description 時限（原文說法）；會議未提及時為空字串 */
+            dueText: string;
+            done: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PendingActionItem: components["schemas"]["ActionItem"] & {
+            meetingTitle: string;
         };
     };
     responses: {
@@ -744,6 +812,109 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             /** @description 會議不存在或非本人所有（errCode 40401） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listMeetingActionItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 行動項清單（處理未完成或無行動項時為空陣列） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            actionItems: components["schemas"]["ActionItem"][];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 會議不存在或非本人所有（errCode 40401） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listPendingActionItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 本人所有未完成行動項（含所屬會議標題） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            actionItems: components["schemas"]["PendingActionItem"][];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    toggleActionItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    done: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            actionItem: components["schemas"]["ActionItem"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 行動項不存在或非本人所有（errCode 40401） */
             404: {
                 headers: {
                     [name: string]: unknown;
