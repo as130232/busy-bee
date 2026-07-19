@@ -1,10 +1,19 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>busy-bee-fe</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0e0e11" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Busy Bee</title>
+    <script>
+      // 首屏前套用主題，避免 FOUC；預設跟隨系統
+      const stored = localStorage.getItem('theme')
+      const dark = stored === 'dark' || (stored !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+      document.documentElement.classList.toggle('dark', dark)
+      if (!dark) document.querySelector('meta[name="theme-color"]').content = '#fafafa'
+    </script>
   </head>
   <body>
     <div id="root"></div>

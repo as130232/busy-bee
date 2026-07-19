@@ -74,21 +74,23 @@ export function NotificationToggle() {
 
   if (state === 'unsupported') {
     return isIOS && !isStandalone ? (
-      <p className="muted small">iOS 需先「加入主畫面」才能開啟會議提醒通知（iOS 16.4+）。</p>
+      <p className="m-0 text-xs text-muted">iOS 需先「加入主畫面」才能開啟會議提醒通知（iOS 16.4+）。</p>
     ) : null
   }
   if (state === 'denied') {
-    return <p className="muted small">通知權限已被封鎖，請在瀏覽器設定中允許本站通知。</p>
+    return <p className="m-0 text-xs text-muted">通知權限已被封鎖，請在瀏覽器設定中允許本站通知。</p>
   }
 
   return (
-    <label className="notif-toggle">
+    <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
       <input
         type="checkbox"
+        className="peer sr-only"
         checked={state === 'on'}
         disabled={state === 'busy'}
         onChange={(e) => void (e.target.checked ? enable() : disable())}
       />
+      <span className="relative h-6 w-10 shrink-0 rounded-full bg-border transition after:absolute after:top-0.5 after:left-0.5 after:size-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:bg-accent peer-checked:after:translate-x-4 peer-disabled:opacity-50" />
       會議提醒通知
     </label>
   )

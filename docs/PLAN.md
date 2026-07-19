@@ -270,6 +270,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-19 | Phase 12 完成（rate limiting、錯誤畫面、README） | `383adc6..88426d4` |
 | 2026-07-19 | Phase 11 程式完成（訂閱/VAPID/掃描發送/SW/排程 UI）；後端發送實測成功；文件稽核：清除 ARCHITECTURE 5 處過時「計畫中」標籤、補 PRODUCT 驗收勾選 | `bb48b3a..066f846` |
 | 2026-07-19 | 後端健檢修正（error_message 不外洩原文、rate limit 惰性清理）；Phase 11 merge main；Cloud Run 補 VAPID env/secret（rev 00007）；CI 自動部署 | `8cc6f78` |
+| 2026-07-19 | 前端視覺重設計：Linear 式暗色風、Tailwind v4 + design tokens、暗/亮雙主題、行動優先（iPhone PWA 為主）、lucide 圖示、大圓形錄音鈕、排程 bottom sheet；typecheck/lint/build 通過，待 iPhone 實機驗收 | （待 commit） |
 
 ---
 
