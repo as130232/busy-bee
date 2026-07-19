@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 
 import { AppShell } from '../components/AppShell'
@@ -19,6 +19,19 @@ export function DashboardPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [search, setSearch] = useState('')
   const [loadError, setLoadError] = useState<string | null>(null)
+
+  // 由提醒推播深連結（/?record=1）進入時高亮錄音鈕，3 秒後清除 query
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [highlightRecorder, setHighlightRecorder] = useState(false)
+  useEffect(() => {
+    if (searchParams.get('record') !== '1') return
+    setHighlightRecorder(true)
+    const timer = setTimeout(() => {
+      setHighlightRecorder(false)
+      setSearchParams({}, { replace: true })
+    }, 3000)
+    return () => clearTimeout(timer)
+  }, [searchParams, setSearchParams])
 
   const load = useCallback(async (keyword: string) => {
     try {
@@ -49,7 +62,7 @@ export function DashboardPage() {
 
   return (
     <AppShell>
-      <RecorderPanel onUploaded={() => void load(search)} />
+      <RecorderPanel onUploaded={() => void load(search)} highlight={highlightRecorder} />
       <UploadZone onUploaded={() => void load(search)} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">

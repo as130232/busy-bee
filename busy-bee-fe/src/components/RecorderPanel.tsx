@@ -17,7 +17,13 @@ type UploadState =
   | { phase: 'uploading'; percent: number }
   | { phase: 'error'; message: string; file: File }
 
-export function RecorderPanel({ onUploaded }: { onUploaded?: (m: Meeting) => void }) {
+export function RecorderPanel({
+  onUploaded,
+  highlight = false,
+}: {
+  onUploaded?: (m: Meeting) => void
+  highlight?: boolean
+}) {
   const rec = useRecorder()
   const [upload, setUpload] = useState<UploadState>({ phase: 'idle' })
 
@@ -74,7 +80,9 @@ export function RecorderPanel({ onUploaded }: { onUploaded?: (m: Meeting) => voi
           type="button"
           aria-label="開始錄音"
           onClick={() => void rec.start()}
-          className="flex size-24 cursor-pointer items-center justify-center rounded-full bg-gradient-to-b from-amber-400 to-amber-500 text-zinc-900 shadow-[0_0_70px_-10px] shadow-amber-400/60 transition active:scale-95"
+          className={`flex size-24 cursor-pointer items-center justify-center rounded-full bg-gradient-to-b from-amber-400 to-amber-500 text-zinc-900 shadow-[0_0_70px_-10px] shadow-amber-400/60 transition active:scale-95${
+            highlight ? ' animate-pulse ring-4 ring-accent/40 ring-offset-2 ring-offset-bg' : ''
+          }`}
         >
           <Mic className="size-9" strokeWidth={1.75} />
         </button>
