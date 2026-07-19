@@ -5,6 +5,7 @@ import { ChevronLeft } from 'lucide-react'
 
 import { ActionItemList } from '../components/ActionItemList'
 import { AppShell } from '../components/AppShell'
+import { ExportBar } from '../components/ExportBar'
 import { StatusBadge } from '../components/StatusBadge'
 import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
 import {
@@ -138,6 +139,12 @@ export function MeetingDetailPage() {
           </button>
         ))}
       </nav>
+
+      {tab !== 'action_items' && docContent && (
+        <div className="-mb-2 flex justify-end">
+          <ExportBar content={docContent} filename={`${meeting.title}-${tab}`} />
+        </div>
+      )}
 
       <article className="rounded-xl border border-border bg-surface px-5 py-4">
         {tab === 'action_items' ? (
