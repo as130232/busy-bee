@@ -12,7 +12,9 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
 }
 
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
-const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+const isStandalone =
+  window.matchMedia('(display-mode: standalone)').matches ||
+  (navigator as Navigator & { standalone?: boolean }).standalone === true
 
 type State = 'unsupported' | 'off' | 'on' | 'busy' | 'denied'
 
@@ -22,17 +24,29 @@ export function NotificationToggle() {
 
   useEffect(() => {
     void (async () => {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        setState('unsupported')
-        return
+      try {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+          setState('unsupported')
+          return
+        }
+        if (Notification.permission === 'denied') {
+          setState('denied')
+          return
+        }
+        // serviceWorker.ready 在 iOS PWA 首次可能遲遲不 resolve；逾時仍讓使用者可點擊嘗試開啟
+        const reg = await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+        ])
+        if (!reg) {
+          setState('off')
+          return
+        }
+        const sub = await reg.pushManager.getSubscription()
+        setState(sub ? 'on' : 'off')
+      } catch {
+        setState('off')
       }
-      if (Notification.permission === 'denied') {
-        setState('denied')
-        return
-      }
-      const reg = await navigator.serviceWorker.ready
-      const sub = await reg.pushManager.getSubscription()
-      setState(sub ? 'on' : 'off')
     })()
   }, [])
 
@@ -52,7 +66,8 @@ export function NotificationToggle() {
       })
       await subscribePush(token, sub.toJSON())
       setState('on')
-    } catch {
+    } catch (e) {
+      console.error('[push] 開啟通知失敗', e)
       setState('off')
     }
   }, [])
