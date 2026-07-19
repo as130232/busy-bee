@@ -2,42 +2,53 @@ package meeting
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"path"
 
 	"github.com/google/uuid"
 
+	domainactionitem "github.com/as130232/busy-bee/busy-bee-be/domain/actionitem"
 	domainartifact "github.com/as130232/busy-bee/busy-bee-be/domain/artifact"
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 )
+
+// artifactTypeActionItems：抽取階段以此類型的 artifact（原始 JSON）作為冪等標記，
+// 存在即代表本場已抽取過，retry 不重複呼叫 LLM。
+const artifactTypeActionItems = domainartifact.Type("action_items")
 
 // ProcessUC 會議處理管線：pending → transcribing（STT）→ analyzing → completed。
 // 各階段冪等（ADR-009）：已有產物的階段直接跳過，retry 不重複呼叫外部 API。
 // 失敗時回傳錯誤交由 Asynq retry；標記 failed 是 worker 在最後一次重試後的決定（MarkFailed）。
 // ProcessDeps ProcessUC 的依賴（皆為 domain ports）。
 type ProcessDeps struct {
-	Meetings  domainmeeting.Repository
-	Storage   domainmeeting.AudioStorage
-	STT       domainmeeting.STTClient
-	Artifacts domainartifact.Repository
-	LLM       domainartifact.LLMClient
-	Notifier  domainmeeting.StatusNotifier
+	Meetings    domainmeeting.Repository
+	Storage     domainmeeting.AudioStorage
+	STT         domainmeeting.STTClient
+	Artifacts   domainartifact.Repository
+	LLM         domainartifact.LLMClient
+	Notifier    domainmeeting.StatusNotifier
+	ActionItems domainactionitem.Repository
+	Extractor   domainactionitem.Extractor
 }
 
 type ProcessUC struct {
-	repo      domainmeeting.Repository
-	storage   domainmeeting.AudioStorage
-	stt       domainmeeting.STTClient
-	artifacts domainartifact.Repository
-	llm       domainartifact.LLMClient
-	notifier  domainmeeting.StatusNotifier
+	repo        domainmeeting.Repository
+	storage     domainmeeting.AudioStorage
+	stt         domainmeeting.STTClient
+	artifacts   domainartifact.Repository
+	llm         domainartifact.LLMClient
+	notifier    domainmeeting.StatusNotifier
+	actionItems domainactionitem.Repository
+	extractor   domainactionitem.Extractor
 }
 
 func NewProcessUC(d ProcessDeps) *ProcessUC {
 	return &ProcessUC{
 		repo: d.Meetings, storage: d.Storage, stt: d.STT,
 		artifacts: d.Artifacts, llm: d.LLM, notifier: d.Notifier,
+		actionItems: d.ActionItems, extractor: d.Extractor,
 	}
 }
 
@@ -103,6 +114,9 @@ func (uc *ProcessUC) Execute(ctx context.Context, meetingID uuid.UUID) error {
 		if err := uc.generateArtifacts(ctx, m); err != nil {
 			return err
 		}
+		if err := uc.extractActionItems(ctx, m); err != nil {
+			return err
+		}
 	}
 
 	if m, err = uc.repo.SetCompleted(ctx, m.ID); err != nil {
@@ -143,6 +157,45 @@ func (uc *ProcessUC) generateArtifacts(ctx context.Context, m domainmeeting.Meet
 		}
 		slog.InfoContext(ctx, "meeting.process.artifact_saved", "meeting_id", m.ID, "type", g.t)
 	}
+	return nil
+}
+
+// extractActionItems 從逐字稿抽取行動項並落庫。
+// 冪等：artifacts 表已有 action_items 標記則跳過（不重複呼叫 LLM）。
+// 順序為 delete → insert → 寫標記；中途失敗交由 retry 重抽（極端情況多付一次 LLM，但不產生重複列）。
+func (uc *ProcessUC) extractActionItems(ctx context.Context, m domainmeeting.Meeting) error {
+	existing, err := uc.artifacts.ListByMeeting(ctx, m.ID)
+	if err != nil {
+		return fmt.Errorf("process list artifacts for action items: %w", err)
+	}
+	for _, a := range existing {
+		if a.Type == artifactTypeActionItems {
+			return nil // 已抽取過
+		}
+	}
+
+	items, err := uc.extractor.ExtractActionItems(ctx, m.Transcript)
+	if err != nil {
+		return fmt.Errorf("process extract action items: %w", err)
+	}
+
+	if err := uc.actionItems.DeleteForMeeting(ctx, m.ID); err != nil {
+		return fmt.Errorf("process clear action items: %w", err)
+	}
+	for i, it := range items {
+		if _, err := uc.actionItems.Insert(ctx, m.ID, m.UserID, it, i); err != nil {
+			return fmt.Errorf("process insert action item: %w", err)
+		}
+	}
+
+	raw, err := json.Marshal(items)
+	if err != nil {
+		return fmt.Errorf("process marshal action items: %w", err)
+	}
+	if _, err := uc.artifacts.Upsert(ctx, m.ID, artifactTypeActionItems, string(raw)); err != nil {
+		return fmt.Errorf("process mark action items extracted: %w", err)
+	}
+	slog.InfoContext(ctx, "meeting.process.action_items_saved", "meeting_id", m.ID, "count", len(items))
 	return nil
 }
 

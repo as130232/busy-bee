@@ -75,12 +75,14 @@ func main() {
 		os.Exit(1)
 	}
 	artifactRepo := db.NewArtifactRepo(pool)
+	actionItemRepo := db.NewActionItemRepo(pool)
 
 	// 記憶體佇列（ADR-010）：worker 與 HTTP 同 binary；重啟遺失由 Sweeper 掃 DB 復原
 	sttClient := stt.New(cfg.Groq.APIKey)
 	processUC := appmeeting.NewProcessUC(appmeeting.ProcessDeps{
 		Meetings: meetingRepo, Storage: audioStorage, STT: sttClient,
 		Artifacts: artifactRepo, LLM: llmClient, Notifier: hub,
+		ActionItems: actionItemRepo, Extractor: llmClient,
 	})
 	taskQueue := queue.NewMemory(256, queue.DefaultRetryDelays)
 	taskQueue.Start(ctx, 2, processUC.Execute, processUC.MarkFailed) // 外部 API bound，低併發
