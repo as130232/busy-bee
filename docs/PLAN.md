@@ -239,14 +239,14 @@ Phase 13 擴充第一波進行中（分支 `feat/phase-13-expansion`）：前端
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| 🔄 | 13.0 | 前端視覺重設計 | `busy-bee-fe/` | 暗/亮雙主題、design tokens、大圓錄音鈕、bottom sheet | `90c97a3` |
-| ⬜ | 13.1 | action_items 表 + sqlc | `busy-bee-be/db/migrations/000005_*`, `db/query/action_items.sql` | artifacts 加 action_items 類型 | — |
-| ⬜ | 13.2 | domain/actionitem + LLM 抽取 | `busy-bee-be/domain/actionitem/`, `infrastructure/llm/` | prompt + JSON 解析（TDD） | — |
-| ⬜ | 13.3 | ProcessUC 抽取階段 | `busy-bee-be/application/meeting/process.go` | artifacts JSON 為冪等標記；TDD 4 例 | — |
-| ⬜ | 13.4 | 行動項 API | `busy-bee-be/application/actionitem/`, `interface/http/handler/actionitem/` | list/pending/toggle；owner 過濾 | — |
-| ⬜ | 13.5 | FE 行動項 UI | `busy-bee-fe/src/components/ActionItemList.tsx` | Dashboard 待辦卡 + 詳情 tab | — |
-| ⬜ | 13.6 | 文件匯出/分享 | `busy-bee-fe/src/components/ExportBar.tsx` | 複製 / 下載 .md / Web Share | — |
-| ⬜ | 13.7 | 提醒推播深連結 | `busy-bee-be/application/meeting/reminder.go`, `busy-bee-fe/src/sw.ts` | 聚焦既有分頁 + 錄音鈕高亮 | — |
+| 🔄 | 13.0 | 前端視覺重設計 | `busy-bee-fe/` | 暗/亮雙主題、design tokens、大圓錄音鈕、bottom sheet；待 iPhone 實機驗收 | `90c97a3` |
+| ✅ | 13.1 | action_items 表 + sqlc | `busy-bee-be/db/migrations/000005_*`, `db/query/action_items.sql` | artifacts 加 action_items 類型；up/down 驗證 | `76234b5` |
+| ✅ | 13.2 | domain/actionitem + LLM 抽取 | `busy-bee-be/domain/actionitem/`, `infrastructure/llm/` | prompt + JSON 解析（TDD 4 例） | `85732dc` |
+| ✅ | 13.3 | ProcessUC 抽取階段 | `busy-bee-be/application/meeting/process.go` | artifacts JSON 為冪等標記；TDD 4 例 | `3386d3f` |
+| ✅ | 13.4 | 行動項 API | `busy-bee-be/application/actionitem/`, `interface/http/handler/actionitem/` | list/pending/toggle；owner 過濾；路由實測 401 | `a39b11b` |
+| ✅ | 13.5 | FE 行動項 UI | `busy-bee-fe/src/components/ActionItemList.tsx` | Dashboard 待辦卡 + 詳情 tab | `94e3773` |
+| ✅ | 13.6 | 文件匯出/分享 | `busy-bee-fe/src/components/ExportBar.tsx` | 複製 / 下載 .md / Web Share | `0077b01` |
+| ✅ | 13.7 | 提醒推播深連結 | `busy-bee-be/application/meeting/reminder.go`, `busy-bee-fe/src/sw.ts` | 聚焦既有分頁 + 錄音鈕高亮 | `9cd5595` |
 
 ---
 
@@ -291,7 +291,8 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-19 | Phase 12 完成（rate limiting、錯誤畫面、README） | `383adc6..88426d4` |
 | 2026-07-19 | Phase 11 程式完成（訂閱/VAPID/掃描發送/SW/排程 UI）；後端發送實測成功；文件稽核：清除 ARCHITECTURE 5 處過時「計畫中」標籤、補 PRODUCT 驗收勾選 | `bb48b3a..066f846` |
 | 2026-07-19 | 後端健檢修正（error_message 不外洩原文、rate limit 惰性清理）；Phase 11 merge main；Cloud Run 補 VAPID env/secret（rev 00007）；CI 自動部署 | `8cc6f78` |
-| 2026-07-19 | 前端視覺重設計：Linear 式暗色風、Tailwind v4 + design tokens、暗/亮雙主題、行動優先（iPhone PWA 為主）、lucide 圖示、大圓形錄音鈕、排程 bottom sheet；typecheck/lint/build 通過，待 iPhone 實機驗收 | （待 commit） |
+| 2026-07-19 | 前端視覺重設計：Linear 式暗色風、Tailwind v4 + design tokens、暗/亮雙主題、行動優先（iPhone PWA 為主）、lucide 圖示、大圓形錄音鈕、排程 bottom sheet；typecheck/lint/build 通過，待 iPhone 實機驗收 | `90c97a3` |
+| 2026-07-19 | Phase 13 擴充第一波：F-ACTION（LLM 抽取行動項→artifacts JSON 冪等標記→action_items 表→list/pending/toggle API→Dashboard 待辦卡＋詳情 tab）、F-EXPORT（複製/下載/Web Share）、F-REMIND 深連結（`/?record=1`＋SW 聚焦既有分頁＋錄音鈕高亮）；後端全測試綠、路由實測 401、前端三檢通過；待真實音訊 e2e 人工驗收 | `1e9c741..9cd5595` |
 
 ---
 
