@@ -1,0 +1,127 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  PROJECT_ID: busy-bee-502710
+  REGION: asia-east1
+  IMAGE: asia-east1-docker.pkg.dev/busy-bee-502710/busy-bee/api
+  WIF_PROVIDER: projects/897794325314/locations/global/workloadIdentityPools/github/providers/github-provider
+  DEPLOYER_SA: busy-bee-deployer@busy-bee-502710.iam.gserviceaccount.com
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: busy-bee-be
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: busybee
+          POSTGRES_PASSWORD: busybee
+          POSTGRES_DB: busybee
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U busybee"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: busy-bee-be/go.mod
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Migrate test DB
+        run: go run ./cmd/migrate up
+        env:
+          DB_URL: postgres://busybee:busybee@localhost:5432/busybee?sslmode=disable
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test ./...
+        env:
+          TEST_DB_URL: postgres://busybee:busybee@localhost:5432/busybee?sslmode=disable
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: busy-bee-fe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: busy-bee-fe/package-lock.json
+      - run: npm ci --legacy-peer-deps
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # WIF OIDC
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: busy-bee-be/go.mod
+
+      - name: Build and push image
+        working-directory: busy-bee-be
+        run: |
+          gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
+          docker build -t ${IMAGE}:${GITHUB_SHA::7} -t ${IMAGE}:latest .
+          docker push ${IMAGE}:${GITHUB_SHA::7}
+          docker push ${IMAGE}:latest
+
+      - name: Run production migrations
+        working-directory: busy-bee-be
+        run: |
+          DB_URL="$(gcloud secrets versions access latest --secret=busy-bee-db-url --project=${PROJECT_ID})" \
+            go run ./cmd/migrate up
+
+      - name: Deploy Cloud Run
+        run: |
+          gcloud run deploy busy-bee-api \
+            --image=${IMAGE}:${GITHUB_SHA::7} \
+            --region=${REGION} --project=${PROJECT_ID} --quiet
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: busy-bee-fe/package-lock.json
+
+      - name: Build frontend
+        working-directory: busy-bee-fe
+        run: |
+          npm ci --legacy-peer-deps
+          npm run build
+
+      - name: Deploy Firebase Hosting
+        working-directory: busy-bee-fe
+        run: npx firebase-tools deploy --only hosting --project ${PROJECT_ID} --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
