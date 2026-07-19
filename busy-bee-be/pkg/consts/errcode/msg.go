@@ -4,13 +4,14 @@ import "fmt"
 
 // msg 用戶端訊息模板；含 %s / %v 佔位時由 FormatMsg 以 params 填入。
 var msg = map[ErrCode]string{
-	Success:      "success",
-	Param:        "invalid parameter: %v",
-	Unauthorized: "unauthorized",
-	Forbidden:    "forbidden",
-	NotFound:     "resource not found",
-	Conflict:     "resource state conflict",
-	Internal:     "internal server error",
+	Success:         "success",
+	Param:           "invalid parameter: %v",
+	Unauthorized:    "unauthorized",
+	Forbidden:       "forbidden",
+	NotFound:        "resource not found",
+	Conflict:        "resource state conflict",
+	TooManyRequests: "too many requests, please slow down",
+	Internal:        "internal server error",
 }
 
 // FormatMsg 回傳錯誤碼的用戶端訊息；未知錯誤碼 fallback 到 Internal。

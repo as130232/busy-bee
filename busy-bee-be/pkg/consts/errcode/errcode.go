@@ -7,23 +7,25 @@ import "net/http"
 type ErrCode int
 
 const (
-	Success      ErrCode = 0
-	Param        ErrCode = 40001
-	Unauthorized ErrCode = 40101
-	Forbidden    ErrCode = 40301
-	NotFound     ErrCode = 40401
-	Conflict     ErrCode = 40901
-	Internal     ErrCode = 50001
+	Success         ErrCode = 0
+	Param           ErrCode = 40001
+	Unauthorized    ErrCode = 40101
+	Forbidden       ErrCode = 40301
+	NotFound        ErrCode = 40401
+	Conflict        ErrCode = 40901
+	TooManyRequests ErrCode = 42901
+	Internal        ErrCode = 50001
 )
 
 var httpStatus = map[ErrCode]int{
-	Success:      http.StatusOK,
-	Param:        http.StatusBadRequest,
-	Unauthorized: http.StatusUnauthorized,
-	Forbidden:    http.StatusForbidden,
-	NotFound:     http.StatusNotFound,
-	Conflict:     http.StatusConflict,
-	Internal:     http.StatusInternalServerError,
+	Success:         http.StatusOK,
+	Param:           http.StatusBadRequest,
+	Unauthorized:    http.StatusUnauthorized,
+	Forbidden:       http.StatusForbidden,
+	NotFound:        http.StatusNotFound,
+	Conflict:        http.StatusConflict,
+	TooManyRequests: http.StatusTooManyRequests,
+	Internal:        http.StatusInternalServerError,
 }
 
 // HTTPStatus 回傳錯誤碼對應的 HTTP status；未知錯誤碼一律視為 500。

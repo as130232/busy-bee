@@ -52,9 +52,11 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 		response.OK(c, gin.H{"status": "ok", "env": cfg.Server.Env})
 	})
 
-	// 受保護路由：需通過 Firebase JWT 驗證 + email 白名單
+	// 受保護路由：rate limit → Firebase JWT 驗證 + email 白名單
 	if deps.Verifier != nil {
-		v1 := e.Group("/api/v1", middleware.Auth(deps.Verifier, cfg.Auth.AllowedEmails))
+		v1 := e.Group("/api/v1",
+			middleware.RateLimit(10, 30), // 每 IP 10 req/s、burst 30
+			middleware.Auth(deps.Verifier, cfg.Auth.AllowedEmails))
 		v1.POST("/users/sync", deps.UserHandler.Sync)
 
 		// 需要 DB 用戶身分的路由再掛 ResolveUser
