@@ -255,7 +255,7 @@ Tech Spec 必須包含：
 - 功能性：
   - [x] 可建立 / 編輯含 scheduled_at 的未來會議（Phase 11, `bb48b3a`，人工建立驗證）
   - [x] 每場會議可設定提醒提前時間，未設定時預設 15 分鐘（Phase 11, `bb48b3a`，測試 + 人工（1 分鐘））
-  - [ ] 於 scheduled_at 前的設定時間收到推播
+  - [ ] 於 scheduled_at 前的設定時間收到推播（暫緩：scale-to-zero 下需 Cloud Scheduler/Tasks 觸發，成本考量暫不啟用；端點 `/internal/sweep-reminders` 已備妥）
   - [x] 修改 scheduled_at 後舊提醒不觸發、新提醒生效（Phase 11, `bb48b3a`，UpdateSchedule 清 reminded_at，測試）
   - [ ] 取消推播訂閱後不再收到推播
   - [ ] 點擊提醒通知開啟 App（已開啟時聚焦既有分頁），錄音鈕高亮提示（Phase 13 深連結）
