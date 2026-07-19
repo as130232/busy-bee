@@ -23,7 +23,9 @@ export function RecordPage() {
 
   return (
     <>
-      <RecorderPanel onUploaded={() => navigate('/meetings')} highlight={highlight} />
+      <div className="flex min-h-[58vh] flex-col items-center justify-center">
+        <RecorderPanel onUploaded={() => navigate('/meetings')} highlight={highlight} />
+      </div>
       <UploadZone onUploaded={() => navigate('/meetings')} />
     </>
   )
