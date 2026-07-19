@@ -11,7 +11,7 @@ const tabs = [
 /** 底部分頁導覽（行動優先，含 iOS safe-area）。 */
 export function TabBar() {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-bg/90 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+    <nav className="shrink-0 border-t border-border bg-bg pb-[env(safe-area-inset-bottom)]">
       <div className="mx-auto flex max-w-xl">
         {tabs.map(({ to, label, Icon, end }) => (
           <NavLink
