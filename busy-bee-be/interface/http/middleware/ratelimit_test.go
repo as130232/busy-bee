@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,6 +25,28 @@ func hit(e *gin.Engine, ip string) *httptest.ResponseRecorder {
 	req.RemoteAddr = ip + ":12345"
 	e.ServeHTTP(w, req)
 	return w
+}
+
+// 閒置 IP 需在下一次請求觸發的惰性清理中被移除（無背景 goroutine，ADR-010 單 instance）。
+func TestRateLimit_PrunesIdleEntries(t *testing.T) {
+	l := newIPRateLimiter(1, 5, 10*time.Minute)
+	current := time.Now()
+	l.now = func() time.Time { return current }
+
+	l.allow("1.1.1.1")
+	current = current.Add(11 * time.Minute)
+	l.allow("2.2.2.2") // 這次請求應順手清掉閒置的 1.1.1.1
+
+	l.mu.Lock()
+	_, stale := l.entries["1.1.1.1"]
+	_, active := l.entries["2.2.2.2"]
+	l.mu.Unlock()
+	if stale {
+		t.Error("閒置超過 TTL 的 IP 應被清除")
+	}
+	if !active {
+		t.Error("剛活動的 IP 不應被清除")
+	}
 }
 
 func TestRateLimit_AllowsWithinBurst(t *testing.T) {

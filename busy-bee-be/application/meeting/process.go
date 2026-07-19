@@ -146,9 +146,13 @@ func (uc *ProcessUC) generateArtifacts(ctx context.Context, m domainmeeting.Meet
 	return nil
 }
 
+// failedUserMessage 寫入 error_message 並經 API / WS 回給前端；
+// 外部錯誤原文只進 log，禁止暴露給用戶端（資料安全規範）。
+const failedUserMessage = "會議處理失敗，請重試"
+
 // MarkFailed 由 worker 在最後一次重試失敗後呼叫。
 func (uc *ProcessUC) MarkFailed(ctx context.Context, meetingID uuid.UUID, cause error) {
-	m, err := uc.repo.SetFailed(ctx, meetingID, cause.Error())
+	m, err := uc.repo.SetFailed(ctx, meetingID, failedUserMessage)
 	if err != nil {
 		slog.ErrorContext(ctx, "meeting.process.mark_failed_error", "meeting_id", meetingID, "err", err)
 		return

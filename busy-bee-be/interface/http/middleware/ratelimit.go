@@ -18,38 +18,56 @@ type rlEntry struct {
 	lastSeen time.Time
 }
 
-// RateLimit 每 IP token bucket（單 instance in-memory，ADR-010 前提下足夠）。
-// 超限回 429 統一 envelope；閒置 IP 定期清理避免 map 無限成長。
-func RateLimit(rps float64, burst int) gin.HandlerFunc {
-	var mu sync.Mutex
-	entries := make(map[string]*rlEntry)
+// ipRateLimiter 每 IP token bucket（單 instance in-memory，ADR-010 前提下足夠）。
+// 閒置 IP 由請求觸發的惰性清理移除（無背景 goroutine，符合 goroutine 退出條件規範）。
+type ipRateLimiter struct {
+	mu        sync.Mutex
+	entries   map[string]*rlEntry
+	rps       rate.Limit
+	burst     int
+	idleTTL   time.Duration
+	lastPrune time.Time
+	now       func() time.Time // 測試注入
+}
 
-	// 清理 goroutine：每 10 分鐘移除 10 分鐘未活動的 IP
-	go func() {
-		for range time.Tick(10 * time.Minute) {
-			mu.Lock()
-			for ip, e := range entries {
-				if time.Since(e.lastSeen) > 10*time.Minute {
-					delete(entries, ip)
-				}
+func newIPRateLimiter(rps float64, burst int, idleTTL time.Duration) *ipRateLimiter {
+	return &ipRateLimiter{
+		entries: make(map[string]*rlEntry),
+		rps:     rate.Limit(rps),
+		burst:   burst,
+		idleTTL: idleTTL,
+		now:     time.Now,
+	}
+}
+
+func (l *ipRateLimiter) allow(ip string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := l.now()
+	if now.Sub(l.lastPrune) >= l.idleTTL {
+		for k, e := range l.entries {
+			if now.Sub(e.lastSeen) > l.idleTTL {
+				delete(l.entries, k)
 			}
-			mu.Unlock()
 		}
-	}()
+		l.lastPrune = now
+	}
 
+	e, ok := l.entries[ip]
+	if !ok {
+		e = &rlEntry{limiter: rate.NewLimiter(l.rps, l.burst)}
+		l.entries[ip] = e
+	}
+	e.lastSeen = now
+	return e.limiter.Allow()
+}
+
+// RateLimit 每 IP rate limiting middleware；超限回 429 統一 envelope。
+func RateLimit(rps float64, burst int) gin.HandlerFunc {
+	l := newIPRateLimiter(rps, burst, 10*time.Minute)
 	return func(c *gin.Context) {
-		ip := c.ClientIP()
-		mu.Lock()
-		e, ok := entries[ip]
-		if !ok {
-			e = &rlEntry{limiter: rate.NewLimiter(rate.Limit(rps), burst)}
-			entries[ip] = e
-		}
-		e.lastSeen = time.Now()
-		allowed := e.limiter.Allow()
-		mu.Unlock()
-
-		if !allowed {
+		if !l.allow(c.ClientIP()) {
 			response.Fail(c, apperr.New(errcode.TooManyRequests))
 			return
 		}

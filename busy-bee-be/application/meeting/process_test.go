@@ -216,6 +216,22 @@ func TestMarkFailed_RecordsMessage(t *testing.T) {
 	}
 }
 
+// error_message 會經 API / WS 回給前端，禁止含外部錯誤原文（資料安全規範）。
+func TestMarkFailed_DoesNotExposeRawCause(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusTranscribing, "")}
+	uc := newTestProcessUC(repo, &processFakeStorage{}, &fakeSTT{}, &fakeNotifier{})
+
+	rawCause := errors.New(`process transcribe: groq status 500: {"error":{"message":"internal","url":"https://api.groq.com/openai/v1/audio"}}`)
+	uc.MarkFailed(context.Background(), repo.meeting.ID, rawCause)
+
+	if strings.Contains(repo.failedMessage, "groq") || strings.Contains(repo.failedMessage, "api.groq.com") {
+		t.Errorf("error_message 不得含外部錯誤原文, got %q", repo.failedMessage)
+	}
+	if repo.failedMessage == "" {
+		t.Fatal("SetFailed not called")
+	}
+}
+
 func (f *processFakeRepo) ListUnfinishedIDs(_ context.Context) ([]uuid.UUID, error) {
 	return nil, nil
 }
