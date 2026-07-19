@@ -32,6 +32,8 @@ type PushConfig struct {
 	VAPIDPublicKey  string
 	VAPIDPrivateKey string
 	SubscriberEmail string
+	// SweepSecret 保護內部提醒掃描端點（Cloud Scheduler 帶此密鑰呼叫）；空 = 端點停用。
+	SweepSecret string
 }
 
 type GCSConfig struct {
@@ -105,6 +107,7 @@ func Load() (*Config, error) {
 			VAPIDPublicKey:  lookup("VAPID_PUBLIC_KEY", ""),
 			VAPIDPrivateKey: lookup("VAPID_PRIVATE_KEY", ""),
 			SubscriberEmail: lookup("VAPID_SUBSCRIBER_EMAIL", ""),
+			SweepSecret:     lookup("REMINDER_SWEEP_SECRET", ""),
 		},
 	}, nil
 }

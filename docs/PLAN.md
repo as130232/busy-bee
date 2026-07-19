@@ -295,6 +295,8 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-19 | Phase 13 擴充第一波：F-ACTION（LLM 抽取行動項→artifacts JSON 冪等標記→action_items 表→list/pending/toggle API→Dashboard 待辦卡＋詳情 tab）、F-EXPORT（複製/下載/Web Share）、F-REMIND 深連結（`/?record=1`＋SW 聚焦既有分頁＋錄音鈕高亮）；後端全測試綠、路由實測 401、前端三檢通過；待真實音訊 e2e 人工驗收 | `1e9c741..9cd5595` |
 | 2026-07-19 | 前端全站 CSS 動畫（進場淡入、列表 stagger、錄音 ripple、sheet 滑入、勾選彈跳；尊重 prefers-reduced-motion）；Phase 13 分支 merge main | `8361753..91b4935` |
 | 2026-07-19 | 前端改底部 Tab 導覽（分支 feat/tab-navigation）：拆單頁為錄音/會議/行程/設定四分頁 + TabBar/TabLayout/TopBar/MeetingList/useMeetings；詳情頁維持獨立；三檢通過、路由導向驗證 | `b8bb2b3` |
+| 2026-07-19 | 行動裝置修正：PWA 禁縮放、錄音頁三段固定版面一屏不滑、排程 sheet 不被遮、通知開關防卡死 | `3a2a37f` |
+| 2026-07-19 | 修復提醒不觸發根因（scale-to-zero 下 instance=0，進程內 sweeper 不跑）：新增密鑰保護的 `/internal/sweep-reminders` 端點，改由 Cloud Scheduler 每分鐘喚醒觸發（TDD 3 例）；待使用者設 REMINDER_SWEEP_SECRET + 建 Scheduler job | （本次） |
 
 ---
 
