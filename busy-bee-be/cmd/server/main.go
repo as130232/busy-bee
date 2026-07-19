@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	appactionitem "github.com/as130232/busy-bee/busy-bee-be/application/actionitem"
 	appmeeting "github.com/as130232/busy-bee/busy-bee-be/application/meeting"
 	apppush "github.com/as130232/busy-bee/busy-bee-be/application/push"
 	appuser "github.com/as130232/busy-bee/busy-bee-be/application/user"
@@ -22,6 +23,7 @@ import (
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/stt"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/webpush"
 	httpserver "github.com/as130232/busy-bee/busy-bee-be/interface/http"
+	actionitemhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/actionitem"
 	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
 	pushhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/push"
 	userhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/user"
@@ -115,6 +117,11 @@ func main() {
 			Get:            appmeeting.NewGetUC(meetingRepo),
 			Retry:          appmeeting.NewRetryUC(meetingRepo, taskQueue),
 			Schedule:       appmeeting.NewScheduleUC(meetingRepo),
+		}),
+		ActionItemHandler: actionitemhandler.NewHandler(actionitemhandler.HandlerUCs{
+			ListByMeeting: appactionitem.NewListByMeetingUC(meetingRepo, actionItemRepo),
+			ListPending:   appactionitem.NewListPendingUC(actionItemRepo),
+			Toggle:        appactionitem.NewToggleUC(actionItemRepo),
 		}),
 		PushHandler: pushHandler,
 		Hub:         hub,

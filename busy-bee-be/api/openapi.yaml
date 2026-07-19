@@ -454,6 +454,113 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
 
+  /api/v1/meetings/{id}/action-items:
+    get:
+      tags: [meetings]
+      summary: 取回會議的行動項
+      operationId: listMeetingActionItems
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 行動項清單（處理未完成或無行動項時為空陣列）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [actionItems]
+                        properties:
+                          actionItems:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ActionItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 會議不存在或非本人所有（errCode 40401）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /api/v1/action-items:
+    get:
+      tags: [meetings]
+      summary: 跨會議的未完成行動項
+      operationId: listPendingActionItems
+      responses:
+        "200":
+          description: 本人所有未完成行動項（含所屬會議標題）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [actionItems]
+                        properties:
+                          actionItems:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/PendingActionItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/action-items/{id}:
+    patch:
+      tags: [meetings]
+      summary: 標記行動項完成 / 取消完成
+      operationId: toggleActionItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [done]
+              properties:
+                done: { type: boolean }
+      responses:
+        "200":
+          description: 已更新
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [actionItem]
+                        properties:
+                          actionItem:
+                            $ref: "#/components/schemas/ActionItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 行動項不存在或非本人所有（errCode 40401）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
 components:
   securitySchemes:
     firebaseAuth:
@@ -524,6 +631,30 @@ components:
           type: string
           description: Markdown 全文
         createdAt: { type: string, format: date-time }
+
+    ActionItem:
+      type: object
+      required: [id, meetingId, description, assignee, dueText, done, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        meetingId: { type: string, format: uuid }
+        description: { type: string }
+        assignee:
+          type: string
+          description: 負責人；會議未指派時為空字串
+        dueText:
+          type: string
+          description: 時限（原文說法）；會議未提及時為空字串
+        done: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    PendingActionItem:
+      allOf:
+        - $ref: "#/components/schemas/ActionItem"
+        - type: object
+          required: [meetingTitle]
+          properties:
+            meetingTitle: { type: string }
 
   responses:
     Unauthorized:
