@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { NotificationToggle } from '../components/NotificationToggle'
 import { RecorderPanel } from '../components/RecorderPanel'
+import { ScheduleForm } from '../components/ScheduleForm'
 import { UploadZone } from '../components/UploadZone'
 import { useAuth } from '../hooks/useAuth'
 import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
@@ -55,6 +57,10 @@ export function DashboardPage() {
       <section className="content">
         <RecorderPanel onUploaded={() => void load(search)} />
         <UploadZone onUploaded={() => void load(search)} />
+        <div className="toolbar">
+          <ScheduleForm onCreated={() => void load(search)} />
+          <NotificationToggle />
+        </div>
 
         <input
           className="search"
@@ -81,8 +87,9 @@ export function DashboardPage() {
                 <Link to={`/meetings/${m.id}`} className="meeting-link">
                   <span>{m.title}</span>
                   <span className="muted small">
-                    {m.durationSeconds > 0 && `${Math.round(m.durationSeconds / 60)} 分鐘 · `}
-                    {new Date(m.createdAt).toLocaleDateString()}
+                    {m.status === 'scheduled' && m.scheduledAt
+                      ? `排定 ${new Date(m.scheduledAt).toLocaleString()}`
+                      : `${m.durationSeconds > 0 ? `${Math.round(m.durationSeconds / 60)} 分鐘 · ` : ''}${new Date(m.createdAt).toLocaleDateString()}`}
                   </span>
                 </Link>
                 <span className={`status status-${m.status}`}>{m.status}</span>

@@ -17,6 +17,8 @@ tags:
     description: 用戶
   - name: meetings
     description: 會議
+  - name: push
+    description: 推播訂閱
 
 paths:
   /health:
@@ -147,6 +149,151 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+
+  /api/v1/meetings/scheduled:
+    post:
+      tags: [meetings]
+      summary: 建立排程會議（會前推播提醒）
+      operationId: createScheduledMeeting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, scheduledAt]
+              properties:
+                title: { type: string }
+                scheduledAt: { type: string, format: date-time }
+                remindBeforeMin: { type: integer, default: 15, minimum: 1 }
+      responses:
+        "200":
+          description: 已建立（status = scheduled）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          meeting: { $ref: "#/components/schemas/Meeting" }
+        "400":
+          description: title 空白或時間非未來（errCode 40001）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/meetings/{id}/schedule:
+    patch:
+      tags: [meetings]
+      summary: 修改排程（重置提醒）
+      operationId: updateMeetingSchedule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, scheduledAt]
+              properties:
+                title: { type: string }
+                scheduledAt: { type: string, format: date-time }
+                remindBeforeMin: { type: integer }
+      responses:
+        "200":
+          description: 已更新，reminded_at 清除
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          meeting: { $ref: "#/components/schemas/Meeting" }
+        "404":
+          description: 不存在、非本人或非 scheduled 狀態
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+
+  /api/v1/push/vapid-public-key:
+    get:
+      tags: [push]
+      summary: Web Push VAPID 公鑰
+      operationId: getVapidPublicKey
+      responses:
+        "200":
+          description: 公鑰
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          publicKey: { type: string }
+
+  /api/v1/push/subscriptions:
+    post:
+      tags: [push]
+      summary: 註冊推播訂閱
+      operationId: subscribePush
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint, keys]
+              properties:
+                endpoint: { type: string }
+                keys:
+                  type: object
+                  required: [p256dh, auth]
+                  properties:
+                    p256dh: { type: string }
+                    auth: { type: string }
+      responses:
+        "200":
+          description: 已訂閱
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+    delete:
+      tags: [push]
+      summary: 取消推播訂閱
+      operationId: unsubscribePush
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint]
+              properties:
+                endpoint: { type: string }
+      responses:
+        "200":
+          description: 已取消
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
 
   /api/v1/meetings/{id}:
     get:

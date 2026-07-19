@@ -111,3 +111,42 @@ export function listArtifacts(idToken: string, meetingId: string): Promise<{ art
 export function retryMeeting(idToken: string, meetingId: string): Promise<{ meeting: Meeting }> {
   return request<{ meeting: Meeting }>(`/api/v1/meetings/${meetingId}/retry`, { method: 'POST' }, idToken)
 }
+
+/** 建立排程會議（提醒用） */
+export function createScheduledMeeting(
+  idToken: string,
+  input: { title: string; scheduledAt: string; remindBeforeMin?: number },
+): Promise<{ meeting: Meeting }> {
+  return request<{ meeting: Meeting }>(
+    '/api/v1/meetings/scheduled',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+    idToken,
+  )
+}
+
+/** 取得 Web Push VAPID 公鑰 */
+export function getVapidPublicKey(idToken: string): Promise<{ publicKey: string }> {
+  return request<{ publicKey: string }>('/api/v1/push/vapid-public-key', { method: 'GET' }, idToken)
+}
+
+/** 註冊推播訂閱 */
+export function subscribePush(idToken: string, sub: PushSubscriptionJSON): Promise<unknown> {
+  return request(
+    '/api/v1/push/subscriptions',
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) },
+    idToken,
+  )
+}
+
+/** 取消推播訂閱 */
+export function unsubscribePush(idToken: string, endpoint: string): Promise<unknown> {
+  return request(
+    '/api/v1/push/subscriptions',
+    { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint }) },
+    idToken,
+  )
+}
