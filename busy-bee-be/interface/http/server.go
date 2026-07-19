@@ -10,6 +10,7 @@ import (
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/config"
 	actionitemhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/actionitem"
 	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
+	opshandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/ops"
 	pushhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/push"
 	userhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/user"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/middleware"
@@ -33,6 +34,7 @@ type Deps struct {
 	MeetingHandler    *meetinghandler.Handler
 	ActionItemHandler *actionitemhandler.Handler
 	PushHandler       *pushhandler.Handler
+	InternalHandler   *opshandler.Handler
 	Hub               *ws.Hub
 }
 
@@ -55,6 +57,11 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 	e.GET("/health", func(c *gin.Context) {
 		response.OK(c, gin.H{"status": "ok", "env": cfg.Server.Env})
 	})
+
+	// 內部維運端點（不經 Firebase auth，改以共享密鑰保護）：Cloud Scheduler 觸發提醒掃描
+	if deps.InternalHandler != nil {
+		e.POST("/internal/sweep-reminders", deps.InternalHandler.SweepReminders)
+	}
 
 	// 受保護路由：rate limit → Firebase JWT 驗證 + email 白名單
 	if deps.Verifier != nil {

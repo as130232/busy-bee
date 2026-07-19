@@ -43,6 +43,7 @@
 | 前端 | React + Vite（PWA） | |
 | 前端部署 | Firebase Hosting | |
 | 後端部署 | GCP Cloud Run | min-instances=0 scale-to-zero（ADR-004 修訂）+ no-cpu-throttling |
+| 提醒觸發 | Cloud Scheduler → `/internal/sweep-reminders` | scale-to-zero 下 instance 常為 0，進程內 ticker 不可靠；改由 Scheduler 每分鐘喚醒 instance 觸發掃描（密鑰保護，冪等）|
 
 ---
 

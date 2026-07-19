@@ -25,6 +25,7 @@ import (
 	httpserver "github.com/as130232/busy-bee/busy-bee-be/interface/http"
 	actionitemhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/actionitem"
 	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
+	opshandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/ops"
 	pushhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/push"
 	userhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/user"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/ws"
@@ -93,16 +94,25 @@ func main() {
 	defer stopSweeper()
 	go worker.NewSweeper(meetingRepo, taskQueue).Run(sweepCtx, sweepInterval)
 
-	// 提醒掃描（F-REMIND，掃描式，ADR-010）：VAPID 未設定則停用
+	// 提醒掃描（F-REMIND）：VAPID 未設定則停用。
+	// scale-to-zero 下 instance 常態為 0，進程內 ticker 不可靠（ADR-004）；
+	// 改由 Cloud Scheduler 定時打 /internal/sweep-reminders 喚醒 instance 觸發掃描。
+	// 進程內 ticker 保留作為 instance 存活時的即時保障（與端點掃描冪等，reminded_at 防重複）。
 	pushRepo := db.NewPushRepo(pool)
 	var pushHandler *pushhandler.Handler
+	var reminderUC *appmeeting.ReminderUC
 	if cfg.Push.VAPIDPublicKey != "" && cfg.Push.VAPIDPrivateKey != "" {
 		sender := webpush.New(cfg.Push.VAPIDPublicKey, cfg.Push.VAPIDPrivateKey, cfg.Push.SubscriberEmail)
-		reminderUC := appmeeting.NewReminderUC(meetingRepo, pushRepo, sender)
+		reminderUC = appmeeting.NewReminderUC(meetingRepo, pushRepo, sender)
 		go worker.RunReminderSweep(sweepCtx, reminderUC, time.Minute)
 		pushHandler = pushhandler.NewHandler(apppush.NewSubscribeUC(pushRepo), cfg.Push.VAPIDPublicKey)
 	} else {
 		slog.Warn("push reminders disabled: VAPID keys not configured")
+	}
+
+	var internalHandler *opshandler.Handler
+	if reminderUC != nil {
+		internalHandler = opshandler.NewHandler(reminderUC, cfg.Push.SweepSecret)
 	}
 
 	deps := httpserver.Deps{
@@ -123,8 +133,9 @@ func main() {
 			ListPending:   appactionitem.NewListPendingUC(actionItemRepo),
 			Toggle:        appactionitem.NewToggleUC(actionItemRepo),
 		}),
-		PushHandler: pushHandler,
-		Hub:         hub,
+		PushHandler:     pushHandler,
+		InternalHandler: internalHandler,
+		Hub:             hub,
 	}
 	srv := httpserver.NewServer(cfg, deps)
 
