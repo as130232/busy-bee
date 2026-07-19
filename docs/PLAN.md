@@ -7,8 +7,8 @@
 
 ## 當前焦點
 
-Phase 11 程式完成（後端發送實測 delivered=1）；通知顯示待用戶端排查（macOS 通知設定）。
-下一步：用戶驗收通知顯示 → 部署 production（Cloud Run 補 VAPID env）→ MVP 完成。
+Phase 11 已 merge main 並部署 production（Cloud Run VAPID 設定完成，revision 00007+）。
+剩最後一步：用戶驗收通知顯示（macOS Chrome）→ 勾 PRODUCT F-REMIND 剩餘驗收 → MVP 完成。
 
 ---
 
@@ -269,6 +269,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-19 | ADR-004 修訂 scale-to-zero（月費 ~$12→~$0-2）；4.4 CI/CD 完成（WIF），首次執行全綠自動部署 revision 00004；Phase 4 全數完成 | `75ec206..88742a1` |
 | 2026-07-19 | Phase 12 完成（rate limiting、錯誤畫面、README） | `383adc6..88426d4` |
 | 2026-07-19 | Phase 11 程式完成（訂閱/VAPID/掃描發送/SW/排程 UI）；後端發送實測成功；文件稽核：清除 ARCHITECTURE 5 處過時「計畫中」標籤、補 PRODUCT 驗收勾選 | `bb48b3a..066f846` |
+| 2026-07-19 | 後端健檢修正（error_message 不外洩原文、rate limit 惰性清理）；Phase 11 merge main；Cloud Run 補 VAPID env/secret（rev 00007）；CI 自動部署 | `8cc6f78` |
 
 ---
 
