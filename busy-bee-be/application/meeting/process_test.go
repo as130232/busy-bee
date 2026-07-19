@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	domainactionitem "github.com/as130232/busy-bee/busy-bee-be/domain/actionitem"
 	domainartifact "github.com/as130232/busy-bee/busy-bee-be/domain/artifact"
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 )
@@ -324,7 +325,149 @@ func newTestProcessUC(repo *processFakeRepo, st *processFakeStorage, stt *fakeST
 	return NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: st, STT: stt,
 		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Notifier: n,
+		ActionItems: &fakeActionItemRepo{}, Extractor: &fakeExtractor{},
 	})
+}
+
+// --- Phase 13：行動項抽取 fakes 與測試 ---
+
+type fakeActionItemRepo struct {
+	mu           sync.Mutex
+	inserted     []domainactionitem.Extracted
+	deleteCalled bool
+}
+
+func (f *fakeActionItemRepo) Insert(_ context.Context, meetingID, userID uuid.UUID, item domainactionitem.Extracted, _ int) (domainactionitem.ActionItem, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.inserted = append(f.inserted, item)
+	return domainactionitem.ActionItem{MeetingID: meetingID, UserID: userID, Description: item.Description}, nil
+}
+
+func (f *fakeActionItemRepo) DeleteForMeeting(_ context.Context, _ uuid.UUID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.deleteCalled = true
+	return nil
+}
+
+func (f *fakeActionItemRepo) ListByMeeting(_ context.Context, _ uuid.UUID) ([]domainactionitem.ActionItem, error) {
+	return nil, nil
+}
+
+func (f *fakeActionItemRepo) ListPendingForUser(_ context.Context, _ uuid.UUID) ([]domainactionitem.PendingItem, error) {
+	return nil, nil
+}
+
+func (f *fakeActionItemRepo) SetDone(_ context.Context, _, _ uuid.UUID, _ bool) (domainactionitem.ActionItem, error) {
+	return domainactionitem.ActionItem{}, nil
+}
+
+type fakeExtractor struct {
+	items  []domainactionitem.Extracted
+	err    error
+	called int
+}
+
+func (f *fakeExtractor) ExtractActionItems(_ context.Context, _ string) ([]domainactionitem.Extracted, error) {
+	f.called++
+	return f.items, f.err
+}
+
+const artifactTypeActionItemsTest = domainartifact.Type("action_items")
+
+func TestProcess_ExtractsActionItems(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusAnalyzing, "逐字稿內容")}
+	arts := &fakeArtifactRepo{}
+	items := &fakeActionItemRepo{}
+	ext := &fakeExtractor{items: []domainactionitem.Extracted{{Description: "做 A"}, {Description: "做 B"}}}
+	uc := NewProcessUC(ProcessDeps{
+		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
+		Artifacts: arts, LLM: &fakeLLM{}, Notifier: &fakeNotifier{},
+		ActionItems: items, Extractor: ext,
+	})
+
+	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if ext.called != 1 {
+		t.Errorf("extractor called %d times, want 1", ext.called)
+	}
+	if !items.deleteCalled {
+		t.Error("DeleteForMeeting should be called before insert (avoid dup on retry)")
+	}
+	if len(items.inserted) != 2 {
+		t.Errorf("inserted %d items, want 2", len(items.inserted))
+	}
+	if arts.saved[artifactTypeActionItemsTest] == "" {
+		t.Error("action_items marker not saved to artifacts")
+	}
+	if !repo.completedCall {
+		t.Error("pipeline should complete")
+	}
+}
+
+func TestProcess_ActionItemsIdempotentWhenMarkerExists(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusAnalyzing, "t")}
+	arts := &fakeArtifactRepo{existing: []domainartifact.Artifact{
+		{Type: domainartifact.TypePRD}, {Type: domainartifact.TypeTechSpec}, {Type: artifactTypeActionItemsTest},
+	}}
+	items := &fakeActionItemRepo{}
+	ext := &fakeExtractor{}
+	uc := NewProcessUC(ProcessDeps{
+		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
+		Artifacts: arts, LLM: &fakeLLM{}, Notifier: &fakeNotifier{},
+		ActionItems: items, Extractor: ext,
+	})
+
+	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if ext.called != 0 {
+		t.Errorf("extractor called %d times, want 0 (already extracted)", ext.called)
+	}
+}
+
+func TestProcess_ActionItemsEmptyStillMarks(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusAnalyzing, "t")}
+	arts := &fakeArtifactRepo{}
+	items := &fakeActionItemRepo{}
+	ext := &fakeExtractor{items: nil} // 會議無行動項
+	uc := NewProcessUC(ProcessDeps{
+		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
+		Artifacts: arts, LLM: &fakeLLM{}, Notifier: &fakeNotifier{},
+		ActionItems: items, Extractor: ext,
+	})
+
+	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if len(items.inserted) != 0 {
+		t.Errorf("inserted %d items, want 0", len(items.inserted))
+	}
+	if arts.saved[artifactTypeActionItemsTest] == "" {
+		t.Error("marker should still be saved even with no items (avoid re-extraction on retry)")
+	}
+	if !repo.completedCall {
+		t.Error("should complete")
+	}
+}
+
+func TestProcess_ActionItemExtractErrorPropagates(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusAnalyzing, "t")}
+	ext := &fakeExtractor{err: errors.New("gemini 500")}
+	uc := NewProcessUC(ProcessDeps{
+		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
+		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Notifier: &fakeNotifier{},
+		ActionItems: &fakeActionItemRepo{}, Extractor: ext,
+	})
+
+	if err := uc.Execute(context.Background(), repo.meeting.ID); err == nil {
+		t.Fatal("Execute() should propagate extractor error for retry")
+	}
+	if repo.completedCall {
+		t.Error("must not complete when extraction failed")
+	}
 }
 
 func TestProcess_AnalyzingGeneratesBothDocs(t *testing.T) {
@@ -334,6 +477,7 @@ func TestProcess_AnalyzingGeneratesBothDocs(t *testing.T) {
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
 		Artifacts: arts, LLM: llm, Notifier: &fakeNotifier{},
+		ActionItems: &fakeActionItemRepo{}, Extractor: &fakeExtractor{},
 	})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
@@ -358,6 +502,7 @@ func TestProcess_AnalyzingSkipsExistingDoc(t *testing.T) {
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
 		Artifacts: arts, LLM: llm, Notifier: &fakeNotifier{},
+		ActionItems: &fakeActionItemRepo{}, Extractor: &fakeExtractor{},
 	})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {

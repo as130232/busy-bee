@@ -1,11 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
+    tailwindcss(),
     VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src',
@@ -16,8 +18,8 @@ export default defineConfig({
         name: 'Busy Bee',
         short_name: 'BusyBee',
         description: '開會錄音 → AI 生成 PRD / Tech Spec',
-        theme_color: '#f59e0b',
-        background_color: '#ffffff',
+        theme_color: '#0e0e11',
+        background_color: '#0e0e11',
         display: 'standalone',
         start_url: '/',
         icons: [

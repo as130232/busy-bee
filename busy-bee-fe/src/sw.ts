@@ -25,5 +25,17 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const url = (event.notification.data as { url?: string } | undefined)?.url ?? '/'
-  event.waitUntil(self.clients.openWindow(url))
+  event.waitUntil(
+    (async () => {
+      // 已開啟本站分頁時，導向目標並聚焦，避免每次點通知都開新視窗
+      const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      const existing = wins.find((w) => new URL(w.url).origin === self.location.origin)
+      if (existing) {
+        await existing.navigate(url)
+        await existing.focus()
+        return
+      }
+      await self.clients.openWindow(url)
+    })(),
+  )
 })

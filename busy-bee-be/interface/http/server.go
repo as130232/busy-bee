@@ -8,12 +8,13 @@ import (
 
 	domainuser "github.com/as130232/busy-bee/busy-bee-be/domain/user"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/config"
+	actionitemhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/actionitem"
 	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
 	pushhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/push"
 	userhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/user"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/middleware"
-	"github.com/as130232/busy-bee/busy-bee-be/interface/http/ws"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/response"
+	"github.com/as130232/busy-bee/busy-bee-be/interface/http/ws"
 	"github.com/as130232/busy-bee/busy-bee-be/pkg/apperr"
 	"github.com/as130232/busy-bee/busy-bee-be/pkg/consts/errcode"
 )
@@ -26,12 +27,13 @@ type (
 
 // Deps 路由所需的依賴，由 main（或測試）組裝注入。
 type Deps struct {
-	Verifier       domainuser.TokenVerifier
-	UserRepo       domainuser.Repository
-	UserHandler    *userhandler.Handler
-	MeetingHandler *meetinghandler.Handler
-	PushHandler    *pushhandler.Handler
-	Hub            *ws.Hub
+	Verifier          domainuser.TokenVerifier
+	UserRepo          domainuser.Repository
+	UserHandler       *userhandler.Handler
+	MeetingHandler    *meetinghandler.Handler
+	ActionItemHandler *actionitemhandler.Handler
+	PushHandler       *pushhandler.Handler
+	Hub               *ws.Hub
 }
 
 // NewEngine 組裝 middleware 鏈與路由。順序：Recovery 最外層 → RequestID → Logger。
@@ -71,6 +73,12 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 		authed.PATCH("/meetings/:id/schedule", deps.MeetingHandler.UpdateSchedule)
 		authed.POST("/meetings/:id/retry", deps.MeetingHandler.Retry)
 		authed.GET("/meetings/:id/artifacts", deps.MeetingHandler.ListArtifacts)
+
+		if deps.ActionItemHandler != nil {
+			authed.GET("/meetings/:id/action-items", deps.ActionItemHandler.ListByMeeting)
+			authed.GET("/action-items", deps.ActionItemHandler.ListPending)
+			authed.PATCH("/action-items/:id", deps.ActionItemHandler.Toggle)
+		}
 
 		if deps.PushHandler != nil {
 			authed.GET("/push/vapid-public-key", deps.PushHandler.VAPIDPublicKey)

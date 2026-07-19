@@ -112,6 +112,45 @@ export function retryMeeting(idToken: string, meetingId: string): Promise<{ meet
   return request<{ meeting: Meeting }>(`/api/v1/meetings/${meetingId}/retry`, { method: 'POST' }, idToken)
 }
 
+export type ActionItem = components['schemas']['ActionItem']
+export type PendingActionItem = components['schemas']['PendingActionItem']
+
+/** 取回某會議的行動項 */
+export function listMeetingActionItems(
+  idToken: string,
+  meetingId: string,
+): Promise<{ actionItems: ActionItem[] }> {
+  return request<{ actionItems: ActionItem[] }>(
+    `/api/v1/meetings/${meetingId}/action-items`,
+    { method: 'GET' },
+    idToken,
+  )
+}
+
+/** 跨會議的未完成行動項 */
+export function listPendingActionItems(
+  idToken: string,
+): Promise<{ actionItems: PendingActionItem[] }> {
+  return request<{ actionItems: PendingActionItem[] }>('/api/v1/action-items', { method: 'GET' }, idToken)
+}
+
+/** 標記行動項完成 / 取消完成 */
+export function toggleActionItem(
+  idToken: string,
+  id: string,
+  done: boolean,
+): Promise<{ actionItem: ActionItem }> {
+  return request<{ actionItem: ActionItem }>(
+    `/api/v1/action-items/${id}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ done }),
+    },
+    idToken,
+  )
+}
+
 /** 建立排程會議（提醒用） */
 export function createScheduledMeeting(
   idToken: string,

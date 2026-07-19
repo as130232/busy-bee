@@ -16,3 +16,6 @@ busy-bee-fe/dist/
 .idea/
 .vscode/
 .DS_Store
+
+# 工具產物
+.playwright-mcp/

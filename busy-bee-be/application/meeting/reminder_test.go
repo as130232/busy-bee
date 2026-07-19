@@ -47,13 +47,15 @@ func (f *fakePushRepo) ListByUser(_ context.Context, userID uuid.UUID) ([]domain
 type fakeSender struct {
 	sent    []string // endpoints
 	failOn  map[string]error
+	lastMsg domainpush.Message
 }
 
-func (f *fakeSender) Send(_ context.Context, sub domainpush.Subscription, _ domainpush.Message) error {
+func (f *fakeSender) Send(_ context.Context, sub domainpush.Subscription, msg domainpush.Message) error {
 	if err, ok := f.failOn[sub.Endpoint]; ok {
 		return err
 	}
 	f.sent = append(f.sent, sub.Endpoint)
+	f.lastMsg = msg
 	return nil
 }
 
@@ -82,6 +84,10 @@ func TestReminder_SendsToAllUserSubsAndMarks(t *testing.T) {
 	}
 	if len(repo.reminded) != 1 || repo.reminded[0] != m.ID {
 		t.Errorf("reminded = %v, want [%v]", repo.reminded, m.ID)
+	}
+	// 深連結：點通知進 App 並帶 record 參數（前端據此高亮錄音鈕）
+	if sender.lastMsg.URL != "/?record=1" {
+		t.Errorf("reminder URL = %q, want /?record=1", sender.lastMsg.URL)
 	}
 }
 

@@ -45,7 +45,7 @@ func (uc *ReminderUC) remind(ctx context.Context, m domainmeeting.Meeting) {
 	msg := domainpush.Message{
 		Title: "會議提醒",
 		Body:  fmt.Sprintf("「%s」將於 %d 分鐘後開始", m.Title, m.RemindBeforeMin),
-		URL:   "/",
+		URL:   "/?record=1", // 深連結：前端據 record 參數高亮錄音鈕
 	}
 
 	delivered, transientFail := 0, 0
