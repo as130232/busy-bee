@@ -12,13 +12,15 @@ export function DashboardPage() {
   const { user, signOut } = useAuth()
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [search, setSearch] = useState('')
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const load = useCallback(async (keyword: string) => {
     try {
       const { meetings } = await listMeetings(await getIdToken(), keyword)
       setMeetings(meetings)
-    } catch {
-      // 列表載入失敗不阻斷頁面；上傳與 WS 更新仍可用
+      setLoadError(null)
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : '會議列表載入失敗')
     }
   }, [])
 
@@ -62,7 +64,15 @@ export function DashboardPage() {
           onChange={(e) => setSearch(e.target.value)}
         />
 
-        {meetings.length === 0 ? (
+        {loadError && (
+          <p className="error center">
+            {loadError}{' '}
+            <button type="button" className="secondary" onClick={() => void load(search)}>
+              重新載入
+            </button>
+          </p>
+        )}
+        {meetings.length === 0 && !loadError ? (
           <p className="muted center">{search ? '沒有符合的會議。' : '尚無會議紀錄，上傳第一個錄音吧。'}</p>
         ) : (
           <ul className="meeting-list">

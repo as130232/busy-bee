@@ -26,9 +26,25 @@ async function request<T>(path: string, init: RequestInit, idToken?: string): Pr
   const body = (await res.json()) as Envelope
 
   if (!res.ok || body.errCode !== 0) {
-    throw new ApiError(body.errCode, body.msg, res.status, body.traceId)
+    throw new ApiError(body.errCode, friendlyMessage(body.errCode, body.msg), res.status, body.traceId)
   }
   return body.data as T
+}
+
+/** 常見錯誤碼轉為用戶看得懂的訊息；其餘沿用後端 msg。 */
+function friendlyMessage(errCode: number, msg: string): string {
+  switch (errCode) {
+    case 40101:
+      return '登入已過期，請重新登入。'
+    case 40301:
+      return '此帳號沒有使用權限。'
+    case 42901:
+      return '操作太頻繁，請稍後再試。'
+    case 50001:
+      return '系統忙碌中，請稍後再試。'
+    default:
+      return msg
+  }
 }
 
 /** 登入後同步用戶資料（upsert by firebase_uid） */
