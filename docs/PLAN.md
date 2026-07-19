@@ -7,8 +7,10 @@
 
 ## 當前焦點
 
-Phase 11 已 merge main 並部署 production（Cloud Run VAPID 設定完成，revision 00007+）。
-剩最後一步：用戶驗收通知顯示（macOS Chrome）→ 勾 PRODUCT F-REMIND 剩餘驗收 → MVP 完成。
+Phase 13 擴充第一波進行中（分支 `feat/phase-13-expansion`）：前端視覺重設計已完成（`90c97a3`），
+接續實作 F-ACTION（行動項抽取與追蹤）、F-EXPORT（文件匯出/分享）、F-REMIND 深連結補強。
+計畫見 `docs/superpowers/plans/2026-07-19-expansion-wave-1.md`。
+（Phase 11 已 merge main 並部署 production；剩用戶驗收通知顯示。）
 
 ---
 
@@ -42,6 +44,7 @@ Phase 11 已 merge main 並部署 production（Cloud Run VAPID 設定完成，re
 | ✅ | Phase 10 — 歷史與搜尋 | M2-A |
 | 🔄 | Phase 11 — 提醒與推播 | M2-B |
 | ✅ | Phase 12 — Production 完善 | M2-B |
+| 🔄 | Phase 13 — 擴充第一波（F-ACTION、F-EXPORT、深連結） | post-MVP |
 
 ---
 
@@ -226,6 +229,24 @@ Phase 11 已 merge main 並部署 production（Cloud Run VAPID 設定完成，re
 | ✅ | 12.2 | error state UI 梳理 | `busy-bee-fe/src/` | 列表載入失敗提示 + 重載；常見錯誤碼友善訊息 | `38a229d` |
 | ✅ | 12.3 | Cloud Run 參數調整 | — | 併入 Phase 4：scale-to-zero + no-cpu-throttling（ADR-004 修訂） | — |
 | ✅ | 12.4 | README + .env.example 收尾 | `README.md`, `.env.example` | 架構亮點 + ADR 導覽 + 本地開發指南 | — |
+
+---
+
+## Phase 13：擴充第一波（F-ACTION、F-EXPORT、深連結）
+> 里程碑：post-MVP | 🔄 進行中
+> 計畫：`docs/superpowers/plans/2026-07-19-expansion-wave-1.md`
+> 另含前端視覺重設計（Linear 式暗色風、Tailwind v4、行動優先）— commit `90c97a3`
+
+| 狀態 | # | 項目 | 檔案 | 細節 | Commit |
+|------|---|------|------|------|--------|
+| 🔄 | 13.0 | 前端視覺重設計 | `busy-bee-fe/` | 暗/亮雙主題、design tokens、大圓錄音鈕、bottom sheet | `90c97a3` |
+| ⬜ | 13.1 | action_items 表 + sqlc | `busy-bee-be/db/migrations/000005_*`, `db/query/action_items.sql` | artifacts 加 action_items 類型 | — |
+| ⬜ | 13.2 | domain/actionitem + LLM 抽取 | `busy-bee-be/domain/actionitem/`, `infrastructure/llm/` | prompt + JSON 解析（TDD） | — |
+| ⬜ | 13.3 | ProcessUC 抽取階段 | `busy-bee-be/application/meeting/process.go` | artifacts JSON 為冪等標記；TDD 4 例 | — |
+| ⬜ | 13.4 | 行動項 API | `busy-bee-be/application/actionitem/`, `interface/http/handler/actionitem/` | list/pending/toggle；owner 過濾 | — |
+| ⬜ | 13.5 | FE 行動項 UI | `busy-bee-fe/src/components/ActionItemList.tsx` | Dashboard 待辦卡 + 詳情 tab | — |
+| ⬜ | 13.6 | 文件匯出/分享 | `busy-bee-fe/src/components/ExportBar.tsx` | 複製 / 下載 .md / Web Share | — |
+| ⬜ | 13.7 | 提醒推播深連結 | `busy-bee-be/application/meeting/reminder.go`, `busy-bee-fe/src/sw.ts` | 聚焦既有分頁 + 錄音鈕高亮 | — |
 
 ---
 
