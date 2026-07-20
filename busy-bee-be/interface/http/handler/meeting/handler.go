@@ -2,12 +2,14 @@
 package meeting
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	appmeeting "github.com/as130232/busy-bee/busy-bee-be/application/meeting"
+	appsearch "github.com/as130232/busy-bee/busy-bee-be/application/search"
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 	domainuser "github.com/as130232/busy-bee/busy-bee-be/domain/user"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/response"
@@ -25,6 +27,7 @@ type HandlerUCs struct {
 	Retry          *appmeeting.RetryUC
 	Schedule       *appmeeting.ScheduleUC
 	Manage         *appmeeting.ManageUC
+	Search         *appsearch.SearchUC // 選填；nil 時 List 維持純字面
 }
 
 type Handler struct {
@@ -111,12 +114,24 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
-	list, err := h.uc.List.Execute(c.Request.Context(), userID, c.Query("search"))
+	query := strings.TrimSpace(c.Query("search"))
+	// search 非空且已注入 SearchUC → 走 hybrid（字面 + 語意）；否則維持純字面列表
+	if query == "" || h.uc.Search == nil {
+		list, err := h.uc.List.Execute(c.Request.Context(), userID, query)
+		if err != nil {
+			response.Fail(c, err)
+			return
+		}
+		response.OK(c, gin.H{"meetings": toMeetingListResponses(list)})
+		return
+	}
+
+	meetings, hits, err := h.uc.Search.Execute(c.Request.Context(), userID, query)
 	if err != nil {
 		response.Fail(c, err)
 		return
 	}
-	response.OK(c, gin.H{"meetings": toMeetingListResponses(list)})
+	response.OK(c, gin.H{"meetings": toSearchResponses(meetings, hits)})
 }
 
 // Get GET /api/v1/meetings/:id — 會議詳情（含 transcript）。

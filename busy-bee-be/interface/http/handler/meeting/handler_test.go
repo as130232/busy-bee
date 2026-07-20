@@ -13,8 +13,10 @@ import (
 	"github.com/google/uuid"
 
 	appmeeting "github.com/as130232/busy-bee/busy-bee-be/application/meeting"
+	appsearch "github.com/as130232/busy-bee/busy-bee-be/application/search"
 	domainartifact "github.com/as130232/busy-bee/busy-bee-be/domain/artifact"
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
+	domainsearch "github.com/as130232/busy-bee/busy-bee-be/domain/search"
 	domainuser "github.com/as130232/busy-bee/busy-bee-be/domain/user"
 )
 
@@ -68,6 +70,7 @@ func testRouter(t *testing.T) *gin.Engine {
 		Get:            appmeeting.NewGetUC(repo),
 		Retry:          appmeeting.NewRetryUC(repo, q),
 		Manage:         appmeeting.NewManageUC(repo),
+		Search:         appsearch.NewSearchUC(repo, &fakeEmbedder{}, &fakeSearchChunks{}, repo),
 	})
 
 	e := gin.New()
@@ -81,7 +84,26 @@ func testRouter(t *testing.T) *gin.Engine {
 	e.GET("/meetings/:id/artifacts", injectIdentity, withTestUserID(), h.ListArtifacts)
 	e.PATCH("/meetings/:id", injectIdentity, withTestUserID(), h.Rename)
 	e.DELETE("/meetings/:id", injectIdentity, withTestUserID(), h.Delete)
+	e.GET("/meetings", injectIdentity, withTestUserID(), h.List)
 	return e
+}
+
+// fakeEmbedder / fakeSearchChunks 供 SearchUC 測試：語意命中一筆帶 snippet 的會議。
+type fakeEmbedder struct{}
+
+func (f *fakeEmbedder) Embed(context.Context, string) ([]float32, error) { return []float32{0.1}, nil }
+
+type fakeSearchChunks struct{}
+
+func (f *fakeSearchChunks) Upsert(context.Context, []domainsearch.Chunk) error { return nil }
+func (f *fakeSearchChunks) DeleteByMeeting(context.Context, uuid.UUID) error   { return nil }
+func (f *fakeSearchChunks) SearchSimilar(context.Context, uuid.UUID, []float32, int) ([]domainsearch.SearchResult, error) {
+	return []domainsearch.SearchResult{
+		{MeetingID: uuid.New(), Snippet: "價格策略片段", Score: 0.9, MatchType: domainsearch.MatchSemantic},
+	}, nil
+}
+func (f *fakeSearchChunks) MeetingsWithoutChunks(context.Context) ([]uuid.UUID, error) {
+	return nil, nil
 }
 
 var testUserID = uuid.New()
@@ -196,6 +218,32 @@ func TestListArtifacts_ReturnsDocs(t *testing.T) {
 
 func (f *fakeRepo) ListForUser(_ context.Context, _ uuid.UUID, _ string) ([]domainmeeting.Meeting, error) {
 	return []domainmeeting.Meeting{{ID: uuid.New(), Title: "會議A", Status: domainmeeting.StatusCompleted}}, nil
+}
+
+func TestList_WithSearchReturnsSnippet(t *testing.T) {
+	e := testRouter(t)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/meetings?search=定價", nil)
+	e.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "matchSnippet") {
+		t.Errorf("expected matchSnippet in body: %s", w.Body.String())
+	}
+}
+
+func TestList_NoSearchOmitsSnippet(t *testing.T) {
+	e := testRouter(t)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/meetings", nil)
+	e.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "matchSnippet") {
+		t.Errorf("no-search list should omit matchSnippet: %s", w.Body.String())
+	}
 }
 
 func (f *fakeRepo) Rename(_ context.Context, id, _ uuid.UUID, title string) (domainmeeting.Meeting, error) {

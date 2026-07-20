@@ -294,6 +294,13 @@ export interface components {
             remindBeforeMin: number;
             /** Format: date-time */
             createdAt: string;
+            /** @description 搜尋命中的逐字稿片段（僅 search 非空且語意命中時出現） */
+            matchSnippet?: string;
+            /**
+             * @description 命中類型
+             * @enum {string}
+             */
+            matchType?: "semantic" | "literal";
         };
         MeetingDetail: components["schemas"]["Meeting"] & {
             transcript: string;

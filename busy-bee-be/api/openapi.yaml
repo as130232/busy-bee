@@ -667,6 +667,8 @@ components:
         scheduledAt: { type: string, format: date-time }
         remindBeforeMin: { type: integer }
         createdAt: { type: string, format: date-time }
+        matchSnippet: { type: string, description: "搜尋命中的逐字稿片段（僅 search 非空且語意命中時出現）" }
+        matchType: { type: string, enum: [semantic, literal], description: "命中類型" }
 
     MeetingDetail:
       allOf:
