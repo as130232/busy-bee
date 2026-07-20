@@ -18,6 +18,12 @@ import (
 // 存在即代表本場已抽取過，retry 不重複呼叫 LLM。
 const artifactTypeActionItems = domainartifact.Type("action_items")
 
+// MeetingIndexer 語意索引窄介面（*application/search.IndexUC 滿足）。
+// completed 後 best-effort 觸發；索引失敗不回退 completed，保底靠 worker 回填掃描。
+type MeetingIndexer interface {
+	Execute(ctx context.Context, meetingID uuid.UUID) error
+}
+
 // ProcessUC 會議處理管線：pending → transcribing（STT）→ analyzing → completed。
 // 各階段冪等（ADR-009）：已有產物的階段直接跳過，retry 不重複呼叫外部 API。
 // 失敗時回傳錯誤交由 Asynq retry；標記 failed 是 worker 在最後一次重試後的決定（MarkFailed）。
@@ -31,6 +37,7 @@ type ProcessDeps struct {
 	Notifier    domainmeeting.StatusNotifier
 	ActionItems domainactionitem.Repository
 	Extractor   domainactionitem.Extractor
+	Indexer     MeetingIndexer // 選填；nil 時跳過語意索引
 }
 
 type ProcessUC struct {
@@ -42,6 +49,7 @@ type ProcessUC struct {
 	notifier    domainmeeting.StatusNotifier
 	actionItems domainactionitem.Repository
 	extractor   domainactionitem.Extractor
+	indexer     MeetingIndexer
 }
 
 func NewProcessUC(d ProcessDeps) *ProcessUC {
@@ -49,6 +57,7 @@ func NewProcessUC(d ProcessDeps) *ProcessUC {
 		repo: d.Meetings, storage: d.Storage, stt: d.STT,
 		artifacts: d.Artifacts, llm: d.LLM, notifier: d.Notifier,
 		actionItems: d.ActionItems, extractor: d.Extractor,
+		indexer: d.Indexer,
 	}
 }
 
@@ -124,6 +133,13 @@ func (uc *ProcessUC) Execute(ctx context.Context, meetingID uuid.UUID) error {
 	}
 	uc.notify(ctx, m)
 	slog.InfoContext(ctx, "meeting.process.completed", "meeting_id", m.ID)
+
+	// best-effort 語意索引：失敗不回退 completed，保底靠 worker 回填掃描
+	if uc.indexer != nil {
+		if err := uc.indexer.Execute(ctx, m.ID); err != nil {
+			slog.WarnContext(ctx, "meeting.process.index_failed", "meeting_id", m.ID, "err", err)
+		}
+	}
 	return nil
 }
 
