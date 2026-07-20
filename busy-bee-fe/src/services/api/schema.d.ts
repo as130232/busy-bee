@@ -142,10 +142,12 @@ export interface paths {
         get: operations["getMeeting"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** 刪除排程會議（僅 scheduled 狀態，本人限定） */
+        delete: operations["deleteScheduledMeeting"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** 重新命名會議（任何狀態，本人限定） */
+        patch: operations["renameMeeting"];
         trace?: never;
     };
     "/api/v1/meetings/{id}/retry": {
@@ -677,6 +679,78 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             /** @description 不存在或非本人（errCode 40401） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    deleteScheduledMeeting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已刪除 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 不存在、非本人或非 scheduled 狀態 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    renameMeeting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 已更名 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            meeting?: components["schemas"]["Meeting"];
+                        };
+                    };
+                };
+            };
+            /** @description 不存在或非本人 */
             404: {
                 headers: {
                     [name: string]: unknown;

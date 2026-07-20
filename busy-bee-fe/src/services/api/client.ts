@@ -167,6 +167,45 @@ export function createScheduledMeeting(
   )
 }
 
+/** 修改排程會議（時間/標題/提前分鐘；會重置提醒） */
+export function updateMeetingSchedule(
+  idToken: string,
+  meetingId: string,
+  input: { title: string; scheduledAt: string; remindBeforeMin?: number },
+): Promise<{ meeting: Meeting }> {
+  return request<{ meeting: Meeting }>(
+    `/api/v1/meetings/${meetingId}/schedule`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+    idToken,
+  )
+}
+
+/** 重新命名會議（任何狀態） */
+export function renameMeeting(
+  idToken: string,
+  meetingId: string,
+  title: string,
+): Promise<{ meeting: Meeting }> {
+  return request<{ meeting: Meeting }>(
+    `/api/v1/meetings/${meetingId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    },
+    idToken,
+  )
+}
+
+/** 刪除排程會議（僅 scheduled 狀態） */
+export function deleteScheduledMeeting(idToken: string, meetingId: string): Promise<unknown> {
+  return request<unknown>(`/api/v1/meetings/${meetingId}`, { method: 'DELETE' }, idToken)
+}
+
 /** 取得 Web Push VAPID 公鑰 */
 export function getVapidPublicKey(idToken: string): Promise<{ publicKey: string }> {
   return request<{ publicKey: string }>('/api/v1/push/vapid-public-key', { method: 'GET' }, idToken)

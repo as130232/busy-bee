@@ -6,7 +6,8 @@ import { useMeetings } from '../hooks/useMeetings'
 /** 行程分頁：排程會議清單 + 新增排程 + 跨會議待辦行動項。 */
 export function SchedulePage() {
   const { meetings, reload } = useMeetings()
-  const scheduled = meetings.filter((m) => m.status === 'scheduled')
+  // scheduledAt 為空的是上傳流程的暫存記錄（非用戶排程），不顯示
+  const scheduled = meetings.filter((m) => m.status === 'scheduled' && m.scheduledAt)
 
   return (
     <>
