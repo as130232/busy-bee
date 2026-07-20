@@ -46,6 +46,7 @@ Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁
 | ✅ | Phase 12 — Production 完善 | M2-B |
 | ✅ | Phase 13 — 擴充第一波（F-ACTION、F-EXPORT、深連結） | post-MVP |
 | 🔄 | Phase 14 — 會議與行程管理（F-MANAGE）+ 邊角驗收 | post-MVP |
+| 🔄 | Phase 15 — RAG 語意搜尋（pgvector + Gemini embedding） | post-MVP |
 
 ---
 
@@ -260,6 +261,26 @@ Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁
 | ✅ | 14.1 | 改名 + 刪除 API | `busy-bee-be/application/meeting/manage.go`, `db/query/meetings.sql` | PATCH /meetings/{id}（任何狀態）；DELETE（僅 scheduled）；ManageRepository 窄介面；TDD + repo 整合測試 | `3f6d23b` |
 | ✅ | 14.2 | 前端管理 UI | `busy-bee-fe/src/pages/MeetingDetailPage.tsx`, `src/components/ScheduleForm.tsx` | 標題鉛筆改名；ScheduleSheet 共用編輯模式；排程詳情視圖（時間/提醒/編輯/刪除確認）；行程頁過濾上傳暫存 | `9a4b756` |
 | ⬜ | 14.3 | 邊角情境人工驗收 | — | 錄音離頁警告 / 麥克風被拒 / 不支援瀏覽器 / 上傳中斷重試（程式皆已實作） | — |
+
+---
+
+## Phase 15：RAG 語意搜尋（pgvector + Gemini embedding）
+> 里程碑：post-MVP | 🔄 進行中
+> Spec：`docs/superpowers/specs/2026-07-20-rag-semantic-search-design.md`
+> 計畫：`docs/superpowers/plans/2026-07-20-rag-semantic-search.md`
+> 語意搜尋先、問答留後；只索引逐字稿；hybrid 同框合併；對齊 ADR-006。
+
+| 狀態 | # | 項目 | 檔案 | 細節 | Commit |
+|------|---|------|------|------|--------|
+| ⬜ | 15.1 | pgvector 前置 + migration | `go.mod`, `docker-compose.yml`, `.github/workflows/`, `db/migrations/000006_*` | pgvector-go 依賴、compose/CI image 換 pgvector、transcript_chunks 表 | — |
+| ⬜ | 15.2 | domain/search + 切塊 | `domain/search/search.go`, `chunker.go` | Chunk/SearchResult entity、Embedder/ChunkRepository ports、SplitIntoChunks（TDD） | — |
+| ⬜ | 15.3 | Gemini EmbedContent | `infrastructure/llm/gemini.go` | 實作 Embedder，gemini-embedding-001 @ 768 維 | — |
+| ⬜ | 15.4 | chunk_repo pgvector | `infrastructure/db/chunk_repo.go` | Upsert/Search/回填掃描；cosine `<=>`；owner 過濾；整合測試 | — |
+| ⬜ | 15.5 | IndexUC | `application/search/index.go` | 切塊+embed+upsert，冪等，空逐字稿跳過（TDD） | — |
+| ⬜ | 15.6 | SearchUC | `application/search/search.go` | hybrid 合併+降級純 ILIKE（TDD） | — |
+| ⬜ | 15.7 | worker 索引觸發+回填 | `worker/indexer.go`, `application/meeting/process.go` | completed 後觸發、sweeper 回填未索引會議 | — |
+| ⬜ | 15.8 | HTTP handler + wiring + 前端 | `interface/http/...`, `cmd/server/main.go`, `busy-bee-fe/...` | List 走 SearchUC、回傳 snippet、前端顯示片段 | — |
+| ⬜ | 15.9 | 人工驗收 + 部署 | — | 搜「定價」找到「價格策略」；Neon extension；merge | — |
 
 ---
 
