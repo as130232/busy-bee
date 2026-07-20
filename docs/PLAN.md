@@ -7,6 +7,7 @@
 
 ## 當前焦點
 
+Phase 15（RAG 語意搜尋：pgvector + Gemini embedding）程式全數完成、全測試綠，待本地 e2e 人工驗收與 merge（15.9）。
 Phase 13 已 merge main（F-ACTION / F-EXPORT / 深連結 / 視覺重設計 / Tab 導覽 / 行動裝置修正，人工驗收通過）。
 Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁）程式完成，待人工驗收。
 推播通知顯示問題仍未解（用戶端顯示層）；自動提醒維持暫緩（scale-to-zero 決策）。
@@ -265,22 +266,23 @@ Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁
 ---
 
 ## Phase 15：RAG 語意搜尋（pgvector + Gemini embedding）
-> 里程碑：post-MVP | 🔄 進行中
+> 里程碑：post-MVP | 🔄 程式完成，待人工驗收
 > Spec：`docs/superpowers/specs/2026-07-20-rag-semantic-search-design.md`
 > 計畫：`docs/superpowers/plans/2026-07-20-rag-semantic-search.md`
 > 語意搜尋先、問答留後；只索引逐字稿；hybrid 同框合併；對齊 ADR-006。
+> 程式全數完成、全後端 build/vet/test 綠（含 chunk_repo 真實 PG 整合測試）、前端 typecheck/build 綠；待本地 e2e 人工驗收與 merge。
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ⬜ | 15.1 | pgvector 前置 + migration | `go.mod`, `docker-compose.yml`, `.github/workflows/`, `db/migrations/000006_*` | pgvector-go 依賴、compose/CI image 換 pgvector、transcript_chunks 表 | — |
-| ⬜ | 15.2 | domain/search + 切塊 | `domain/search/search.go`, `chunker.go` | Chunk/SearchResult entity、Embedder/ChunkRepository ports、SplitIntoChunks（TDD） | — |
-| ⬜ | 15.3 | Gemini EmbedContent | `infrastructure/llm/gemini.go` | 實作 Embedder，gemini-embedding-001 @ 768 維 | — |
-| ⬜ | 15.4 | chunk_repo pgvector | `infrastructure/db/chunk_repo.go` | Upsert/Search/回填掃描；cosine `<=>`；owner 過濾；整合測試 | — |
-| ⬜ | 15.5 | IndexUC | `application/search/index.go` | 切塊+embed+upsert，冪等，空逐字稿跳過（TDD） | — |
-| ⬜ | 15.6 | SearchUC | `application/search/search.go` | hybrid 合併+降級純 ILIKE（TDD） | — |
-| ⬜ | 15.7 | worker 索引觸發+回填 | `worker/indexer.go`, `application/meeting/process.go` | completed 後觸發、sweeper 回填未索引會議 | — |
-| ⬜ | 15.8 | HTTP handler + wiring + 前端 | `interface/http/...`, `cmd/server/main.go`, `busy-bee-fe/...` | List 走 SearchUC、回傳 snippet、前端顯示片段 | — |
-| ⬜ | 15.9 | 人工驗收 + 部署 | — | 搜「定價」找到「價格策略」；Neon extension；merge | — |
+| ✅ | 15.1 | pgvector 前置 + migration | `go.mod`, `docker-compose.yml`, `.github/workflows/`, `db/migrations/000006_*` | pgvector-go 依賴、compose/CI image 換 pgvector、transcript_chunks 表（hnsw cosine + CASCADE）；up/down 驗可逆 | `c6a0726, 8a9ed9d, d1d6fd8` |
+| ✅ | 15.2 | domain/search + 切塊 | `domain/search/search.go`, `chunker.go` | Chunk/SearchResult entity、Embedder/ChunkRepository ports、SplitIntoChunks（TDD 4 例） | `4d2f0e4, 0e7c4b1` |
+| ✅ | 15.3 | Gemini EmbedContent | `infrastructure/llm/embed.go` | 實作 Embedder，gemini-embedding-001 @ 768 維；編譯期斷言 | `6ad3863` |
+| ✅ | 15.4 | chunk_repo pgvector | `infrastructure/db/chunk_repo.go` | 手寫 pgx + pgvector-go；Upsert（先刪後插）/SearchSimilar（DISTINCT ON + cosine `<=>` + owner 過濾）/DeleteByMeeting/MeetingsWithoutChunks；整合測試 4 例 | `29af47e` |
+| ✅ | 15.5 | IndexUC | `application/search/index.go` | 切塊+逐塊 embed+upsert，冪等，空逐字稿跳過（TDD 2 例） | `a2acae7` |
+| ✅ | 15.6 | SearchUC | `application/search/search.go` | hybrid 合併去重排序 + embed/向量失敗降級純字面（TDD 2 例） | `7e347f7` |
+| ✅ | 15.7 | worker 索引觸發+回填 | `worker/indexer.go`, `application/meeting/process.go` | completed 後 best-effort 觸發、RunIndexBackfill 回填未索引會議（TDD 1 例） | `f641ba0` |
+| ✅ | 15.8 | HTTP handler + wiring + 前端 | `interface/http/...`, `cmd/server/main.go`, `busy-bee-fe/...` | List search 非空走 SearchUC、回 matchSnippet/matchType；openapi + 重生 TS client；main.go wiring（handler TDD 2 例）；前端 MeetingList 顯示片段 | `4f5c7af, 3e1f969` |
+| ⬜ | 15.9 | 人工驗收 + 部署 | — | 搜「定價」找到「價格策略」；owner 過濾、降級可用；Neon `CREATE EXTENSION vector`（migration 已含）；merge | — |
 
 ---
 
@@ -332,6 +334,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-19 | 行動裝置修正：PWA 禁縮放、錄音頁三段固定版面一屏不滑、排程 sheet 不被遮、通知開關防卡死 | `3a2a37f` |
 | 2026-07-20 | Phase 13 人工驗收通過（除深連結，卡推播顯示）；Phase 14 程式完成：改名/刪除 API（TDD）+ 排程專屬詳情頁 + ScheduleSheet 編輯模式 + 行程頁過濾上傳暫存；盤點確認錄音/上傳邊角程式已存在僅待驗收 | `3f6d23b, 9a4b756` |
 | 2026-07-19 | 找到提醒不觸發根因（scale-to-zero 下 instance=0，進程內 sweeper 不跑）：新增密鑰保護的 `/internal/sweep-reminders` 端點備用（TDD 3 例）。**決策：暫緩自動提醒**——每分鐘 Scheduler 會讓 instance 常駐、失去 scale-to-zero 省錢意義；使用者選擇先不啟用，端點休眠（無密鑰無觸發器＝零額外費用）。未來若要啟用，較省的方向是 Cloud Tasks 精準排程（提醒時刻才喚醒一次） | `49bb919` |
+| 2026-07-20 | Phase 15 RAG 語意搜尋程式完成（15.1–15.8）：pgvector 前置＋migration 000006（transcript_chunks、hnsw cosine、CASCADE）→ domain/search entity/ports＋SplitIntoChunks 切塊（TDD）→ Gemini Embed（gemini-embedding-001 @768 維）→ chunk_repo（手寫 pgx＋pgvector-go，DISTINCT ON＋`<=>`＋owner 過濾，真實 PG 整合測試）→ IndexUC/SearchUC（hybrid 合併＋embedding 失敗降級純字面，TDD）→ worker 回填掃描＋completed best-effort 觸發 → List handler 走 SearchUC 回 matchSnippet＋openapi/TS client＋main.go wiring＋前端片段顯示。全後端 build/vet/test 綠、前端 typecheck/build 綠；待本地 e2e 人工驗收（搜「定價」找「價格策略」）＋Neon extension＋merge（15.9） | `c6a0726..3e1f969` |
 
 ---
 
