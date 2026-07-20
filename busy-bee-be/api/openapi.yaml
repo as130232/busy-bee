@@ -296,6 +296,63 @@ paths:
               schema: { $ref: "#/components/schemas/Envelope" }
 
   /api/v1/meetings/{id}:
+    patch:
+      tags: [meetings]
+      summary: 重新命名會議（任何狀態，本人限定）
+      operationId: renameMeeting
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string }
+      responses:
+        "200":
+          description: 已更名
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          meeting: { $ref: "#/components/schemas/Meeting" }
+        "404":
+          description: 不存在或非本人
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+    delete:
+      tags: [meetings]
+      summary: 刪除排程會議（僅 scheduled 狀態，本人限定）
+      operationId: deleteScheduledMeeting
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 已刪除
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "404":
+          description: 不存在、非本人或非 scheduled 狀態
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
     get:
       tags: [meetings]
       summary: 會議詳情（含逐字稿）

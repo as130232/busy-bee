@@ -143,3 +143,61 @@ func TestMeetingRepo_ListForUser_SearchAndOwnerFilter(t *testing.T) {
 		t.Errorf("no-match search len = %d, want 0", len(none))
 	}
 }
+
+func TestMeetingRepo_RenameOwnerOnly(t *testing.T) {
+	pool := testPool(t)
+	u := testUser(t, pool)
+	repo := NewMeetingRepo(pool)
+
+	created, err := repo.Create(context.Background(), domainmeeting.Meeting{
+		UserID: u.ID, Title: "舊名", Status: domainmeeting.StatusCompleted,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	renamed, err := repo.Rename(context.Background(), created.ID, u.ID, "新名")
+	if err != nil {
+		t.Fatalf("Rename() error = %v", err)
+	}
+	if renamed.Title != "新名" {
+		t.Errorf("Title = %q, want 新名", renamed.Title)
+	}
+
+	// 非本人 → ErrNotFound
+	if _, err := repo.Rename(context.Background(), created.ID, uuid.New(), "駭"); !errors.Is(err, domainmeeting.ErrNotFound) {
+		t.Errorf("Rename by other user err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestMeetingRepo_DeleteScheduledOnly(t *testing.T) {
+	pool := testPool(t)
+	u := testUser(t, pool)
+	repo := NewMeetingRepo(pool)
+
+	at := time.Now().Add(2 * time.Hour)
+	sched, err := repo.CreateScheduled(context.Background(), u.ID, domainmeeting.ScheduleParams{
+		Title: "待刪行程", ScheduledAt: at, RemindBeforeMin: 15,
+	})
+	if err != nil {
+		t.Fatalf("CreateScheduled() error = %v", err)
+	}
+
+	if err := repo.DeleteScheduled(context.Background(), sched.ID, u.ID); err != nil {
+		t.Fatalf("DeleteScheduled() error = %v", err)
+	}
+	if _, err := repo.GetForUser(context.Background(), sched.ID, u.ID); !errors.Is(err, domainmeeting.ErrNotFound) {
+		t.Errorf("after delete GetForUser err = %v, want ErrNotFound", err)
+	}
+
+	// 非 scheduled 狀態不可刪
+	done, err := repo.Create(context.Background(), domainmeeting.Meeting{
+		UserID: u.ID, Title: "已完成", Status: domainmeeting.StatusCompleted,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if err := repo.DeleteScheduled(context.Background(), done.ID, u.ID); !errors.Is(err, domainmeeting.ErrNotFound) {
+		t.Errorf("delete non-scheduled err = %v, want ErrNotFound", err)
+	}
+}

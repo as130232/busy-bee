@@ -127,6 +127,7 @@ func main() {
 			Get:            appmeeting.NewGetUC(meetingRepo),
 			Retry:          appmeeting.NewRetryUC(meetingRepo, taskQueue),
 			Schedule:       appmeeting.NewScheduleUC(meetingRepo),
+			Manage:         appmeeting.NewManageUC(meetingRepo),
 		}),
 		ActionItemHandler: actionitemhandler.NewHandler(actionitemhandler.HandlerUCs{
 			ListByMeeting: appactionitem.NewListByMeetingUC(meetingRepo, actionItemRepo),

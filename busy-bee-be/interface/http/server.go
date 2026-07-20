@@ -76,6 +76,8 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 		authed.GET("/meetings", deps.MeetingHandler.List)
 		authed.POST("/meetings/scheduled", deps.MeetingHandler.CreateScheduled)
 		authed.GET("/meetings/:id", deps.MeetingHandler.Get)
+		authed.PATCH("/meetings/:id", deps.MeetingHandler.Rename)
+		authed.DELETE("/meetings/:id", deps.MeetingHandler.Delete)
 		authed.POST("/meetings/:id/complete-upload", deps.MeetingHandler.CompleteUpload)
 		authed.PATCH("/meetings/:id/schedule", deps.MeetingHandler.UpdateSchedule)
 		authed.POST("/meetings/:id/retry", deps.MeetingHandler.Retry)

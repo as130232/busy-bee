@@ -205,3 +205,25 @@ func (r *MeetingRepo) MarkReminded(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
+
+func (r *MeetingRepo) Rename(ctx context.Context, id, userID uuid.UUID, title string) (domainmeeting.Meeting, error) {
+	row, err := r.q.RenameMeeting(ctx, sqlcgen.RenameMeetingParams{ID: id, UserID: userID, Title: title})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domainmeeting.Meeting{}, domainmeeting.ErrNotFound
+		}
+		return domainmeeting.Meeting{}, fmt.Errorf("db.RenameMeeting: %w", err)
+	}
+	return toDomainMeeting(row), nil
+}
+
+func (r *MeetingRepo) DeleteScheduled(ctx context.Context, id, userID uuid.UUID) error {
+	n, err := r.q.DeleteScheduledMeeting(ctx, sqlcgen.DeleteScheduledMeetingParams{ID: id, UserID: userID})
+	if err != nil {
+		return fmt.Errorf("db.DeleteScheduledMeeting: %w", err)
+	}
+	if n == 0 {
+		return domainmeeting.ErrNotFound
+	}
+	return nil
+}

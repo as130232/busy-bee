@@ -24,6 +24,7 @@ type HandlerUCs struct {
 	Get            *appmeeting.GetUC
 	Retry          *appmeeting.RetryUC
 	Schedule       *appmeeting.ScheduleUC
+	Manage         *appmeeting.ManageUC
 }
 
 type Handler struct {
@@ -208,6 +209,54 @@ func (h *Handler) UpdateSchedule(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"meeting": toMeetingResponse(m)})
+}
+
+// Rename PATCH /api/v1/meetings/:id — 重新命名會議（任何狀態，本人限定）。
+func (h *Handler) Rename(c *gin.Context) {
+	userID, ok := domainuser.IDFrom(c.Request.Context())
+	if !ok {
+		response.Fail(c, apperr.New(errcode.Unauthorized))
+		return
+	}
+	meetingID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "id"))
+		return
+	}
+	var req struct {
+		Title string `json:"title"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "body"))
+		return
+	}
+
+	m, err := h.uc.Manage.Rename(c.Request.Context(), userID, meetingID, req.Title)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.OK(c, gin.H{"meeting": toMeetingResponse(m)})
+}
+
+// Delete DELETE /api/v1/meetings/:id — 刪除排程會議（僅 scheduled 狀態，本人限定）。
+func (h *Handler) Delete(c *gin.Context) {
+	userID, ok := domainuser.IDFrom(c.Request.Context())
+	if !ok {
+		response.Fail(c, apperr.New(errcode.Unauthorized))
+		return
+	}
+	meetingID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "id"))
+		return
+	}
+
+	if err := h.uc.Manage.DeleteScheduled(c.Request.Context(), userID, meetingID); err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.OK(c, gin.H{})
 }
 
 // Retry POST /api/v1/meetings/:id/retry — 失敗會議重新排入處理。

@@ -92,6 +92,14 @@ type ScheduleRepository interface {
 	UpdateSchedule(ctx context.Context, id, userID uuid.UUID, p ScheduleParams) (Meeting, error)
 }
 
+// ManageRepository 會議管理專用窄介面（MeetingRepo 一併實作）。
+type ManageRepository interface {
+	// Rename 重新命名（任何狀態，本人限定）；不存在或非本人回 ErrNotFound。
+	Rename(ctx context.Context, id, userID uuid.UUID, title string) (Meeting, error)
+	// DeleteScheduled 刪除排程會議（僅 scheduled 狀態，本人限定）；不存在回 ErrNotFound。
+	DeleteScheduled(ctx context.Context, id, userID uuid.UUID) error
+}
+
 // ReminderRepository 提醒掃描專用窄介面（MeetingRepo 一併實作）。
 type ReminderRepository interface {
 	// ListDueReminders 到達提醒時間且未提醒過的排程會議（過期 1 小時以上不再提醒）。

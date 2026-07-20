@@ -70,3 +70,13 @@ UPDATE meetings
 SET status = 'failed', error_message = $2, updated_at = now()
 WHERE id = $1 AND status IN ('pending', 'transcribing', 'analyzing')
 RETURNING *;
+
+-- name: RenameMeeting :one
+UPDATE meetings
+SET title = $3, updated_at = now()
+WHERE id = $1 AND user_id = $2
+RETURNING *;
+
+-- name: DeleteScheduledMeeting :execrows
+DELETE FROM meetings
+WHERE id = $1 AND user_id = $2 AND status = 'scheduled';

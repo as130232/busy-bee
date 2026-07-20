@@ -67,6 +67,7 @@ func testRouter(t *testing.T) *gin.Engine {
 		List:           appmeeting.NewListUC(repo),
 		Get:            appmeeting.NewGetUC(repo),
 		Retry:          appmeeting.NewRetryUC(repo, q),
+		Manage:         appmeeting.NewManageUC(repo),
 	})
 
 	e := gin.New()
@@ -78,6 +79,8 @@ func testRouter(t *testing.T) *gin.Engine {
 	e.POST("/meetings", injectIdentity, withTestUserID(), h.Create)
 	e.POST("/meetings/:id/complete-upload", injectIdentity, withTestUserID(), h.CompleteUpload)
 	e.GET("/meetings/:id/artifacts", injectIdentity, withTestUserID(), h.ListArtifacts)
+	e.PATCH("/meetings/:id", injectIdentity, withTestUserID(), h.Rename)
+	e.DELETE("/meetings/:id", injectIdentity, withTestUserID(), h.Delete)
 	return e
 }
 
@@ -193,4 +196,50 @@ func TestListArtifacts_ReturnsDocs(t *testing.T) {
 
 func (f *fakeRepo) ListForUser(_ context.Context, _ uuid.UUID, _ string) ([]domainmeeting.Meeting, error) {
 	return []domainmeeting.Meeting{{ID: uuid.New(), Title: "會議A", Status: domainmeeting.StatusCompleted}}, nil
+}
+
+func (f *fakeRepo) Rename(_ context.Context, id, _ uuid.UUID, title string) (domainmeeting.Meeting, error) {
+	return domainmeeting.Meeting{ID: id, Title: title}, nil
+}
+
+func (f *fakeRepo) DeleteScheduled(_ context.Context, _, _ uuid.UUID) error { return nil }
+
+func TestRename_ReturnsUpdatedTitle(t *testing.T) {
+	e := testRouter(t)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPatch, "/meetings/"+uuid.NewString(),
+		strings.NewReader(`{"title":"改名後"}`))
+	req.Header.Set("Content-Type", "application/json")
+	e.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "改名後") {
+		t.Errorf("body = %s, want updated title", w.Body.String())
+	}
+}
+
+func TestRename_EmptyTitle400(t *testing.T) {
+	e := testRouter(t)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPatch, "/meetings/"+uuid.NewString(),
+		strings.NewReader(`{"title":"  "}`))
+	req.Header.Set("Content-Type", "application/json")
+	e.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+}
+
+func TestDelete_Scheduled200(t *testing.T) {
+	e := testRouter(t)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, "/meetings/"+uuid.NewString(), nil)
+	e.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
 }

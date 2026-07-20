@@ -96,6 +96,24 @@ func (q *Queries) CreateScheduledMeeting(ctx context.Context, arg CreateSchedule
 	return i, err
 }
 
+const deleteScheduledMeeting = `-- name: DeleteScheduledMeeting :execrows
+DELETE FROM meetings
+WHERE id = $1 AND user_id = $2 AND status = 'scheduled'
+`
+
+type DeleteScheduledMeetingParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) DeleteScheduledMeeting(ctx context.Context, arg DeleteScheduledMeetingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteScheduledMeeting, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getMeeting = `-- name: GetMeeting :one
 SELECT id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at FROM meetings WHERE id = $1
 `
@@ -282,6 +300,41 @@ UPDATE meetings SET reminded_at = now(), updated_at = now() WHERE id = $1
 func (q *Queries) MarkMeetingReminded(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, markMeetingReminded, id)
 	return err
+}
+
+const renameMeeting = `-- name: RenameMeeting :one
+UPDATE meetings
+SET title = $3, updated_at = now()
+WHERE id = $1 AND user_id = $2
+RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at
+`
+
+type RenameMeetingParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+	Title  string
+}
+
+func (q *Queries) RenameMeeting(ctx context.Context, arg RenameMeetingParams) (Meeting, error) {
+	row := q.db.QueryRow(ctx, renameMeeting, arg.ID, arg.UserID, arg.Title)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Title,
+		&i.AudioGcsPath,
+		&i.Status,
+		&i.Transcript,
+		&i.DurationSeconds,
+		&i.ErrorMessage,
+		&i.ScheduledAt,
+		&i.RemindBeforeMin,
+		&i.ProcessedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.RemindedAt,
+	)
+	return i, err
 }
 
 const saveMeetingTranscript = `-- name: SaveMeetingTranscript :one
