@@ -13,6 +13,7 @@ import (
 	appactionitem "github.com/as130232/busy-bee/busy-bee-be/application/actionitem"
 	appmeeting "github.com/as130232/busy-bee/busy-bee-be/application/meeting"
 	apppush "github.com/as130232/busy-bee/busy-bee-be/application/push"
+	appsearch "github.com/as130232/busy-bee/busy-bee-be/application/search"
 	appuser "github.com/as130232/busy-bee/busy-bee-be/application/user"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/config"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/db"
@@ -33,6 +34,7 @@ import (
 )
 
 const sweepInterval = 2 * time.Minute
+const indexBackfillInterval = 5 * time.Minute
 
 const shutdownTimeout = 10 * time.Second
 
@@ -80,12 +82,17 @@ func main() {
 	artifactRepo := db.NewArtifactRepo(pool)
 	actionItemRepo := db.NewActionItemRepo(pool)
 
+	// 語意搜尋（Phase 15）：chunk_repo + IndexUC；completed 後 best-effort 觸發，未索引由回填掃描補
+	chunkRepo := db.NewChunkRepo(pool)
+	indexUC := appsearch.NewIndexUC(meetingRepo, llmClient, chunkRepo)
+
 	// 記憶體佇列（ADR-010）：worker 與 HTTP 同 binary；重啟遺失由 Sweeper 掃 DB 復原
 	sttClient := stt.New(cfg.Groq.APIKey)
 	processUC := appmeeting.NewProcessUC(appmeeting.ProcessDeps{
 		Meetings: meetingRepo, Storage: audioStorage, STT: sttClient,
 		Artifacts: artifactRepo, LLM: llmClient, Notifier: hub,
 		ActionItems: actionItemRepo, Extractor: llmClient,
+		Indexer: indexUC,
 	})
 	taskQueue := queue.NewMemory(256, queue.DefaultRetryDelays)
 	taskQueue.Start(ctx, 2, processUC.Execute, processUC.MarkFailed) // 外部 API bound，低併發
@@ -93,6 +100,7 @@ func main() {
 	sweepCtx, stopSweeper := context.WithCancel(ctx)
 	defer stopSweeper()
 	go worker.NewSweeper(meetingRepo, taskQueue).Run(sweepCtx, sweepInterval)
+	go worker.RunIndexBackfill(sweepCtx, chunkRepo, indexUC, indexBackfillInterval)
 
 	// 提醒掃描（F-REMIND）：VAPID 未設定則停用。
 	// scale-to-zero 下 instance 常態為 0，進程內 ticker 不可靠（ADR-004）；
@@ -128,6 +136,7 @@ func main() {
 			Retry:          appmeeting.NewRetryUC(meetingRepo, taskQueue),
 			Schedule:       appmeeting.NewScheduleUC(meetingRepo),
 			Manage:         appmeeting.NewManageUC(meetingRepo),
+			Search:         appsearch.NewSearchUC(meetingRepo, llmClient, chunkRepo, meetingRepo),
 		}),
 		ActionItemHandler: actionitemhandler.NewHandler(actionitemhandler.HandlerUCs{
 			ListByMeeting: appactionitem.NewListByMeetingUC(meetingRepo, actionItemRepo),
