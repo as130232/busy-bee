@@ -7,9 +7,9 @@
 
 ## 當前焦點
 
-Phase 13 擴充第一波進行中（分支 `feat/phase-13-expansion`）：前端視覺重設計已完成（`90c97a3`），
-接續實作 F-ACTION（行動項抽取與追蹤）、F-EXPORT（文件匯出/分享）、F-REMIND 深連結補強。
-計畫見 `docs/superpowers/plans/2026-07-19-expansion-wave-1.md`。
+Phase 13 已 merge main（F-ACTION / F-EXPORT / 深連結 / 視覺重設計 / Tab 導覽 / 行動裝置修正，人工驗收通過）。
+Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁）程式完成，待人工驗收。
+推播通知顯示問題仍未解（用戶端顯示層）；自動提醒維持暫緩（scale-to-zero 決策）。
 （Phase 11 已 merge main 並部署 production；剩用戶驗收通知顯示。）
 
 ---
@@ -44,7 +44,8 @@ Phase 13 擴充第一波進行中（分支 `feat/phase-13-expansion`）：前端
 | ✅ | Phase 10 — 歷史與搜尋 | M2-A |
 | 🔄 | Phase 11 — 提醒與推播 | M2-B |
 | ✅ | Phase 12 — Production 完善 | M2-B |
-| 🔄 | Phase 13 — 擴充第一波（F-ACTION、F-EXPORT、深連結） | post-MVP |
+| ✅ | Phase 13 — 擴充第一波（F-ACTION、F-EXPORT、深連結） | post-MVP |
+| 🔄 | Phase 14 — 會議與行程管理（F-MANAGE）+ 邊角驗收 | post-MVP |
 
 ---
 
@@ -233,13 +234,13 @@ Phase 13 擴充第一波進行中（分支 `feat/phase-13-expansion`）：前端
 ---
 
 ## Phase 13：擴充第一波（F-ACTION、F-EXPORT、深連結）
-> 里程碑：post-MVP | 🔄 進行中
+> 里程碑：post-MVP | ✅ 完成於 2026-07-20（人工驗收通過；深連結因推播顯示問題暫無法驗收）
 > 計畫：`docs/superpowers/plans/2026-07-19-expansion-wave-1.md`
 > 另含前端視覺重設計（Linear 式暗色風、Tailwind v4、行動優先）— commit `90c97a3`
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| 🔄 | 13.0 | 前端視覺重設計 | `busy-bee-fe/` | 暗/亮雙主題、design tokens、大圓錄音鈕、bottom sheet；待 iPhone 實機驗收 | `90c97a3` |
+| ✅ | 13.0 | 前端視覺重設計 | `busy-bee-fe/` | 暗/亮雙主題、design tokens、大圓錄音鈕、bottom sheet；iPhone 實機驗收通過 | `90c97a3` |
 | ✅ | 13.1 | action_items 表 + sqlc | `busy-bee-be/db/migrations/000005_*`, `db/query/action_items.sql` | artifacts 加 action_items 類型；up/down 驗證 | `76234b5` |
 | ✅ | 13.2 | domain/actionitem + LLM 抽取 | `busy-bee-be/domain/actionitem/`, `infrastructure/llm/` | prompt + JSON 解析（TDD 4 例） | `85732dc` |
 | ✅ | 13.3 | ProcessUC 抽取階段 | `busy-bee-be/application/meeting/process.go` | artifacts JSON 為冪等標記；TDD 4 例 | `3386d3f` |
@@ -247,6 +248,18 @@ Phase 13 擴充第一波進行中（分支 `feat/phase-13-expansion`）：前端
 | ✅ | 13.5 | FE 行動項 UI | `busy-bee-fe/src/components/ActionItemList.tsx` | Dashboard 待辦卡 + 詳情 tab | `94e3773` |
 | ✅ | 13.6 | 文件匯出/分享 | `busy-bee-fe/src/components/ExportBar.tsx` | 複製 / 下載 .md / Web Share | `0077b01` |
 | ✅ | 13.7 | 提醒推播深連結 | `busy-bee-be/application/meeting/reminder.go`, `busy-bee-fe/src/sw.ts` | 聚焦既有分頁 + 錄音鈕高亮 | `9cd5595` |
+
+---
+
+## Phase 14：會議與行程管理（F-MANAGE）+ 邊角驗收
+> 里程碑：post-MVP | 🔄 程式完成，待人工驗收
+> 會議改名、行程編輯/刪除、排程專屬詳情頁；F-RECORD / F-UPLOAD 邊角情境盤點後確認程式已具備，僅待驗收。
+
+| 狀態 | # | 項目 | 檔案 | 細節 | Commit |
+|------|---|------|------|------|--------|
+| ✅ | 14.1 | 改名 + 刪除 API | `busy-bee-be/application/meeting/manage.go`, `db/query/meetings.sql` | PATCH /meetings/{id}（任何狀態）；DELETE（僅 scheduled）；ManageRepository 窄介面；TDD + repo 整合測試 | `3f6d23b` |
+| ✅ | 14.2 | 前端管理 UI | `busy-bee-fe/src/pages/MeetingDetailPage.tsx`, `src/components/ScheduleForm.tsx` | 標題鉛筆改名；ScheduleSheet 共用編輯模式；排程詳情視圖（時間/提醒/編輯/刪除確認）；行程頁過濾上傳暫存 | `9a4b756` |
+| ⬜ | 14.3 | 邊角情境人工驗收 | — | 錄音離頁警告 / 麥克風被拒 / 不支援瀏覽器 / 上傳中斷重試（程式皆已實作） | — |
 
 ---
 
@@ -296,6 +309,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-19 | 前端全站 CSS 動畫（進場淡入、列表 stagger、錄音 ripple、sheet 滑入、勾選彈跳；尊重 prefers-reduced-motion）；Phase 13 分支 merge main | `8361753..91b4935` |
 | 2026-07-19 | 前端改底部 Tab 導覽（分支 feat/tab-navigation）：拆單頁為錄音/會議/行程/設定四分頁 + TabBar/TabLayout/TopBar/MeetingList/useMeetings；詳情頁維持獨立；三檢通過、路由導向驗證 | `b8bb2b3` |
 | 2026-07-19 | 行動裝置修正：PWA 禁縮放、錄音頁三段固定版面一屏不滑、排程 sheet 不被遮、通知開關防卡死 | `3a2a37f` |
+| 2026-07-20 | Phase 13 人工驗收通過（除深連結，卡推播顯示）；Phase 14 程式完成：改名/刪除 API（TDD）+ 排程專屬詳情頁 + ScheduleSheet 編輯模式 + 行程頁過濾上傳暫存；盤點確認錄音/上傳邊角程式已存在僅待驗收 | `3f6d23b, 9a4b756` |
 | 2026-07-19 | 找到提醒不觸發根因（scale-to-zero 下 instance=0，進程內 sweeper 不跑）：新增密鑰保護的 `/internal/sweep-reminders` 端點備用（TDD 3 例）。**決策：暫緩自動提醒**——每分鐘 Scheduler 會讓 instance 常駐、失去 scale-to-zero 省錢意義；使用者選擇先不啟用，端點休眠（無密鑰無觸發器＝零額外費用）。未來若要啟用，較省的方向是 Cloud Tasks 精準排程（提醒時刻才喚醒一次） | `49bb919` |
 
 ---
