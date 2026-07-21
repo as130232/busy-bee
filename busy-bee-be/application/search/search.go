@@ -17,7 +17,8 @@ const (
 	literalBoost = 0.5 // 字面命中的固定分（與 cosine 0~1 同量級）
 	// semanticMinScore 語意命中的相似度下限（cosine 相似度 0~1）；低於此視為不相關而排除。
 	// 語意檢索永遠回 top-K，不設門檻會讓不相關的會議也被帶出；此值可依實測調整。
-	semanticMinScore = 0.5
+	// 0.65：只保留明顯相關（0.5 仍會帶進鬆散相關的會議）。
+	semanticMinScore = 0.65
 )
 
 // literalSearcher 字面搜尋來源（*db.MeetingRepo.ListForUser 滿足）。
