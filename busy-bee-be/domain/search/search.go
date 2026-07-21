@@ -44,4 +44,7 @@ type ChunkRepository interface {
 	SearchSimilar(ctx context.Context, userID uuid.UUID, vec []float32, topK int) ([]SearchResult, error)
 	// MeetingsWithoutChunks 已 completed 但無 chunks 的會議 ID（回填掃描用）。
 	MeetingsWithoutChunks(ctx context.Context) ([]uuid.UUID, error)
+	// ExistingEmbeddings 回傳該會議現有 chunks 的 content → embedding 映射；
+	// 重新索引時複用內容未變動的片段，省去重複 embed 呼叫（成本）。
+	ExistingEmbeddings(ctx context.Context, meetingID uuid.UUID) (map[string][]float32, error)
 }

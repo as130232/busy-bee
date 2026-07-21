@@ -42,6 +42,9 @@ func (f *searchFakeChunks) SearchSimilar(context.Context, uuid.UUID, []float32, 
 func (f *searchFakeChunks) MeetingsWithoutChunks(context.Context) ([]uuid.UUID, error) {
 	return nil, nil
 }
+func (f *searchFakeChunks) ExistingEmbeddings(context.Context, uuid.UUID) (map[string][]float32, error) {
+	return nil, nil
+}
 
 type failEmbedder struct{}
 
@@ -77,7 +80,7 @@ func TestSearchUC_ExcludesLowScoreSemantic(t *testing.T) {
 	highID := uuid.New()
 	lit := &fakeLiteral{meetings: nil} // 無字面命中
 	chunks := &searchFakeChunks{results: []domainsearch.SearchResult{
-		{MeetingID: lowID, Snippet: "不相關", Score: 0.3, MatchType: domainsearch.MatchSemantic},  // 低於門檻，應排除
+		{MeetingID: lowID, Snippet: "不相關", Score: 0.3, MatchType: domainsearch.MatchSemantic}, // 低於門檻，應排除
 		{MeetingID: highID, Snippet: "相關", Score: 0.8, MatchType: domainsearch.MatchSemantic}, // 高於門檻，保留
 	}}
 	uc := NewSearchUC(lit, &fakeEmbedder{}, chunks, &fakeOwner{})
@@ -95,6 +98,28 @@ func TestSearchUC_ExcludesLowScoreSemantic(t *testing.T) {
 	}
 	if !ids[highID] {
 		t.Errorf("高分語意命中 %s 應保留", highID)
+	}
+}
+
+// P2：精確字面命中應排在只是「語意相近」的會議之上（打對關鍵字就該第一個出現）。
+func TestSearchUC_LiteralRanksAboveFuzzySemantic(t *testing.T) {
+	litID := uuid.New() // 只有字面命中（逐字稿真的有這個詞）
+	semID := uuid.New() // 只有語意相近（沒提到這個詞，但意思像）
+	lit := &fakeLiteral{meetings: []domainmeeting.Meeting{{ID: litID, Title: "字面命中"}}}
+	chunks := &searchFakeChunks{results: []domainsearch.SearchResult{
+		{MeetingID: semID, Snippet: "語意相近片段", Score: 0.9, MatchType: domainsearch.MatchSemantic},
+	}}
+	uc := NewSearchUC(lit, &fakeEmbedder{}, chunks, &fakeOwner{})
+
+	meetings, _, err := uc.Execute(context.Background(), uuid.New(), "查詢")
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if len(meetings) < 2 {
+		t.Fatalf("expected both meetings, got %d", len(meetings))
+	}
+	if meetings[0].ID != litID {
+		t.Errorf("字面精確命中 %s 應排第一，實際第一為 %s", litID, meetings[0].ID)
 	}
 }
 

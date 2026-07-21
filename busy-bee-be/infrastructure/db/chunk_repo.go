@@ -82,6 +82,26 @@ func (r *ChunkRepo) SearchSimilar(ctx context.Context, userID uuid.UUID, vec []f
 	return out, rows.Err()
 }
 
+// ExistingEmbeddings 回傳該會議現有 chunks 的 content → embedding 映射（重新索引複用未變動片段）。
+func (r *ChunkRepo) ExistingEmbeddings(ctx context.Context, meetingID uuid.UUID) (map[string][]float32, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT content, embedding FROM transcript_chunks WHERE meeting_id = $1`, meetingID)
+	if err != nil {
+		return nil, fmt.Errorf("db.chunk existing: %w", err)
+	}
+	defer rows.Close()
+	out := map[string][]float32{}
+	for rows.Next() {
+		var content string
+		var vec pgv.Vector
+		if err := rows.Scan(&content, &vec); err != nil {
+			return nil, fmt.Errorf("db.chunk existing scan: %w", err)
+		}
+		out[content] = vec.Slice()
+	}
+	return out, rows.Err()
+}
+
 // MeetingsWithoutChunks 已 completed 且有逐字稿但尚無 chunks 的會議（回填掃描用）。
 func (r *ChunkRepo) MeetingsWithoutChunks(ctx context.Context) ([]uuid.UUID, error) {
 	rows, err := r.pool.Query(ctx, `

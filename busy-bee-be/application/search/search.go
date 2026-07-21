@@ -13,8 +13,11 @@ import (
 )
 
 const (
-	searchTopK   = 10
-	literalBoost = 0.5 // 字面命中的固定分（與 cosine 0~1 同量級）
+	searchTopK = 10
+	// literalBoost 字面命中（逐字稿/標題真的有這個詞）的固定加分。
+	// 設為 cosine 相似度上限 1.0：確保「精確字面命中」永遠排在「只是語意相近」（<1.0）之上，
+	// 兩邊都命中的會議（literalBoost + 語意分）則排最前。符合「打對關鍵字就該第一個出現」。
+	literalBoost = 1.0
 	// semanticMinScore 語意命中的相似度下限（cosine 相似度 0~1）；低於此視為不相關而排除。
 	// 語意檢索永遠回 top-K，不設門檻會讓不相關的會議也被帶出；此值可依實測調整。
 	// 0.65：只保留明顯相關（0.5 仍會帶進鬆散相關的會議）。

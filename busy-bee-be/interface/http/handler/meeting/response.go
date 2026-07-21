@@ -1,6 +1,7 @@
 package meeting
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -126,10 +127,29 @@ func toSearchResponses(list []domainmeeting.Meeting, hits map[uuid.UUID]domainse
 	for i, m := range list {
 		r := toMeetingResponse(m)
 		if h, ok := hits[m.ID]; ok {
-			r.MatchSnippet = h.Snippet
+			r.MatchSnippet = applySpeakerNames(h.Snippet, m.SpeakerNames)
 			r.MatchType = h.MatchType
 		}
 		out[i] = r
 	}
 	return out
+}
+
+// applySpeakerNames 把片段中各行開頭的講者代號（"A: "）換成使用者自訂顯示名（"Ben: "）。
+// 索引用穩定代號、顯示才套映射，故改講者名不需重建索引；此處只在回傳片段時替換。
+func applySpeakerNames(snippet string, names map[string]string) string {
+	if len(names) == 0 || snippet == "" {
+		return snippet
+	}
+	lines := strings.Split(snippet, "\n")
+	for i, line := range lines {
+		idx := strings.Index(line, ": ")
+		if idx <= 0 {
+			continue
+		}
+		if name, ok := names[line[:idx]]; ok {
+			lines[i] = name + line[idx:]
+		}
+	}
+	return strings.Join(lines, "\n")
 }
