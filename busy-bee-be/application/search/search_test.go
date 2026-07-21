@@ -72,6 +72,32 @@ func TestSearchUC_MergesSemanticAndLiteral(t *testing.T) {
 	}
 }
 
+func TestSearchUC_ExcludesLowScoreSemantic(t *testing.T) {
+	lowID := uuid.New()
+	highID := uuid.New()
+	lit := &fakeLiteral{meetings: nil} // 無字面命中
+	chunks := &searchFakeChunks{results: []domainsearch.SearchResult{
+		{MeetingID: lowID, Snippet: "不相關", Score: 0.3, MatchType: domainsearch.MatchSemantic},  // 低於門檻，應排除
+		{MeetingID: highID, Snippet: "相關", Score: 0.8, MatchType: domainsearch.MatchSemantic}, // 高於門檻，保留
+	}}
+	uc := NewSearchUC(lit, &fakeEmbedder{}, chunks, &fakeOwner{})
+
+	meetings, _, err := uc.Execute(context.Background(), uuid.New(), "查詢")
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	ids := map[uuid.UUID]bool{}
+	for _, m := range meetings {
+		ids[m.ID] = true
+	}
+	if ids[lowID] {
+		t.Errorf("低分語意命中 %s 應被排除", lowID)
+	}
+	if !ids[highID] {
+		t.Errorf("高分語意命中 %s 應保留", highID)
+	}
+}
+
 func TestSearchUC_EmbedFailsFallsBackToLiteral(t *testing.T) {
 	litID := uuid.New()
 	lit := &fakeLiteral{meetings: []domainmeeting.Meeting{{ID: litID, Title: "字面"}}}

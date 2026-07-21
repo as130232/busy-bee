@@ -52,7 +52,7 @@ Clean Architecture（對齊 sport-hub），依賴方向由外往內：interface 
 
 | 情況 | 只動哪裡 |
 |------|---------|
-| 換 STT / LLM 供應商 | `infrastructure/stt/` 或 `infrastructure/llm/`（不動 domain / application） |
+| 換 STT / LLM 供應商 | `infrastructure/stt/` 或 `infrastructure/llm/`（不動 domain / application）。現行 STT = Deepgram nova-2 + `zh-TW`（語者分離）；中文設定坑與 diarization 決策見 `docs/ARCHITECTURE.md` ADR-011 |
 | 新增業務錯誤碼 | `pkg/consts/errcode/` |
 | DB schema 變更 | `db/migrations/` + `db/query/*.sql` + 重跑 `sqlc generate` |
 | 新增 HTTP endpoint | `api/openapi.yaml` → handler → route |

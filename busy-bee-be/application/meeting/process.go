@@ -3,9 +3,11 @@ package meeting
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -17,6 +19,15 @@ import (
 // artifactTypeActionItems：抽取階段以此類型的 artifact（原始 JSON）作為冪等標記，
 // 存在即代表本場已抽取過，retry 不重複呼叫 LLM。
 const artifactTypeActionItems = domainartifact.Type("action_items")
+
+// countSpeakers 計算片段中不重複的講者數（觀測用）。
+func countSpeakers(segs []domainmeeting.TranscriptSegment) int {
+	set := make(map[string]struct{}, len(segs))
+	for _, s := range segs {
+		set[s.Speaker] = struct{}{}
+	}
+	return len(set)
+}
 
 // MeetingIndexer 語意索引窄介面（*application/search.IndexUC 滿足）。
 // completed 後 best-effort 觸發；索引失敗不回退 completed，保底靠 worker 回填掃描。
@@ -73,6 +84,9 @@ func (uc *ProcessUC) notify(ctx context.Context, m domainmeeting.Meeting) {
 func (uc *ProcessUC) Execute(ctx context.Context, meetingID uuid.UUID) error {
 	m, err := uc.repo.Get(ctx, meetingID)
 	if err != nil {
+		if errors.Is(err, domainmeeting.ErrNotFound) {
+			return nil // 會議已被刪除，任務作廢（不重試、不記錯誤）
+		}
 		return fmt.Errorf("process get meeting: %w", err)
 	}
 
@@ -106,11 +120,21 @@ func (uc *ProcessUC) Execute(ctx context.Context, meetingID uuid.UUID) error {
 			if err != nil {
 				return fmt.Errorf("process transcribe: %w", err)
 			}
-			if m, err = uc.repo.SaveTranscript(ctx, m.ID, result.Text, result.DurationSeconds); err != nil {
+			// 有分講者片段時，攤平成帶講者前綴的文字（供 LLM 分析與搜尋沿用）；否則用原始純文字。
+			transcript := result.Text
+			if len(result.Segments) > 0 {
+				transcript = domainmeeting.FlattenSegments(result.Segments)
+			}
+			// 空結果保護：STT 轉不出任何文字時視為失敗（可重試），避免靜默完成並用空稿生成垃圾產物。
+			if strings.TrimSpace(transcript) == "" {
+				return fmt.Errorf("process transcribe: empty transcript (STT 未轉出內容，檢查音檔或供應商語言設定)")
+			}
+			if m, err = uc.repo.SaveTranscript(ctx, m.ID, transcript, result.Segments, result.DurationSeconds); err != nil {
 				return fmt.Errorf("process save transcript: %w", err)
 			}
 			slog.InfoContext(ctx, "meeting.process.transcript_saved",
-				"meeting_id", m.ID, "duration_seconds", result.DurationSeconds)
+				"meeting_id", m.ID, "duration_seconds", result.DurationSeconds,
+				"segments", len(result.Segments), "speakers", countSpeakers(result.Segments))
 		}
 		if m, err = uc.repo.UpdateStatus(ctx, m.ID, domainmeeting.StatusTranscribing, domainmeeting.StatusAnalyzing); err != nil {
 			return fmt.Errorf("process to analyzing: %w", err)

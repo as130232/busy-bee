@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -80,14 +81,58 @@ func (r *MeetingRepo) Get(ctx context.Context, id uuid.UUID) (domainmeeting.Meet
 	return toDomainMeeting(row), nil
 }
 
-func (r *MeetingRepo) SaveTranscript(ctx context.Context, id uuid.UUID, transcript string, durationSeconds int) (domainmeeting.Meeting, error) {
+func (r *MeetingRepo) SaveTranscript(ctx context.Context, id uuid.UUID, transcript string, segments []domainmeeting.TranscriptSegment, durationSeconds int) (domainmeeting.Meeting, error) {
+	segJSON, err := marshalJSONB(segments, "[]")
+	if err != nil {
+		return domainmeeting.Meeting{}, fmt.Errorf("db.SaveMeetingTranscript marshal segments: %w", err)
+	}
 	row, err := r.q.SaveMeetingTranscript(ctx, sqlcgen.SaveMeetingTranscriptParams{
-		ID:              id,
-		Transcript:      transcript,
-		DurationSeconds: int32(durationSeconds),
+		ID:                 id,
+		Transcript:         transcript,
+		TranscriptSegments: segJSON,
+		DurationSeconds:    int32(durationSeconds),
 	})
 	if err != nil {
 		return domainmeeting.Meeting{}, fmt.Errorf("db.SaveMeetingTranscript: %w", err)
+	}
+	return toDomainMeeting(row), nil
+}
+
+func (r *MeetingRepo) UpdateTranscriptSegments(ctx context.Context, id, userID uuid.UUID, segments []domainmeeting.TranscriptSegment, transcript string) (domainmeeting.Meeting, error) {
+	segJSON, err := marshalJSONB(segments, "[]")
+	if err != nil {
+		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingTranscriptSegments marshal: %w", err)
+	}
+	row, err := r.q.UpdateMeetingTranscriptSegments(ctx, sqlcgen.UpdateMeetingTranscriptSegmentsParams{
+		ID:                 id,
+		UserID:             userID,
+		Transcript:         transcript,
+		TranscriptSegments: segJSON,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domainmeeting.Meeting{}, domainmeeting.ErrNotFound
+		}
+		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingTranscriptSegments: %w", err)
+	}
+	return toDomainMeeting(row), nil
+}
+
+func (r *MeetingRepo) UpdateSpeakerNames(ctx context.Context, id, userID uuid.UUID, names map[string]string) (domainmeeting.Meeting, error) {
+	namesJSON, err := marshalJSONB(names, "{}")
+	if err != nil {
+		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingSpeakerNames marshal names: %w", err)
+	}
+	row, err := r.q.UpdateMeetingSpeakerNames(ctx, sqlcgen.UpdateMeetingSpeakerNamesParams{
+		ID:           id,
+		UserID:       userID,
+		SpeakerNames: namesJSON,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domainmeeting.Meeting{}, domainmeeting.ErrNotFound
+		}
+		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingSpeakerNames: %w", err)
 	}
 	return toDomainMeeting(row), nil
 }
@@ -138,21 +183,44 @@ func (r *MeetingRepo) ListUnfinishedIDs(ctx context.Context) ([]uuid.UUID, error
 }
 
 func toDomainMeeting(row sqlcgen.Meeting) domainmeeting.Meeting {
-	return domainmeeting.Meeting{
-		ID:              row.ID,
-		UserID:          row.UserID,
-		Title:           row.Title,
-		AudioGCSPath:    row.AudioGcsPath,
-		Status:          domainmeeting.Status(row.Status),
-		Transcript:      row.Transcript,
-		DurationSeconds: int(row.DurationSeconds),
-		ErrorMessage:    row.ErrorMessage,
-		ScheduledAt:     row.ScheduledAt,
-		RemindBeforeMin: int(row.RemindBeforeMin),
-		ProcessedAt:     row.ProcessedAt,
-		CreatedAt:       row.CreatedAt,
-		UpdatedAt:       row.UpdatedAt,
+	var segments []domainmeeting.TranscriptSegment
+	if len(row.TranscriptSegments) > 0 {
+		_ = json.Unmarshal(row.TranscriptSegments, &segments)
 	}
+	var speakerNames map[string]string
+	if len(row.SpeakerNames) > 0 {
+		_ = json.Unmarshal(row.SpeakerNames, &speakerNames)
+	}
+	return domainmeeting.Meeting{
+		ID:                 row.ID,
+		UserID:             row.UserID,
+		Title:              row.Title,
+		AudioGCSPath:       row.AudioGcsPath,
+		Status:             domainmeeting.Status(row.Status),
+		Transcript:         row.Transcript,
+		TranscriptSegments: segments,
+		SpeakerNames:       speakerNames,
+		DurationSeconds:    int(row.DurationSeconds),
+		ErrorMessage:       row.ErrorMessage,
+		ScheduledAt:        row.ScheduledAt,
+		RemindBeforeMin:    int(row.RemindBeforeMin),
+		ProcessedAt:        row.ProcessedAt,
+		CreatedAt:          row.CreatedAt,
+		UpdatedAt:          row.UpdatedAt,
+	}
+}
+
+// marshalJSONB 將值序列化為 jsonb 位元組；空值（nil slice/map）以指定的空 JSON 字面量
+// （"[]" 或 "{}"）取代，避免寫入 SQL NULL 或 JSON null。
+func marshalJSONB[T any](v T, emptyLiteral string) ([]byte, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	if string(b) == "null" {
+		return []byte(emptyLiteral), nil
+	}
+	return b, nil
 }
 
 func (r *MeetingRepo) CreateScheduled(ctx context.Context, userID uuid.UUID, p domainmeeting.ScheduleParams) (domainmeeting.Meeting, error) {
@@ -217,13 +285,14 @@ func (r *MeetingRepo) Rename(ctx context.Context, id, userID uuid.UUID, title st
 	return toDomainMeeting(row), nil
 }
 
-func (r *MeetingRepo) DeleteScheduled(ctx context.Context, id, userID uuid.UUID) error {
-	n, err := r.q.DeleteScheduledMeeting(ctx, sqlcgen.DeleteScheduledMeetingParams{ID: id, UserID: userID})
+// Delete 刪除會議並回傳其音檔路徑（供上層清理 GCS）；不存在或非本人回 ErrNotFound。
+func (r *MeetingRepo) Delete(ctx context.Context, id, userID uuid.UUID) (string, error) {
+	audioPath, err := r.q.DeleteMeeting(ctx, sqlcgen.DeleteMeetingParams{ID: id, UserID: userID})
 	if err != nil {
-		return fmt.Errorf("db.DeleteScheduledMeeting: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", domainmeeting.ErrNotFound
+		}
+		return "", fmt.Errorf("db.DeleteMeeting: %w", err)
 	}
-	if n == 0 {
-		return domainmeeting.ErrNotFound
-	}
-	return nil
+	return audioPath, nil
 }

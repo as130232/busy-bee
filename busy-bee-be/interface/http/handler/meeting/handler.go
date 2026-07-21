@@ -24,9 +24,11 @@ type HandlerUCs struct {
 	ListArtifacts  *appmeeting.ListArtifactsUC
 	List           *appmeeting.ListUC
 	Get            *appmeeting.GetUC
+	AudioURL       *appmeeting.AudioURLUC
 	Retry          *appmeeting.RetryUC
 	Schedule       *appmeeting.ScheduleUC
 	Manage         *appmeeting.ManageUC
+	EditSegment    *appmeeting.EditSegmentUC
 	Search         *appsearch.SearchUC // 選填；nil 時 List 維持純字面
 }
 
@@ -254,7 +256,84 @@ func (h *Handler) Rename(c *gin.Context) {
 	response.OK(c, gin.H{"meeting": toMeetingResponse(m)})
 }
 
-// Delete DELETE /api/v1/meetings/:id — 刪除排程會議（僅 scheduled 狀態，本人限定）。
+// UpdateSpeakers PATCH /api/v1/meetings/:id/speakers — 更新講者代號→顯示名（本人限定）。
+func (h *Handler) UpdateSpeakers(c *gin.Context) {
+	userID, ok := domainuser.IDFrom(c.Request.Context())
+	if !ok {
+		response.Fail(c, apperr.New(errcode.Unauthorized))
+		return
+	}
+	meetingID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "id"))
+		return
+	}
+	var req struct {
+		SpeakerNames map[string]string `json:"speakerNames"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "body"))
+		return
+	}
+
+	m, err := h.uc.Manage.UpdateSpeakerNames(c.Request.Context(), userID, meetingID, req.SpeakerNames)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.OK(c, gin.H{"meeting": toMeetingDetailResponse(m)})
+}
+
+// EditSegment PATCH /api/v1/meetings/:id/transcript — 修正單一逐字稿片段文字（本人限定）。
+func (h *Handler) EditSegment(c *gin.Context) {
+	userID, ok := domainuser.IDFrom(c.Request.Context())
+	if !ok {
+		response.Fail(c, apperr.New(errcode.Unauthorized))
+		return
+	}
+	meetingID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "id"))
+		return
+	}
+	var req struct {
+		Index int    `json:"index"`
+		Text  string `json:"text"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "body"))
+		return
+	}
+
+	m, err := h.uc.EditSegment.Execute(c.Request.Context(), userID, meetingID, req.Index, req.Text)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.OK(c, gin.H{"meeting": toMeetingDetailResponse(m)})
+}
+
+// AudioURL GET /api/v1/meetings/:id/audio-url — 取得本人會議音檔的限時播放 URL。
+func (h *Handler) AudioURL(c *gin.Context) {
+	userID, ok := domainuser.IDFrom(c.Request.Context())
+	if !ok {
+		response.Fail(c, apperr.New(errcode.Unauthorized))
+		return
+	}
+	meetingID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "id"))
+		return
+	}
+	url, err := h.uc.AudioURL.Execute(c.Request.Context(), userID, meetingID)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.OK(c, gin.H{"url": url})
+}
+
+// Delete DELETE /api/v1/meetings/:id — 刪除會議（任何狀態，本人限定；關聯資料連帶刪除）。
 func (h *Handler) Delete(c *gin.Context) {
 	userID, ok := domainuser.IDFrom(c.Request.Context())
 	if !ok {
@@ -267,7 +346,7 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.uc.Manage.DeleteScheduled(c.Request.Context(), userID, meetingID); err != nil {
+	if err := h.uc.Manage.Delete(c.Request.Context(), userID, meetingID); err != nil {
 		response.Fail(c, err)
 		return
 	}

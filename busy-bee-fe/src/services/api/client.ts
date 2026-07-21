@@ -98,6 +98,11 @@ export function getMeeting(idToken: string, meetingId: string): Promise<{ meetin
   return request<{ meeting: MeetingDetail }>(`/api/v1/meetings/${meetingId}`, { method: 'GET' }, idToken)
 }
 
+/** 取得會議音檔的限時播放 URL */
+export function getMeetingAudioURL(idToken: string, meetingId: string): Promise<{ url: string }> {
+  return request<{ url: string }>(`/api/v1/meetings/${meetingId}/audio-url`, { method: 'GET' }, idToken)
+}
+
 /** 會議的 AI 生成文件 */
 export function listArtifacts(idToken: string, meetingId: string): Promise<{ artifacts: Artifact[] }> {
   return request<{ artifacts: Artifact[] }>(
@@ -201,8 +206,45 @@ export function renameMeeting(
   )
 }
 
-/** 刪除排程會議（僅 scheduled 狀態） */
-export function deleteScheduledMeeting(idToken: string, meetingId: string): Promise<unknown> {
+export type TranscriptSegment = components['schemas']['TranscriptSegment']
+
+/** 修正單一逐字稿片段文字（校正 STT 錯字），回傳含最新逐字稿的詳情 */
+export function editMeetingSegment(
+  idToken: string,
+  meetingId: string,
+  index: number,
+  text: string,
+): Promise<{ meeting: MeetingDetail }> {
+  return request<{ meeting: MeetingDetail }>(
+    `/api/v1/meetings/${meetingId}/transcript`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ index, text }),
+    },
+    idToken,
+  )
+}
+
+/** 更新講者代號→顯示名（如 {"A":"Ben"}），回傳含最新逐字稿的詳情 */
+export function updateMeetingSpeakers(
+  idToken: string,
+  meetingId: string,
+  speakerNames: Record<string, string>,
+): Promise<{ meeting: MeetingDetail }> {
+  return request<{ meeting: MeetingDetail }>(
+    `/api/v1/meetings/${meetingId}/speakers`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ speakerNames }),
+    },
+    idToken,
+  )
+}
+
+/** 刪除會議（任何狀態，本人限定；關聯資料連帶刪除） */
+export function deleteMeeting(idToken: string, meetingId: string): Promise<unknown> {
   return request<unknown>(`/api/v1/meetings/${meetingId}`, { method: 'DELETE' }, idToken)
 }
 

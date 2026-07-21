@@ -17,8 +17,20 @@ SELECT * FROM meetings WHERE id = $1;
 
 -- name: SaveMeetingTranscript :one
 UPDATE meetings
-SET transcript = $2, duration_seconds = $3, updated_at = now()
+SET transcript = $2, transcript_segments = $3, duration_seconds = $4, updated_at = now()
 WHERE id = $1
+RETURNING *;
+
+-- name: UpdateMeetingSpeakerNames :one
+UPDATE meetings
+SET speaker_names = sqlc.arg(speaker_names), updated_at = now()
+WHERE id = $1 AND user_id = $2
+RETURNING *;
+
+-- name: UpdateMeetingTranscriptSegments :one
+UPDATE meetings
+SET transcript = $3, transcript_segments = $4, updated_at = now()
+WHERE id = $1 AND user_id = $2
 RETURNING *;
 
 -- name: SetMeetingCompleted :one
@@ -32,7 +44,8 @@ SELECT * FROM meetings
 WHERE user_id = $1
   AND (sqlc.arg(search)::text = ''
        OR title ILIKE '%' || sqlc.arg(search) || '%'
-       OR transcript ILIKE '%' || sqlc.arg(search) || '%')
+       OR transcript ILIKE '%' || sqlc.arg(search) || '%'
+       OR speaker_names::text ILIKE '%' || sqlc.arg(search) || '%')
 ORDER BY created_at DESC
 LIMIT 100;
 
@@ -77,6 +90,7 @@ SET title = $3, updated_at = now()
 WHERE id = $1 AND user_id = $2
 RETURNING *;
 
--- name: DeleteScheduledMeeting :execrows
+-- name: DeleteMeeting :one
 DELETE FROM meetings
-WHERE id = $1 AND user_id = $2 AND status = 'scheduled';
+WHERE id = $1 AND user_id = $2
+RETURNING audio_gcs_path;

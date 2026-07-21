@@ -335,8 +335,8 @@ paths:
               schema: { $ref: "#/components/schemas/Envelope" }
     delete:
       tags: [meetings]
-      summary: 刪除排程會議（僅 scheduled 狀態，本人限定）
-      operationId: deleteScheduledMeeting
+      summary: 刪除會議（任何狀態，本人限定；關聯資料連帶刪除）
+      operationId: deleteMeeting
       parameters:
         - name: id
           in: path
@@ -349,7 +349,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
         "404":
-          description: 不存在、非本人或非 scheduled 狀態
+          description: 不存在或非本人
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
@@ -387,6 +387,126 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
 
+  /api/v1/meetings/{id}/speakers:
+    patch:
+      tags: [meetings]
+      summary: 更新講者代號→顯示名（本人限定）
+      operationId: updateMeetingSpeakers
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [speakerNames]
+              properties:
+                speakerNames:
+                  type: object
+                  additionalProperties: { type: string }
+                  description: 講者代號→顯示名，如 {"A":"Ben"}
+      responses:
+        "200":
+          description: 已更新
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [meeting]
+                        properties:
+                          meeting:
+                            $ref: "#/components/schemas/MeetingDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 不存在或非本人
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+  /api/v1/meetings/{id}/transcript:
+    patch:
+      tags: [meetings]
+      summary: 修正單一逐字稿片段文字（本人限定）
+      operationId: editMeetingSegment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [index, text]
+              properties:
+                index: { type: integer, description: 片段索引（0 起） }
+                text: { type: string, description: 修正後文字 }
+      responses:
+        "200":
+          description: 已更新
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [meeting]
+                        properties:
+                          meeting:
+                            $ref: "#/components/schemas/MeetingDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 不存在或非本人
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+  /api/v1/meetings/{id}/audio-url:
+    get:
+      tags: [meetings]
+      summary: 取得會議音檔的限時播放 URL（本人限定）
+      operationId: getMeetingAudioURL
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 簽章 URL
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [url]
+                        properties:
+                          url: { type: string, format: uri }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 不存在、非本人或尚無音檔
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
   /api/v1/meetings/{id}/retry:
     post:
       tags: [meetings]
@@ -670,13 +790,29 @@ components:
         matchSnippet: { type: string, description: "搜尋命中的逐字稿片段（僅 search 非空且語意命中時出現）" }
         matchType: { type: string, enum: [semantic, literal], description: "命中類型" }
 
+    TranscriptSegment:
+      type: object
+      required: [speaker, text, startMs, endMs]
+      properties:
+        speaker: { type: string, description: 講者代號（A/B/C…），限本場會議內 }
+        text: { type: string }
+        startMs: { type: integer, description: 起始毫秒 }
+        endMs: { type: integer, description: 結束毫秒 }
+
     MeetingDetail:
       allOf:
         - $ref: "#/components/schemas/Meeting"
         - type: object
-          required: [transcript]
+          required: [transcript, transcriptSegments, speakerNames]
           properties:
             transcript: { type: string }
+            transcriptSegments:
+              type: array
+              items: { $ref: "#/components/schemas/TranscriptSegment" }
+            speakerNames:
+              type: object
+              additionalProperties: { type: string }
+              description: 講者代號→顯示名，如 {"A":"Ben"}
 
     Artifact:
       type: object

@@ -15,6 +15,9 @@ import (
 const (
 	searchTopK   = 10
 	literalBoost = 0.5 // 字面命中的固定分（與 cosine 0~1 同量級）
+	// semanticMinScore 語意命中的相似度下限（cosine 相似度 0~1）；低於此視為不相關而排除。
+	// 語意檢索永遠回 top-K，不設門檻會讓不相關的會議也被帶出；此值可依實測調整。
+	semanticMinScore = 0.5
 )
 
 // literalSearcher 字面搜尋來源（*db.MeetingRepo.ListForUser 滿足）。
@@ -63,6 +66,9 @@ func (uc *SearchUC) Execute(ctx context.Context, userID uuid.UUID, query string)
 		slog.WarnContext(ctx, "search.semantic_degraded", "stage", "vector", "err", serr)
 	} else {
 		for _, r := range sem {
+			if r.Score < semanticMinScore {
+				continue // 排除最不相關的語意命中
+			}
 			scores[r.MeetingID] += r.Score
 			hits[r.MeetingID] = r // semantic snippet 優先
 		}
