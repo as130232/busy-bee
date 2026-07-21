@@ -36,6 +36,9 @@ type Deps struct {
 	PushHandler       *pushhandler.Handler
 	InternalHandler   *opshandler.Handler
 	Hub               *ws.Hub
+	// 建置資訊（由 main 經 ldflags 注入）；/version 回傳，供部署後確認上線的 commit。
+	Commit  string
+	BuiltAt string
 }
 
 // NewEngine 組裝 middleware 鏈與路由。順序：Recovery 最外層 → RequestID → Logger。
@@ -56,6 +59,11 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 
 	e.GET("/health", func(c *gin.Context) {
 		response.OK(c, gin.H{"status": "ok", "env": cfg.Server.Env})
+	})
+
+	// 建置資訊（公開、免 auth）：部署後 curl /version 確認線上跑的 commit。
+	e.GET("/version", func(c *gin.Context) {
+		response.OK(c, gin.H{"commit": deps.Commit, "builtAt": deps.BuiltAt, "env": cfg.Server.Env})
 	})
 
 	// 內部維運端點（不經 Firebase auth，改以共享密鑰保護）：Cloud Scheduler 觸發提醒掃描

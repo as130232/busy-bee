@@ -3,13 +3,17 @@
 # 以 GOARCH 交叉編譯目標架構——避免 QEMU 模擬 Go 編譯器（會 panic）。
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 ARG TARGETARCH
+# 建置資訊注入 /version（GIT_SHA=commit 短碼、BUILT_AT=建置時間 UTC）；未傳時保留程式預設 dev/unknown。
+ARG GIT_SHA=dev
+ARG BUILT_AT=unknown
 
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -ldflags="-s -w" -o /out/server ./cmd/server \
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH \
+    go build -ldflags="-s -w -X main.commit=$GIT_SHA -X main.builtAt=$BUILT_AT" -o /out/server ./cmd/server \
  && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -ldflags="-s -w" -o /out/migrate ./cmd/migrate
 
 # --- runtime stage ---
