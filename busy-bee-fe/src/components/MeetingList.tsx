@@ -62,6 +62,7 @@ export function MeetingList({ meetings, emptyText }: { meetings: Meeting[]; empt
           >
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium">{m.title}</span>
+              {m.summary && <span className="mt-0.5 block truncate text-xs text-muted">{m.summary}</span>}
               <Subtitle m={m} />
               {m.matchSnippet && (
                 <span className="mt-1 block truncate text-xs italic text-muted">…{m.matchSnippet}…</span>

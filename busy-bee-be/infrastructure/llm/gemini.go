@@ -61,18 +61,18 @@ func (c *GeminiClient) GenerateTechSpec(ctx context.Context, transcript string) 
 	return c.generate(ctx, promptTechSpec, transcript)
 }
 
-// ExtractActionItems 抽取行動項。prompt 要求無行動項時輸出 `[]`（非空字串），
-// 故 generate 的 empty-response 檢查不會誤判合法的空結果。
-func (c *GeminiClient) ExtractActionItems(ctx context.Context, transcript string) ([]domainactionitem.Extracted, error) {
+// Extract 於同一次呼叫產出一句話摘要與行動項。prompt 要求輸出 JSON 物件
+// （即使無行動項也回 {"summary":..., "actionItems":[]}），故不會被空回應檢查誤判。
+func (c *GeminiClient) Extract(ctx context.Context, transcript string) (domainactionitem.Extraction, error) {
 	text, err := c.generate(ctx, promptActionItems, transcript)
 	if err != nil {
-		return nil, err
+		return domainactionitem.Extraction{}, err
 	}
-	return parseActionItems(text)
+	return parseExtraction(text)
 }
 
-// parseActionItems 解析模型輸出的 JSON 陣列，容忍被 ```json fence 包裹的情形。
-func parseActionItems(text string) ([]domainactionitem.Extracted, error) {
+// parseExtraction 解析模型輸出的 JSON 物件，容忍被 ```json fence 包裹的情形。
+func parseExtraction(text string) (domainactionitem.Extraction, error) {
 	s := strings.TrimSpace(text)
 	s = strings.TrimPrefix(s, "```json")
 	s = strings.TrimPrefix(s, "```")
@@ -80,11 +80,11 @@ func parseActionItems(text string) ([]domainactionitem.Extracted, error) {
 	s = strings.TrimSuffix(s, "```")
 	s = strings.TrimSpace(s)
 
-	var items []domainactionitem.Extracted
-	if err := json.Unmarshal([]byte(s), &items); err != nil {
-		return nil, fmt.Errorf("llm.parseActionItems: %w", err)
+	var out domainactionitem.Extraction
+	if err := json.Unmarshal([]byte(s), &out); err != nil {
+		return domainactionitem.Extraction{}, fmt.Errorf("llm.parseExtraction: %w", err)
 	}
-	return items, nil
+	return out, nil
 }
 
 func (c *GeminiClient) generate(ctx context.Context, templatePath, transcript string) (string, error) {

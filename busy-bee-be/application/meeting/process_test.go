@@ -21,6 +21,7 @@ type processFakeRepo struct {
 	transitions   []string
 	savedText     string
 	savedSegments []domainmeeting.TranscriptSegment
+	savedSummary  string
 	savedDuration int
 	completedCall bool
 	failedMessage string
@@ -48,6 +49,11 @@ func (f *processFakeRepo) SaveTranscript(_ context.Context, _ uuid.UUID, text st
 	f.meeting.Transcript = text
 	f.meeting.TranscriptSegments = segments
 	f.meeting.DurationSeconds = duration
+	return f.meeting, nil
+}
+func (f *processFakeRepo) SaveSummary(_ context.Context, _ uuid.UUID, summary string) (domainmeeting.Meeting, error) {
+	f.savedSummary = summary
+	f.meeting.Summary = summary
 	return f.meeting, nil
 }
 func (f *processFakeRepo) SetCompleted(_ context.Context, _ uuid.UUID) (domainmeeting.Meeting, error) {
@@ -370,14 +376,15 @@ func (f *fakeActionItemRepo) SetDone(_ context.Context, _, _ uuid.UUID, _ bool) 
 }
 
 type fakeExtractor struct {
-	items  []domainactionitem.Extracted
-	err    error
-	called int
+	items   []domainactionitem.Extracted
+	summary string
+	err     error
+	called  int
 }
 
-func (f *fakeExtractor) ExtractActionItems(_ context.Context, _ string) ([]domainactionitem.Extracted, error) {
+func (f *fakeExtractor) Extract(_ context.Context, _ string) (domainactionitem.Extraction, error) {
 	f.called++
-	return f.items, f.err
+	return domainactionitem.Extraction{Summary: f.summary, Items: f.items}, f.err
 }
 
 const artifactTypeActionItemsTest = domainartifact.Type("action_items")

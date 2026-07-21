@@ -338,6 +338,8 @@ export interface components {
             title: string;
             /** @enum {string} */
             status: "scheduled" | "pending" | "transcribing" | "analyzing" | "completed" | "failed";
+            /** @description 一句話摘要（TL;DR），未處理則不出現 */
+            summary?: string;
             durationSeconds: number;
             errorMessage?: string;
             /** Format: date-time */

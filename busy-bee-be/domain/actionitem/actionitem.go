@@ -37,6 +37,12 @@ type Extracted struct {
 	DueText     string `json:"due"`
 }
 
+// Extraction LLM 對逐字稿的一次分析結果：一句話摘要 + 行動項（同一次呼叫產生）。
+type Extraction struct {
+	Summary string      `json:"summary"`
+	Items   []Extracted `json:"actionItems"`
+}
+
 // Repository 行動項存取 port（pgx 實作在 infrastructure/db）。
 type Repository interface {
 	Insert(ctx context.Context, meetingID, userID uuid.UUID, item Extracted, sortOrder int) (ActionItem, error)
@@ -47,7 +53,7 @@ type Repository interface {
 	SetDone(ctx context.Context, id, userID uuid.UUID, done bool) (ActionItem, error)
 }
 
-// Extractor 行動項抽取 port（Gemini 實作在 infrastructure/llm）。
+// Extractor 逐字稿分析 port（Gemini 實作在 infrastructure/llm）：一次呼叫產出摘要 + 行動項。
 type Extractor interface {
-	ExtractActionItems(ctx context.Context, transcript string) ([]Extracted, error)
+	Extract(ctx context.Context, transcript string) (Extraction, error)
 }

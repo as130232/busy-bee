@@ -51,6 +51,8 @@ type Meeting struct {
 	AudioGCSPath    string
 	Status          Status
 	Transcript      string
+	// Summary 一句話摘要（TL;DR）；分析階段由 LLM 產生，未處理則為空。
+	Summary string
 	// TranscriptSegments 分講者逐字稿；供應商支援 diarization 時填入，否則為空。
 	TranscriptSegments []TranscriptSegment
 	// SpeakerNames 講者代號 → 使用者自訂顯示名（如 {"A":"Ben"}）；限本場會議內。
@@ -73,6 +75,8 @@ type Repository interface {
 	UpdateStatus(ctx context.Context, id uuid.UUID, from, to Status) (Meeting, error)
 	// SaveTranscript 儲存攤平純文字、分講者片段與時長；不支援 diarization 時 segments 傳 nil。
 	SaveTranscript(ctx context.Context, id uuid.UUID, transcript string, segments []TranscriptSegment, durationSeconds int) (Meeting, error)
+	// SaveSummary 儲存會議一句話摘要（分析階段產生）。
+	SaveSummary(ctx context.Context, id uuid.UUID, summary string) (Meeting, error)
 	// SetCompleted analyzing → completed，並記錄 processed_at。
 	SetCompleted(ctx context.Context, id uuid.UUID) (Meeting, error)
 	// SetFailed 處理中任一狀態 → failed，記錄 error_message。

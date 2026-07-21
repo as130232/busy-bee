@@ -214,9 +214,17 @@ func (uc *ProcessUC) extractActionItems(ctx context.Context, m domainmeeting.Mee
 		}
 	}
 
-	items, err := uc.extractor.ExtractActionItems(ctx, m.Transcript)
+	// 同一次呼叫產出摘要 + 行動項（A 方案：不增加額外 LLM 呼叫）。
+	result, err := uc.extractor.Extract(ctx, m.Transcript)
 	if err != nil {
-		return fmt.Errorf("process extract action items: %w", err)
+		return fmt.Errorf("process extract: %w", err)
+	}
+	items := result.Items
+
+	if summary := strings.TrimSpace(result.Summary); summary != "" {
+		if _, err := uc.repo.SaveSummary(ctx, m.ID, summary); err != nil {
+			return fmt.Errorf("process save summary: %w", err)
+		}
 	}
 
 	if err := uc.actionItems.DeleteForMeeting(ctx, m.ID); err != nil {
@@ -235,7 +243,8 @@ func (uc *ProcessUC) extractActionItems(ctx context.Context, m domainmeeting.Mee
 	if _, err := uc.artifacts.Upsert(ctx, m.ID, artifactTypeActionItems, string(raw)); err != nil {
 		return fmt.Errorf("process mark action items extracted: %w", err)
 	}
-	slog.InfoContext(ctx, "meeting.process.action_items_saved", "meeting_id", m.ID, "count", len(items))
+	slog.InfoContext(ctx, "meeting.process.extracted", "meeting_id", m.ID,
+		"action_items", len(items), "has_summary", result.Summary != "")
 	return nil
 }
 
