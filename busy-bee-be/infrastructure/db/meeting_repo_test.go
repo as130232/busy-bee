@@ -170,35 +170,37 @@ func TestMeetingRepo_RenameOwnerOnly(t *testing.T) {
 	}
 }
 
-func TestMeetingRepo_DeleteScheduledOnly(t *testing.T) {
+func TestMeetingRepo_Delete(t *testing.T) {
 	pool := testPool(t)
 	u := testUser(t, pool)
+	other := testUser(t, pool)
 	repo := NewMeetingRepo(pool)
+	ctx := context.Background()
 
-	at := time.Now().Add(2 * time.Hour)
-	sched, err := repo.CreateScheduled(context.Background(), u.ID, domainmeeting.ScheduleParams{
-		Title: "待刪行程", ScheduledAt: at, RemindBeforeMin: 15,
-	})
-	if err != nil {
-		t.Fatalf("CreateScheduled() error = %v", err)
-	}
-
-	if err := repo.DeleteScheduled(context.Background(), sched.ID, u.ID); err != nil {
-		t.Fatalf("DeleteScheduled() error = %v", err)
-	}
-	if _, err := repo.GetForUser(context.Background(), sched.ID, u.ID); !errors.Is(err, domainmeeting.ErrNotFound) {
-		t.Errorf("after delete GetForUser err = %v, want ErrNotFound", err)
-	}
-
-	// 非 scheduled 狀態不可刪
-	done, err := repo.Create(context.Background(), domainmeeting.Meeting{
-		UserID: u.ID, Title: "已完成", Status: domainmeeting.StatusCompleted,
+	// 已完成會議也可刪除（不限 scheduled）
+	done, err := repo.Create(ctx, domainmeeting.Meeting{
+		UserID: u.ID, Title: "已完成待刪", Status: domainmeeting.StatusCompleted,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if err := repo.DeleteScheduled(context.Background(), done.ID, u.ID); !errors.Is(err, domainmeeting.ErrNotFound) {
-		t.Errorf("delete non-scheduled err = %v, want ErrNotFound", err)
+
+	// 非本人不可刪 → ErrNotFound
+	if err := repo.Delete(ctx, done.ID, other.ID); !errors.Is(err, domainmeeting.ErrNotFound) {
+		t.Errorf("non-owner Delete err = %v, want ErrNotFound", err)
+	}
+
+	// 本人刪除成功，後續查不到
+	if err := repo.Delete(ctx, done.ID, u.ID); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	if _, err := repo.GetForUser(ctx, done.ID, u.ID); !errors.Is(err, domainmeeting.ErrNotFound) {
+		t.Errorf("after delete GetForUser err = %v, want ErrNotFound", err)
+	}
+
+	// 不存在的會議回 ErrNotFound
+	if err := repo.Delete(ctx, uuid.New(), u.ID); !errors.Is(err, domainmeeting.ErrNotFound) {
+		t.Errorf("delete non-existent err = %v, want ErrNotFound", err)
 	}
 }
 

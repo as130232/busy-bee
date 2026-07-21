@@ -335,8 +335,8 @@ paths:
               schema: { $ref: "#/components/schemas/Envelope" }
     delete:
       tags: [meetings]
-      summary: 刪除排程會議（僅 scheduled 狀態，本人限定）
-      operationId: deleteScheduledMeeting
+      summary: 刪除會議（任何狀態，本人限定；關聯資料連帶刪除）
+      operationId: deleteMeeting
       parameters:
         - name: id
           in: path
@@ -349,7 +349,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
         "404":
-          description: 不存在、非本人或非 scheduled 狀態
+          description: 不存在或非本人
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }

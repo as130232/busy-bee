@@ -253,7 +253,7 @@ func (f *fakeRepo) Rename(_ context.Context, id, _ uuid.UUID, title string) (dom
 	return domainmeeting.Meeting{ID: id, Title: title}, nil
 }
 
-func (f *fakeRepo) DeleteScheduled(_ context.Context, _, _ uuid.UUID) error { return nil }
+func (f *fakeRepo) Delete(_ context.Context, _, _ uuid.UUID) error { return nil }
 
 func (f *fakeRepo) UpdateSpeakerNames(_ context.Context, id, userID uuid.UUID, names map[string]string) (domainmeeting.Meeting, error) {
 	return domainmeeting.Meeting{ID: id, UserID: userID, SpeakerNames: names}, nil

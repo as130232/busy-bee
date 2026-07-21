@@ -100,18 +100,18 @@ func (q *Queries) CreateScheduledMeeting(ctx context.Context, arg CreateSchedule
 	return i, err
 }
 
-const deleteScheduledMeeting = `-- name: DeleteScheduledMeeting :execrows
+const deleteMeeting = `-- name: DeleteMeeting :execrows
 DELETE FROM meetings
-WHERE id = $1 AND user_id = $2 AND status = 'scheduled'
+WHERE id = $1 AND user_id = $2
 `
 
-type DeleteScheduledMeetingParams struct {
+type DeleteMeetingParams struct {
 	ID     uuid.UUID
 	UserID uuid.UUID
 }
 
-func (q *Queries) DeleteScheduledMeeting(ctx context.Context, arg DeleteScheduledMeetingParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteScheduledMeeting, arg.ID, arg.UserID)
+func (q *Queries) DeleteMeeting(ctx context.Context, arg DeleteMeetingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMeeting, arg.ID, arg.UserID)
 	if err != nil {
 		return 0, err
 	}

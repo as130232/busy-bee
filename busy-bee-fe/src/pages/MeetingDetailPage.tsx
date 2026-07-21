@@ -20,7 +20,7 @@ import { ScheduleSheet } from '../components/ScheduleForm'
 import { StatusBadge } from '../components/StatusBadge'
 import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
 import {
-  deleteScheduledMeeting,
+  deleteMeeting,
   getMeeting,
   getMeetingAudioURL,
   listArtifacts,
@@ -46,14 +46,28 @@ const tabLabels: Record<Tab, string> = {
 
 export function MeetingDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [meeting, setMeeting] = useState<MeetingDetail | null>(null)
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [actionItems, setActionItems] = useState<ActionItem[]>([])
   const [tab, setTab] = useState<Tab>('prd')
   const [error, setError] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
 
   const isScheduled = meeting?.status === 'scheduled'
+
+  // 刪除會議（任何狀態）→ 回會議列表。
+  const remove = async () => {
+    if (!id) return
+    try {
+      await deleteMeeting(await getIdToken(), id)
+      navigate('/meetings')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '刪除失敗')
+      setConfirmDelete(false)
+    }
+  }
 
   // 點逐字稿時間碼 → 音檔跳至該處並播放。
   const seekAudio = (seconds: number) => {
@@ -162,6 +176,14 @@ export function MeetingDetailPage() {
           onRenamed={(title) => setMeeting({ ...meeting, title })}
         />
         <StatusBadge status={meeting.status} />
+        <button
+          type="button"
+          className="btn btn-ghost size-9 shrink-0 px-0 text-muted hover:text-red-500"
+          aria-label="刪除會議"
+          onClick={() => setConfirmDelete(true)}
+        >
+          <Trash2 className="size-4" />
+        </button>
       </header>
 
       {meeting.status === 'failed' && (
@@ -219,6 +241,28 @@ export function MeetingDetailPage() {
           </p>
         )}
       </article>
+
+      {confirmDelete && (
+        <>
+          <div
+            className="animate-fade-in fixed inset-0 z-40 bg-black/50"
+            onClick={() => setConfirmDelete(false)}
+          />
+          <div className="animate-sheet-up sm:animate-fade-in fixed inset-x-0 bottom-0 z-50 flex flex-col gap-3 rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:pb-4">
+            <p className="m-0 text-sm">
+              確定刪除「{meeting.title}」？逐字稿、PRD、Tech Spec、行動項將一併刪除，此動作無法復原。
+            </p>
+            <div className="flex gap-2">
+              <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmDelete(false)}>
+                取消
+              </button>
+              <button type="button" className="btn btn-primary flex-1 bg-red-600" onClick={() => void remove()}>
+                刪除
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </AppShell>
   )
 }
@@ -619,7 +663,7 @@ function ScheduledDetail({
 
   const remove = async () => {
     try {
-      await deleteScheduledMeeting(await getIdToken(), meeting.id)
+      await deleteMeeting(await getIdToken(), meeting.id)
       navigate('/schedule')
     } catch (e) {
       setError(e instanceof Error ? e.message : '刪除失敗')

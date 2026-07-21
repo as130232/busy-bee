@@ -265,10 +265,10 @@ func (r *MeetingRepo) Rename(ctx context.Context, id, userID uuid.UUID, title st
 	return toDomainMeeting(row), nil
 }
 
-func (r *MeetingRepo) DeleteScheduled(ctx context.Context, id, userID uuid.UUID) error {
-	n, err := r.q.DeleteScheduledMeeting(ctx, sqlcgen.DeleteScheduledMeetingParams{ID: id, UserID: userID})
+func (r *MeetingRepo) Delete(ctx context.Context, id, userID uuid.UUID) error {
+	n, err := r.q.DeleteMeeting(ctx, sqlcgen.DeleteMeetingParams{ID: id, UserID: userID})
 	if err != nil {
-		return fmt.Errorf("db.DeleteScheduledMeeting: %w", err)
+		return fmt.Errorf("db.DeleteMeeting: %w", err)
 	}
 	if n == 0 {
 		return domainmeeting.ErrNotFound

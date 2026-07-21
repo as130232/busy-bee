@@ -303,7 +303,7 @@ func (h *Handler) AudioURL(c *gin.Context) {
 	response.OK(c, gin.H{"url": url})
 }
 
-// Delete DELETE /api/v1/meetings/:id — 刪除排程會議（僅 scheduled 狀態，本人限定）。
+// Delete DELETE /api/v1/meetings/:id — 刪除會議（任何狀態，本人限定；關聯資料連帶刪除）。
 func (h *Handler) Delete(c *gin.Context) {
 	userID, ok := domainuser.IDFrom(c.Request.Context())
 	if !ok {
@@ -316,7 +316,7 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.uc.Manage.DeleteScheduled(c.Request.Context(), userID, meetingID); err != nil {
+	if err := h.uc.Manage.Delete(c.Request.Context(), userID, meetingID); err != nil {
 		response.Fail(c, err)
 		return
 	}

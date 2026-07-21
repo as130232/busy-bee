@@ -142,8 +142,8 @@ export interface paths {
         get: operations["getMeeting"];
         put?: never;
         post?: never;
-        /** 刪除排程會議（僅 scheduled 狀態，本人限定） */
-        delete: operations["deleteScheduledMeeting"];
+        /** 刪除會議（任何狀態，本人限定；關聯資料連帶刪除） */
+        delete: operations["deleteMeeting"];
         options?: never;
         head?: never;
         /** 重新命名會議（任何狀態，本人限定） */
@@ -744,7 +744,7 @@ export interface operations {
             };
         };
     };
-    deleteScheduledMeeting: {
+    deleteMeeting: {
         parameters: {
             query?: never;
             header?: never;
@@ -764,7 +764,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description 不存在、非本人或非 scheduled 狀態 */
+            /** @description 不存在或非本人 */
             404: {
                 headers: {
                     [name: string]: unknown;

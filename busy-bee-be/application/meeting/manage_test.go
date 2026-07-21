@@ -27,7 +27,7 @@ func (f *fakeManageRepo) Rename(_ context.Context, id, userID uuid.UUID, title s
 	return domainmeeting.Meeting{ID: id, UserID: userID, Title: title}, nil
 }
 
-func (f *fakeManageRepo) DeleteScheduled(_ context.Context, id, _ uuid.UUID) error {
+func (f *fakeManageRepo) Delete(_ context.Context, id, _ uuid.UUID) error {
 	if f.err != nil {
 		return f.err
 	}
@@ -78,27 +78,27 @@ func TestManage_RenameNotFoundMapped(t *testing.T) {
 	}
 }
 
-func TestManage_DeleteScheduled(t *testing.T) {
+func TestManage_Delete(t *testing.T) {
 	repo := &fakeManageRepo{}
 	uc := NewManageUC(repo)
 	id := uuid.New()
 
-	if err := uc.DeleteScheduled(context.Background(), uuid.New(), id); err != nil {
-		t.Fatalf("DeleteScheduled() error = %v", err)
+	if err := uc.Delete(context.Background(), uuid.New(), id); err != nil {
+		t.Fatalf("Delete() error = %v", err)
 	}
 	if repo.deletedID != id {
-		t.Error("repo.DeleteScheduled not called with meeting id")
+		t.Error("repo.Delete not called with meeting id")
 	}
 }
 
 func TestManage_DeleteNotFoundMapped(t *testing.T) {
 	uc := NewManageUC(&fakeManageRepo{err: domainmeeting.ErrNotFound})
 
-	err := uc.DeleteScheduled(context.Background(), uuid.New(), uuid.New())
+	err := uc.Delete(context.Background(), uuid.New(), uuid.New())
 
 	var ae *apperr.Error
 	if !errors.As(err, &ae) || ae.Code != errcode.NotFound {
-		t.Fatalf("err = %v, want NotFound (不存在、非本人或非 scheduled)", err)
+		t.Fatalf("err = %v, want NotFound (不存在或非本人)", err)
 	}
 }
 

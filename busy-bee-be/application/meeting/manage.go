@@ -58,8 +58,9 @@ func (uc *ManageUC) UpdateSpeakerNames(ctx context.Context, userID, meetingID uu
 	return m, nil
 }
 
-func (uc *ManageUC) DeleteScheduled(ctx context.Context, userID, meetingID uuid.UUID) error {
-	if err := uc.repo.DeleteScheduled(ctx, meetingID, userID); err != nil {
+// Delete 刪除會議（任何狀態，本人限定）。關聯資料由 DB FK CASCADE 連帶刪除。
+func (uc *ManageUC) Delete(ctx context.Context, userID, meetingID uuid.UUID) error {
+	if err := uc.repo.Delete(ctx, meetingID, userID); err != nil {
 		if errors.Is(err, domainmeeting.ErrNotFound) {
 			return apperr.New(errcode.NotFound)
 		}

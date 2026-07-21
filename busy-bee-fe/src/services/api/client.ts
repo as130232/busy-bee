@@ -225,8 +225,8 @@ export function updateMeetingSpeakers(
   )
 }
 
-/** 刪除排程會議（僅 scheduled 狀態） */
-export function deleteScheduledMeeting(idToken: string, meetingId: string): Promise<unknown> {
+/** 刪除會議（任何狀態，本人限定；關聯資料連帶刪除） */
+export function deleteMeeting(idToken: string, meetingId: string): Promise<unknown> {
   return request<unknown>(`/api/v1/meetings/${meetingId}`, { method: 'DELETE' }, idToken)
 }
 

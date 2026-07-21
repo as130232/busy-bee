@@ -83,6 +83,6 @@ SET title = $3, updated_at = now()
 WHERE id = $1 AND user_id = $2
 RETURNING *;
 
--- name: DeleteScheduledMeeting :execrows
+-- name: DeleteMeeting :execrows
 DELETE FROM meetings
-WHERE id = $1 AND user_id = $2 AND status = 'scheduled';
+WHERE id = $1 AND user_id = $2;

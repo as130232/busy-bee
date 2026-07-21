@@ -101,8 +101,8 @@ type ScheduleRepository interface {
 type ManageRepository interface {
 	// Rename 重新命名（任何狀態，本人限定）；不存在或非本人回 ErrNotFound。
 	Rename(ctx context.Context, id, userID uuid.UUID, title string) (Meeting, error)
-	// DeleteScheduled 刪除排程會議（僅 scheduled 狀態，本人限定）；不存在回 ErrNotFound。
-	DeleteScheduled(ctx context.Context, id, userID uuid.UUID) error
+	// Delete 刪除會議（任何狀態，本人限定）；關聯 artifacts/action_items/chunks 由 FK CASCADE 連帶刪除。不存在或非本人回 ErrNotFound。
+	Delete(ctx context.Context, id, userID uuid.UUID) error
 	// UpdateSpeakerNames 更新講者代號→顯示名對應（本人限定）；不存在或非本人回 ErrNotFound。
 	UpdateSpeakerNames(ctx context.Context, id, userID uuid.UUID, names map[string]string) (Meeting, error)
 }
