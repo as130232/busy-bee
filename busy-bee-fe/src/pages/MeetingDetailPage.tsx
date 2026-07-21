@@ -378,25 +378,24 @@ function TranscriptView({
         ))}
       </div>
 
-      {/* 逐段內容：講者晶片 + 起始時間碼 */}
-      <div className="flex flex-col gap-3">
+      {/* 逐段內容：標頭（▶ 播放 · 時間 · 講者）整列可點跳播 + 全寬文字 */}
+      <div className="flex flex-col gap-4">
         {meeting.transcriptSegments.map((s, i) => (
-          <div key={i} className="flex gap-2">
-            <span className="flex shrink-0 flex-col items-start gap-0.5">
+          <div key={i} className="flex flex-col gap-1">
+            <button
+              type="button"
+              className="group -mx-1 flex w-full items-center gap-2 rounded-md px-1 py-0.5 transition-colors hover:bg-surface-hover"
+              onClick={() => onSeek?.(s.startMs / 1000)}
+              aria-label={`從 ${fmtClock(s.startMs / 1000)} 播放`}
+            >
+              <span className="font-mono text-[11px] tabular-nums text-muted">{fmtClock(s.startMs / 1000)}</span>
               <span
-                className={`h-fit rounded-full px-2 py-0.5 text-xs font-medium ${speakerColor(s.speaker, order)}`}
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${speakerColor(s.speaker, order)}`}
               >
                 {displayName(s.speaker)}
               </span>
-              <button
-                type="button"
-                className="font-mono text-[10px] tabular-nums text-muted transition-colors hover:text-accent"
-                onClick={() => onSeek?.(s.startMs / 1000)}
-                aria-label={`跳至 ${fmtClock(s.startMs / 1000)}`}
-              >
-                {fmtClock(s.startMs / 1000)}
-              </button>
-            </span>
+              <Play className="ml-auto size-3.5 shrink-0 text-muted transition-colors group-hover:text-accent" />
+            </button>
             <p className="m-0 text-sm leading-7">{s.text}</p>
           </div>
         ))}
