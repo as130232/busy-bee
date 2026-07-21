@@ -112,6 +112,9 @@ func (f *fakeSearchChunks) SearchSimilar(context.Context, uuid.UUID, []float32, 
 func (f *fakeSearchChunks) MeetingsWithoutChunks(context.Context) ([]uuid.UUID, error) {
 	return nil, nil
 }
+func (f *fakeSearchChunks) ExistingEmbeddings(context.Context, uuid.UUID) (map[string][]float32, error) {
+	return nil, nil
+}
 
 var testUserID = uuid.New()
 
