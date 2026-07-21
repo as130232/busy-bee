@@ -87,7 +87,8 @@ func main() {
 	indexUC := appsearch.NewIndexUC(meetingRepo, llmClient, chunkRepo)
 
 	// 記憶體佇列（ADR-010）：worker 與 HTTP 同 binary；重啟遺失由 Sweeper 掃 DB 復原
-	sttClient := stt.New(cfg.Groq.APIKey)
+	// STT 用 Deepgram（聲學語者分離，一個聲音＝一位講者，較 LLM 推測式穩定）。
+	sttClient := stt.NewDeepgram(cfg.Deepgram.APIKey, cfg.Deepgram.Model, cfg.Deepgram.Language, cfg.Deepgram.Keywords)
 	processUC := appmeeting.NewProcessUC(appmeeting.ProcessDeps{
 		Meetings: meetingRepo, Storage: audioStorage, STT: sttClient,
 		Artifacts: artifactRepo, LLM: llmClient, Notifier: hub,
@@ -133,6 +134,7 @@ func main() {
 			ListArtifacts:  appmeeting.NewListArtifactsUC(meetingRepo, artifactRepo),
 			List:           appmeeting.NewListUC(meetingRepo),
 			Get:            appmeeting.NewGetUC(meetingRepo),
+			AudioURL:       appmeeting.NewAudioURLUC(meetingRepo, audioStorage),
 			Retry:          appmeeting.NewRetryUC(meetingRepo, taskQueue),
 			Schedule:       appmeeting.NewScheduleUC(meetingRepo),
 			Manage:         appmeeting.NewManageUC(meetingRepo),

@@ -13,9 +13,10 @@ import (
 )
 
 type fakeManageRepo struct {
-	renamedTitle string
-	deletedID    uuid.UUID
-	err          error
+	renamedTitle        string
+	deletedID           uuid.UUID
+	updatedSpeakerNames map[string]string
+	err                 error
 }
 
 func (f *fakeManageRepo) Rename(_ context.Context, id, userID uuid.UUID, title string) (domainmeeting.Meeting, error) {
@@ -32,6 +33,14 @@ func (f *fakeManageRepo) DeleteScheduled(_ context.Context, id, _ uuid.UUID) err
 	}
 	f.deletedID = id
 	return nil
+}
+
+func (f *fakeManageRepo) UpdateSpeakerNames(_ context.Context, id, userID uuid.UUID, names map[string]string) (domainmeeting.Meeting, error) {
+	if f.err != nil {
+		return domainmeeting.Meeting{}, f.err
+	}
+	f.updatedSpeakerNames = names
+	return domainmeeting.Meeting{ID: id, UserID: userID, SpeakerNames: names}, nil
 }
 
 func TestManage_RenameTrimsTitle(t *testing.T) {
@@ -90,5 +99,33 @@ func TestManage_DeleteNotFoundMapped(t *testing.T) {
 	var ae *apperr.Error
 	if !errors.As(err, &ae) || ae.Code != errcode.NotFound {
 		t.Fatalf("err = %v, want NotFound (不存在、非本人或非 scheduled)", err)
+	}
+}
+
+func TestManage_UpdateSpeakerNamesCleansInput(t *testing.T) {
+	repo := &fakeManageRepo{}
+	uc := NewManageUC(repo)
+
+	_, err := uc.UpdateSpeakerNames(context.Background(), uuid.New(), uuid.New(), map[string]string{
+		"A": "  Ben  ", // 去空白
+		"B": "   ",      // 名稱空 → 丟棄（還原為代號）
+		" ": "Nobody",   // 代號空 → 丟棄
+	})
+	if err != nil {
+		t.Fatalf("UpdateSpeakerNames() error = %v", err)
+	}
+	if len(repo.updatedSpeakerNames) != 1 || repo.updatedSpeakerNames["A"] != "Ben" {
+		t.Errorf("cleaned names = %v, want only {A:Ben}", repo.updatedSpeakerNames)
+	}
+}
+
+func TestManage_UpdateSpeakerNamesNotFoundMapped(t *testing.T) {
+	uc := NewManageUC(&fakeManageRepo{err: domainmeeting.ErrNotFound})
+
+	_, err := uc.UpdateSpeakerNames(context.Background(), uuid.New(), uuid.New(), map[string]string{"A": "Ben"})
+
+	var ae *apperr.Error
+	if !errors.As(err, &ae) || ae.Code != errcode.NotFound {
+		t.Fatalf("err = %v, want NotFound (不存在或非本人)", err)
 	}
 }

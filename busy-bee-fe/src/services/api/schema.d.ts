@@ -150,6 +150,40 @@ export interface paths {
         patch: operations["renameMeeting"];
         trace?: never;
     };
+    "/api/v1/meetings/{id}/speakers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 更新講者代號→顯示名（本人限定） */
+        patch: operations["updateMeetingSpeakers"];
+        trace?: never;
+    };
+    "/api/v1/meetings/{id}/audio-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 取得會議音檔的限時播放 URL（本人限定） */
+        get: operations["getMeetingAudioURL"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/meetings/{id}/retry": {
         parameters: {
             query?: never;
@@ -302,8 +336,22 @@ export interface components {
              */
             matchType?: "semantic" | "literal";
         };
+        TranscriptSegment: {
+            /** @description 講者代號（A/B/C…），限本場會議內 */
+            speaker: string;
+            text: string;
+            /** @description 起始毫秒 */
+            startMs: number;
+            /** @description 結束毫秒 */
+            endMs: number;
+        };
         MeetingDetail: components["schemas"]["Meeting"] & {
             transcript: string;
+            transcriptSegments: components["schemas"]["TranscriptSegment"][];
+            /** @description 講者代號→顯示名，如 {"A":"Ben"} */
+            speakerNames: {
+                [key: string]: string;
+            };
         };
         Artifact: {
             /** Format: uuid */
@@ -758,6 +806,88 @@ export interface operations {
                 };
             };
             /** @description 不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    updateMeetingSpeakers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description 講者代號→顯示名，如 {"A":"Ben"} */
+                    speakerNames: {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            meeting: components["schemas"]["MeetingDetail"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getMeetingAudioURL: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 簽章 URL */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            /** Format: uri */
+                            url: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 不存在、非本人或尚無音檔 */
             404: {
                 headers: {
                     [name: string]: unknown;

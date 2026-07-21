@@ -15,7 +15,7 @@ import (
 const createMeeting = `-- name: CreateMeeting :one
 INSERT INTO meetings (user_id, title, audio_gcs_path, status, scheduled_at, remind_before_min)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at
+RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names
 `
 
 type CreateMeetingParams struct {
@@ -52,6 +52,8 @@ func (q *Queries) CreateMeeting(ctx context.Context, arg CreateMeetingParams) (M
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RemindedAt,
+		&i.TranscriptSegments,
+		&i.SpeakerNames,
 	)
 	return i, err
 }
@@ -59,7 +61,7 @@ func (q *Queries) CreateMeeting(ctx context.Context, arg CreateMeetingParams) (M
 const createScheduledMeeting = `-- name: CreateScheduledMeeting :one
 INSERT INTO meetings (user_id, title, status, scheduled_at, remind_before_min)
 VALUES ($1, $2, 'scheduled', $3, $4)
-RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at
+RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names
 `
 
 type CreateScheduledMeetingParams struct {
@@ -92,6 +94,8 @@ func (q *Queries) CreateScheduledMeeting(ctx context.Context, arg CreateSchedule
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RemindedAt,
+		&i.TranscriptSegments,
+		&i.SpeakerNames,
 	)
 	return i, err
 }
@@ -115,7 +119,7 @@ func (q *Queries) DeleteScheduledMeeting(ctx context.Context, arg DeleteSchedule
 }
 
 const getMeeting = `-- name: GetMeeting :one
-SELECT id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at FROM meetings WHERE id = $1
+SELECT id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names FROM meetings WHERE id = $1
 `
 
 func (q *Queries) GetMeeting(ctx context.Context, id uuid.UUID) (Meeting, error) {
@@ -136,12 +140,14 @@ func (q *Queries) GetMeeting(ctx context.Context, id uuid.UUID) (Meeting, error)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RemindedAt,
+		&i.TranscriptSegments,
+		&i.SpeakerNames,
 	)
 	return i, err
 }
 
 const getMeetingForUser = `-- name: GetMeetingForUser :one
-SELECT id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at FROM meetings WHERE id = $1 AND user_id = $2
+SELECT id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names FROM meetings WHERE id = $1 AND user_id = $2
 `
 
 type GetMeetingForUserParams struct {
@@ -167,12 +173,14 @@ func (q *Queries) GetMeetingForUser(ctx context.Context, arg GetMeetingForUserPa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RemindedAt,
+		&i.TranscriptSegments,
+		&i.SpeakerNames,
 	)
 	return i, err
 }
 
 const listDueReminders = `-- name: ListDueReminders :many
-SELECT id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at FROM meetings
+SELECT id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names FROM meetings
 WHERE status = 'scheduled'
   AND reminded_at IS NULL
   AND scheduled_at IS NOT NULL
@@ -206,6 +214,8 @@ func (q *Queries) ListDueReminders(ctx context.Context) ([]Meeting, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.RemindedAt,
+			&i.TranscriptSegments,
+			&i.SpeakerNames,
 		); err != nil {
 			return nil, err
 		}
@@ -218,7 +228,7 @@ func (q *Queries) ListDueReminders(ctx context.Context) ([]Meeting, error) {
 }
 
 const listMeetingsForUser = `-- name: ListMeetingsForUser :many
-SELECT id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at FROM meetings
+SELECT id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names FROM meetings
 WHERE user_id = $1
   AND ($2::text = ''
        OR title ILIKE '%' || $2 || '%'
@@ -256,6 +266,8 @@ func (q *Queries) ListMeetingsForUser(ctx context.Context, arg ListMeetingsForUs
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.RemindedAt,
+			&i.TranscriptSegments,
+			&i.SpeakerNames,
 		); err != nil {
 			return nil, err
 		}
@@ -306,7 +318,7 @@ const renameMeeting = `-- name: RenameMeeting :one
 UPDATE meetings
 SET title = $3, updated_at = now()
 WHERE id = $1 AND user_id = $2
-RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at
+RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names
 `
 
 type RenameMeetingParams struct {
@@ -333,25 +345,33 @@ func (q *Queries) RenameMeeting(ctx context.Context, arg RenameMeetingParams) (M
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RemindedAt,
+		&i.TranscriptSegments,
+		&i.SpeakerNames,
 	)
 	return i, err
 }
 
 const saveMeetingTranscript = `-- name: SaveMeetingTranscript :one
 UPDATE meetings
-SET transcript = $2, duration_seconds = $3, updated_at = now()
+SET transcript = $2, transcript_segments = $3, duration_seconds = $4, updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at
+RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names
 `
 
 type SaveMeetingTranscriptParams struct {
-	ID              uuid.UUID
-	Transcript      string
-	DurationSeconds int32
+	ID                 uuid.UUID
+	Transcript         string
+	TranscriptSegments []byte
+	DurationSeconds    int32
 }
 
 func (q *Queries) SaveMeetingTranscript(ctx context.Context, arg SaveMeetingTranscriptParams) (Meeting, error) {
-	row := q.db.QueryRow(ctx, saveMeetingTranscript, arg.ID, arg.Transcript, arg.DurationSeconds)
+	row := q.db.QueryRow(ctx, saveMeetingTranscript,
+		arg.ID,
+		arg.Transcript,
+		arg.TranscriptSegments,
+		arg.DurationSeconds,
+	)
 	var i Meeting
 	err := row.Scan(
 		&i.ID,
@@ -368,6 +388,8 @@ func (q *Queries) SaveMeetingTranscript(ctx context.Context, arg SaveMeetingTran
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RemindedAt,
+		&i.TranscriptSegments,
+		&i.SpeakerNames,
 	)
 	return i, err
 }
@@ -376,7 +398,7 @@ const setMeetingCompleted = `-- name: SetMeetingCompleted :one
 UPDATE meetings
 SET status = 'completed', processed_at = now(), error_message = '', updated_at = now()
 WHERE id = $1 AND status = 'analyzing'
-RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at
+RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names
 `
 
 func (q *Queries) SetMeetingCompleted(ctx context.Context, id uuid.UUID) (Meeting, error) {
@@ -397,6 +419,8 @@ func (q *Queries) SetMeetingCompleted(ctx context.Context, id uuid.UUID) (Meetin
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RemindedAt,
+		&i.TranscriptSegments,
+		&i.SpeakerNames,
 	)
 	return i, err
 }
@@ -405,7 +429,7 @@ const setMeetingFailed = `-- name: SetMeetingFailed :one
 UPDATE meetings
 SET status = 'failed', error_message = $2, updated_at = now()
 WHERE id = $1 AND status IN ('pending', 'transcribing', 'analyzing')
-RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at
+RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names
 `
 
 type SetMeetingFailedParams struct {
@@ -431,6 +455,8 @@ func (q *Queries) SetMeetingFailed(ctx context.Context, arg SetMeetingFailedPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RemindedAt,
+		&i.TranscriptSegments,
+		&i.SpeakerNames,
 	)
 	return i, err
 }
@@ -439,7 +465,7 @@ const updateMeetingSchedule = `-- name: UpdateMeetingSchedule :one
 UPDATE meetings
 SET title = $3, scheduled_at = $4, remind_before_min = $5, reminded_at = NULL, updated_at = now()
 WHERE id = $1 AND user_id = $2 AND status = 'scheduled'
-RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at
+RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names
 `
 
 type UpdateMeetingScheduleParams struct {
@@ -474,6 +500,45 @@ func (q *Queries) UpdateMeetingSchedule(ctx context.Context, arg UpdateMeetingSc
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RemindedAt,
+		&i.TranscriptSegments,
+		&i.SpeakerNames,
+	)
+	return i, err
+}
+
+const updateMeetingSpeakerNames = `-- name: UpdateMeetingSpeakerNames :one
+UPDATE meetings
+SET speaker_names = $3, updated_at = now()
+WHERE id = $1 AND user_id = $2
+RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names
+`
+
+type UpdateMeetingSpeakerNamesParams struct {
+	ID           uuid.UUID
+	UserID       uuid.UUID
+	SpeakerNames []byte
+}
+
+func (q *Queries) UpdateMeetingSpeakerNames(ctx context.Context, arg UpdateMeetingSpeakerNamesParams) (Meeting, error) {
+	row := q.db.QueryRow(ctx, updateMeetingSpeakerNames, arg.ID, arg.UserID, arg.SpeakerNames)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Title,
+		&i.AudioGcsPath,
+		&i.Status,
+		&i.Transcript,
+		&i.DurationSeconds,
+		&i.ErrorMessage,
+		&i.ScheduledAt,
+		&i.RemindBeforeMin,
+		&i.ProcessedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.RemindedAt,
+		&i.TranscriptSegments,
+		&i.SpeakerNames,
 	)
 	return i, err
 }
@@ -482,7 +547,7 @@ const updateMeetingStatus = `-- name: UpdateMeetingStatus :one
 UPDATE meetings
 SET status = $2, updated_at = now()
 WHERE id = $1 AND status = $3
-RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at
+RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names
 `
 
 type UpdateMeetingStatusParams struct {
@@ -509,6 +574,8 @@ func (q *Queries) UpdateMeetingStatus(ctx context.Context, arg UpdateMeetingStat
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RemindedAt,
+		&i.TranscriptSegments,
+		&i.SpeakerNames,
 	)
 	return i, err
 }

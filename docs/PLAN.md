@@ -1,12 +1,13 @@
 # Busy Bee 開發計畫與進度追蹤
 
 > 依 `docs/PRODUCT.md` 的 F-ID 與優先序切分 Phase，記錄任務狀態與進度。
-> 更新日期：2026-07-19
+> 更新日期：2026-07-21
 
 ---
 
 ## 當前焦點
 
+Phase 16（語者辨識 diarization：Deepgram + 講者改名 + 音檔播放）程式完成、全測試綠、本地 e2e 人工驗收通過（分講者、改名、播放、時間碼跳播），待 merge 與 production 部署（DEEPGRAM_API_KEY 進 Secret Manager、prod 跑 migration 000007）。
 Phase 15（RAG 語意搜尋：pgvector + Gemini embedding）程式全數完成、全測試綠，待本地 e2e 人工驗收與 merge（15.9）。
 Phase 13 已 merge main（F-ACTION / F-EXPORT / 深連結 / 視覺重設計 / Tab 導覽 / 行動裝置修正，人工驗收通過）。
 Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁）程式完成，待人工驗收。
@@ -48,6 +49,7 @@ Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁
 | ✅ | Phase 13 — 擴充第一波（F-ACTION、F-EXPORT、深連結） | post-MVP |
 | 🔄 | Phase 14 — 會議與行程管理（F-MANAGE）+ 邊角驗收 | post-MVP |
 | 🔄 | Phase 15 — RAG 語意搜尋（pgvector + Gemini embedding） | post-MVP |
+| 🔄 | Phase 16 — 語者辨識 diarization（Deepgram）+ 講者改名 + 音檔播放 | post-MVP |
 
 ---
 
@@ -286,6 +288,24 @@ Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁
 
 ---
 
+## Phase 16：語者辨識 diarization（Deepgram）+ 講者改名 + 音檔播放
+> 里程碑：post-MVP | 🔄 程式完成、本地 e2e 驗收通過，待 merge + 部署
+> 需求：多人會議逐字稿分講者（預設 A/B/C），可改名（A→Ben），限單場會議內（非跨會議聲紋）。
+> 設計：diarization 供應商藏在既有 `domain/meeting.STTClient` port 後，換供應商只動 `infrastructure/stt/`。詳見 `docs/ARCHITECTURE.md`。
+> STT 供應商：**Deepgram nova-2 + zh-TW**（聲學分離）。踩坑：nova-3 + multi 對中文回傳空結果；Gemini 音訊做 diarization 會把一人誤拆多人（LLM 推測非聲學），皆已放棄。
+
+| 狀態 | # | 項目 | 檔案 | 細節 | Commit |
+|------|---|------|------|------|--------|
+| ✅ | 16.1 | domain/port | `domain/meeting/stt.go`, `meeting.go` | `TranscriptSegment`、`TranscribeResult.Segments`、`FlattenSegments`（TDD）；`Meeting.TranscriptSegments/SpeakerNames`；`SaveTranscript` 加 segments、`ManageRepository.UpdateSpeakerNames` | — |
+| ✅ | 16.2 | DB schema | `db/migrations/000007_*`, `db/query/meetings.sql`, `infrastructure/db/meeting_repo.go` | 加 `transcript_segments`/`speaker_names` jsonb；sqlc；repo jsonb round-trip（整合測試） | — |
+| ✅ | 16.3 | STT 供應商 | `infrastructure/stt/deepgram.go`, `config`, `cmd/server/main.go` | Deepgram diarize=true、words 依 speaker 聚合成 A/B/C；`DEEPGRAM_*` config（含 keywords 術語加權）；wiring。Gemini/Groq client 保留未 wire | — |
+| ✅ | 16.4 | 改名 + 空結果保護 | `application/meeting/manage.go`, `process.go` | `UpdateSpeakerNames` use case（清洗+owner）；STT 空稿標失敗可重試、log 片段/講者數 | — |
+| ✅ | 16.5 | HTTP + 音檔播放端點 | `interface/http/...`, `application/meeting/audio.go`, `gcs/storage.go` | `PATCH /meetings/:id/speakers`；`GET /meetings/:id/audio-url`（`SignedDownloadURL`）；detail 回 segments/speakerNames；openapi | — |
+| ✅ | 16.6 | 前端 | `busy-bee-fe/.../MeetingDetailPage.tsx`, `MeetingList.tsx`, `index.css` | 分講者顯示（晶片配色+時間碼靠左，可點跳播）、改名 bottom-sheet、音檔播放器（±10s/進度條）、匯出用顯示名、列表時長「分秒」tag、返回回列表、標題跑馬燈 | — |
+| ⬜ | 16.7 | merge + 部署 | — | DEEPGRAM_API_KEY 進 Secret Manager；prod 跑 migration 000007；merge | — |
+
+---
+
 ## 依賴關係圖
 
 ```text
@@ -335,6 +355,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-20 | Phase 13 人工驗收通過（除深連結，卡推播顯示）；Phase 14 程式完成：改名/刪除 API（TDD）+ 排程專屬詳情頁 + ScheduleSheet 編輯模式 + 行程頁過濾上傳暫存；盤點確認錄音/上傳邊角程式已存在僅待驗收 | `3f6d23b, 9a4b756` |
 | 2026-07-19 | 找到提醒不觸發根因（scale-to-zero 下 instance=0，進程內 sweeper 不跑）：新增密鑰保護的 `/internal/sweep-reminders` 端點備用（TDD 3 例）。**決策：暫緩自動提醒**——每分鐘 Scheduler 會讓 instance 常駐、失去 scale-to-zero 省錢意義；使用者選擇先不啟用，端點休眠（無密鑰無觸發器＝零額外費用）。未來若要啟用，較省的方向是 Cloud Tasks 精準排程（提醒時刻才喚醒一次） | `49bb919` |
 | 2026-07-20 | Phase 15 RAG 語意搜尋程式完成（15.1–15.8）：pgvector 前置＋migration 000006（transcript_chunks、hnsw cosine、CASCADE）→ domain/search entity/ports＋SplitIntoChunks 切塊（TDD）→ Gemini Embed（gemini-embedding-001 @768 維）→ chunk_repo（手寫 pgx＋pgvector-go，DISTINCT ON＋`<=>`＋owner 過濾，真實 PG 整合測試）→ IndexUC/SearchUC（hybrid 合併＋embedding 失敗降級純字面，TDD）→ worker 回填掃描＋completed best-effort 觸發 → List handler 走 SearchUC 回 matchSnippet＋openapi/TS client＋main.go wiring＋前端片段顯示。全後端 build/vet/test 綠、前端 typecheck/build 綠；待本地 e2e 人工驗收（搜「定價」找「價格策略」）＋Neon extension＋merge（15.9） | `c6a0726..3e1f969` |
+| 2026-07-21 | Phase 16 語者辨識完成（16.1–16.6）＋本地 e2e 驗收通過：domain segments/FlattenSegments（TDD）→ migration 000007（transcript_segments/speaker_names jsonb）＋repo round-trip → STT 換 **Deepgram nova-2 zh-TW**（聲學分離；踩坑：nova-3+multi 中文空、Gemini 音訊誤拆多人皆棄）→ `UpdateSpeakerNames` 改名 use case＋STT 空結果保護 → `PATCH /speakers`＋音檔播放端點 `GET /audio-url`（GCS SignedDownloadURL）→ 前端分講者顯示（晶片配色/時間碼靠左可點跳播）＋改名 sheet＋音檔播放器＋匯出用顯示名＋列表時長分秒 tag＋返回回列表＋標題跑馬燈。全後端 build/vet/test 綠、前端 typecheck/lint/build 綠；清理拋棄式 POC。待 merge＋部署（Deepgram key 進 Secret Manager、prod migration 000007）(16.7) | 待填 |
 
 ---
 

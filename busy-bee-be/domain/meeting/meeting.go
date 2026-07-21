@@ -51,6 +51,10 @@ type Meeting struct {
 	AudioGCSPath    string
 	Status          Status
 	Transcript      string
+	// TranscriptSegments 分講者逐字稿；供應商支援 diarization 時填入，否則為空。
+	TranscriptSegments []TranscriptSegment
+	// SpeakerNames 講者代號 → 使用者自訂顯示名（如 {"A":"Ben"}）；限本場會議內。
+	SpeakerNames    map[string]string
 	DurationSeconds int
 	ErrorMessage    string
 	ScheduledAt     *time.Time
@@ -67,7 +71,8 @@ type Repository interface {
 	// Get 不帶 user 過濾，僅供 worker 內部使用。
 	Get(ctx context.Context, id uuid.UUID) (Meeting, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, from, to Status) (Meeting, error)
-	SaveTranscript(ctx context.Context, id uuid.UUID, transcript string, durationSeconds int) (Meeting, error)
+	// SaveTranscript 儲存攤平純文字、分講者片段與時長；不支援 diarization 時 segments 傳 nil。
+	SaveTranscript(ctx context.Context, id uuid.UUID, transcript string, segments []TranscriptSegment, durationSeconds int) (Meeting, error)
 	// SetCompleted analyzing → completed，並記錄 processed_at。
 	SetCompleted(ctx context.Context, id uuid.UUID) (Meeting, error)
 	// SetFailed 處理中任一狀態 → failed，記錄 error_message。
@@ -98,6 +103,8 @@ type ManageRepository interface {
 	Rename(ctx context.Context, id, userID uuid.UUID, title string) (Meeting, error)
 	// DeleteScheduled 刪除排程會議（僅 scheduled 狀態，本人限定）；不存在回 ErrNotFound。
 	DeleteScheduled(ctx context.Context, id, userID uuid.UUID) error
+	// UpdateSpeakerNames 更新講者代號→顯示名對應（本人限定）；不存在或非本人回 ErrNotFound。
+	UpdateSpeakerNames(ctx context.Context, id, userID uuid.UUID, names map[string]string) (Meeting, error)
 }
 
 // ReminderRepository 提醒掃描專用窄介面（MeetingRepo 一併實作）。

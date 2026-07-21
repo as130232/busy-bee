@@ -79,6 +79,29 @@ func (s *Storage) SignedUploadURL(ctx context.Context, objectPath, contentType s
 	}, nil
 }
 
+func (s *Storage) SignedDownloadURL(ctx context.Context, objectPath string) (string, error) {
+	url, err := s.client.Bucket(s.bucket).SignedURL(objectPath, &storage.SignedURLOptions{
+		Scheme:         storage.SigningSchemeV4,
+		Method:         http.MethodGet,
+		Expires:        time.Now().Add(signedURLTTL),
+		GoogleAccessID: s.signerEmail,
+		SignBytes: func(b []byte) ([]byte, error) {
+			resp, err := s.iamClient.SignBlob(ctx, &credentialspb.SignBlobRequest{
+				Name:    "projects/-/serviceAccounts/" + s.signerEmail,
+				Payload: b,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("gcs signBlob: %w", err)
+			}
+			return resp.SignedBlob, nil
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("gcs.SignedDownloadURL: %w", err)
+	}
+	return url, nil
+}
+
 func (s *Storage) Download(ctx context.Context, objectPath string) (io.ReadCloser, int64, error) {
 	r, err := s.client.Bucket(s.bucket).Object(objectPath).NewReader(ctx)
 	if err != nil {

@@ -13,14 +13,23 @@ type Config struct {
 	Log    LogConfig
 	DB     DBConfig
 	Auth   AuthConfig
-	GCS    GCSConfig
-	Groq   GroqConfig
-	Gemini GeminiConfig
-	Push   PushConfig
+	GCS      GCSConfig
+	Groq     GroqConfig
+	Gemini   GeminiConfig
+	Deepgram DeepgramConfig
+	Push     PushConfig
 }
 
 type GroqConfig struct {
 	APIKey string
+}
+
+type DeepgramConfig struct {
+	APIKey   string
+	Model    string
+	Language string
+	// Keywords 術語加權（如專有名詞、英文縮寫），提升辨識準確度；格式可帶權重 "term:2"。
+	Keywords []string
 }
 
 type GeminiConfig struct {
@@ -102,6 +111,13 @@ func Load() (*Config, error) {
 		Gemini: GeminiConfig{
 			APIKey: lookup("GEMINI_API_KEY", ""),
 			Model:  lookup("GEMINI_MODEL", "gemini-flash-latest"),
+		},
+		Deepgram: DeepgramConfig{
+			APIKey: lookup("DEEPGRAM_API_KEY", ""),
+			// nova-2 + zh-TW 才轉得出繁體中文；nova-3 的 multi 對中文回傳空結果。
+			Model:    lookup("DEEPGRAM_MODEL", "nova-2"),
+			Language: lookup("DEEPGRAM_LANGUAGE", "zh-TW"),
+			Keywords: splitCSV(lookup("DEEPGRAM_KEYWORDS", "")),
 		},
 		Push: PushConfig{
 			VAPIDPublicKey:  lookup("VAPID_PUBLIC_KEY", ""),

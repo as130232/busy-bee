@@ -75,16 +75,38 @@ func toArtifactResponses(list []domainartifact.Artifact) []artifactResponse {
 	return out
 }
 
-// meetingDetailResponse 詳情含 transcript；列表不含（省流量）。
+// segmentResponse 分講者逐字稿片段（startMs/endMs 為毫秒）。
+type segmentResponse struct {
+	Speaker string `json:"speaker"`
+	Text    string `json:"text"`
+	StartMs int    `json:"startMs"`
+	EndMs   int    `json:"endMs"`
+}
+
+// meetingDetailResponse 詳情含 transcript 與分講者片段；列表不含（省流量）。
 type meetingDetailResponse struct {
 	meetingResponse
 	Transcript string `json:"transcript"`
+	// TranscriptSegments 分講者片段；供應商未分講者時為空陣列。
+	TranscriptSegments []segmentResponse `json:"transcriptSegments"`
+	// SpeakerNames 講者代號→顯示名（如 {"A":"Ben"}）；無自訂時為空物件。
+	SpeakerNames map[string]string `json:"speakerNames"`
 }
 
 func toMeetingDetailResponse(m domainmeeting.Meeting) meetingDetailResponse {
+	segments := make([]segmentResponse, len(m.TranscriptSegments))
+	for i, s := range m.TranscriptSegments {
+		segments[i] = segmentResponse{Speaker: s.Speaker, Text: s.Text, StartMs: s.StartMs, EndMs: s.EndMs}
+	}
+	names := m.SpeakerNames
+	if names == nil {
+		names = map[string]string{}
+	}
 	return meetingDetailResponse{
-		meetingResponse: toMeetingResponse(m),
-		Transcript:      m.Transcript,
+		meetingResponse:    toMeetingResponse(m),
+		Transcript:         m.Transcript,
+		TranscriptSegments: segments,
+		SpeakerNames:       names,
 	}
 }
 

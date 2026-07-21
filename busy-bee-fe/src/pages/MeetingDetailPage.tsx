@@ -1,7 +1,17 @@
-import { useCallback, useEffect, useState } from 'react'
+import { type CSSProperties, type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { BellRing, CalendarClock, ChevronLeft, Pencil, Trash2 } from 'lucide-react'
+import {
+  BellRing,
+  CalendarClock,
+  ChevronLeft,
+  FastForward,
+  Pause,
+  Pencil,
+  Play,
+  Rewind,
+  Trash2,
+} from 'lucide-react'
 
 import { ActionItemList } from '../components/ActionItemList'
 import { AppShell } from '../components/AppShell'
@@ -12,11 +22,13 @@ import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
 import {
   deleteScheduledMeeting,
   getMeeting,
+  getMeetingAudioURL,
   listArtifacts,
   listMeetingActionItems,
   renameMeeting,
   retryMeeting,
   toggleActionItem,
+  updateMeetingSpeakers,
   type ActionItem,
   type Artifact,
   type MeetingDetail,
@@ -39,8 +51,17 @@ export function MeetingDetailPage() {
   const [actionItems, setActionItems] = useState<ActionItem[]>([])
   const [tab, setTab] = useState<Tab>('prd')
   const [error, setError] = useState<string | null>(null)
+  const audioRef = useRef<HTMLAudioElement>(null)
 
   const isScheduled = meeting?.status === 'scheduled'
+
+  // 點逐字稿時間碼 → 音檔跳至該處並播放。
+  const seekAudio = (seconds: number) => {
+    const a = audioRef.current
+    if (!a) return
+    a.currentTime = seconds
+    void a.play()
+  }
 
   const load = useCallback(async () => {
     if (!id) return
@@ -120,10 +141,19 @@ export function MeetingDetailPage() {
         ? ''
         : (artifactByType.get(tab)?.content ?? '')
 
+  // 匯出的逐字稿以「顯示名: 內容」呈現（把代號 A/B 換成使用者設定的名字）。
+  const transcriptExport =
+    meeting.transcriptSegments.length > 0
+      ? meeting.transcriptSegments
+          .map((s) => `${meeting.speakerNames?.[s.speaker]?.trim() || s.speaker}: ${s.text}`)
+          .join('\n')
+      : meeting.transcript
+  const exportContent = tab === 'transcript' ? transcriptExport : docContent
+
   return (
     <AppShell>
       <header className="flex items-center gap-2">
-        <Link to="/" className="btn btn-ghost size-11 shrink-0 px-0" aria-label="返回">
+        <Link to="/meetings" className="btn btn-ghost size-11 shrink-0 px-0" aria-label="返回">
           <ChevronLeft className="size-5" />
         </Link>
         <EditableTitle
@@ -143,6 +173,8 @@ export function MeetingDetailPage() {
         </div>
       )}
 
+      <AudioPlayer meetingId={meeting.id} durationSeconds={meeting.durationSeconds} audioRef={audioRef} />
+
       <nav className="grid grid-cols-4 border-b border-border">
         {(Object.keys(tabLabels) as Tab[]).map((t) => (
           <button
@@ -158,9 +190,9 @@ export function MeetingDetailPage() {
         ))}
       </nav>
 
-      {tab !== 'action_items' && docContent && (
+      {tab !== 'action_items' && exportContent && (
         <div className="-mb-2 flex justify-end">
-          <ExportBar content={docContent} filename={`${meeting.title}-${tab}`} />
+          <ExportBar content={exportContent} filename={`${meeting.title}-${tab}`} />
         </div>
       )}
 
@@ -171,6 +203,8 @@ export function MeetingDetailPage() {
           ) : (
             <p className="m-0 text-sm text-muted">處理完成後將顯示於此。</p>
           )
+        ) : tab === 'transcript' && meeting.transcriptSegments.length > 0 ? (
+          <TranscriptView meeting={meeting} onUpdated={setMeeting} onSeek={seekAudio} />
         ) : docContent ? (
           tab === 'transcript' ? (
             <p className="text-sm leading-7 whitespace-pre-wrap">{docContent}</p>
@@ -244,7 +278,7 @@ function EditableTitle({
   }
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1.5">
-      <h1 className="m-0 min-w-0 truncate text-lg font-semibold">{title}</h1>
+      <MarqueeTitle title={title} />
       <button
         type="button"
         className="btn btn-ghost size-8 shrink-0 px-0 text-muted"
@@ -256,6 +290,311 @@ function EditableTitle({
       >
         <Pencil className="size-3.5" />
       </button>
+    </div>
+  )
+}
+
+/** 標題過長時以跑馬燈（音樂播放器風格）左右來回捲動；未溢出則靜止。 */
+function MarqueeTitle({ title }: { title: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const textRef = useRef<HTMLHeadingElement>(null)
+  const [shift, setShift] = useState(0)
+
+  useEffect(() => {
+    const c = containerRef.current
+    const t = textRef.current
+    if (!c || !t) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const overflow = t.scrollWidth - c.clientWidth
+    setShift(!reduce && overflow > 4 ? overflow : 0)
+  }, [title])
+
+  const style: CSSProperties | undefined =
+    shift > 0
+      ? ({
+          animation: `marquee ${Math.max(6, shift / 24)}s ease-in-out infinite alternate`,
+          '--marquee-shift': `-${shift}px`,
+        } as CSSProperties)
+      : undefined
+
+  return (
+    <div ref={containerRef} className="min-w-0 flex-1 overflow-hidden">
+      <h1 ref={textRef} className="m-0 inline-block whitespace-nowrap text-lg font-semibold" style={style}>
+        {title}
+      </h1>
+    </div>
+  )
+}
+
+// 講者晶片配色：依首次出現順序輪替。
+const SPEAKER_COLORS = [
+  'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+  'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+  'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  'bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400',
+  'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+  'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
+]
+
+function speakerColor(code: string, order: string[]): string {
+  const i = order.indexOf(code)
+  return SPEAKER_COLORS[(i < 0 ? 0 : i) % SPEAKER_COLORS.length]
+}
+
+/** 分講者逐字稿：講者晶片可點擊改名（PATCH speakers），逐段顯示。 */
+function TranscriptView({
+  meeting,
+  onUpdated,
+  onSeek,
+}: {
+  meeting: MeetingDetail
+  onUpdated: (m: MeetingDetail) => void
+  onSeek?: (seconds: number) => void
+}) {
+  const [editing, setEditing] = useState<string | null>(null)
+
+  const names = meeting.speakerNames ?? {}
+  const displayName = (code: string) => names[code]?.trim() || code
+  // 依首次出現順序取得講者代號
+  const order: string[] = []
+  for (const s of meeting.transcriptSegments) {
+    if (!order.includes(s.speaker)) order.push(s.speaker)
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* 講者圖例：點晶片可改名 */}
+      <div className="flex flex-wrap gap-2 border-b border-border pb-3">
+        {order.map((code) => (
+          <button
+            key={code}
+            type="button"
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${speakerColor(code, order)}`}
+            onClick={() => setEditing(code)}
+          >
+            {displayName(code)}
+            <Pencil className="size-3 opacity-60" />
+          </button>
+        ))}
+      </div>
+
+      {/* 逐段內容：講者晶片 + 起始時間碼 */}
+      <div className="flex flex-col gap-3">
+        {meeting.transcriptSegments.map((s, i) => (
+          <div key={i} className="flex gap-2">
+            <span className="flex shrink-0 flex-col items-start gap-0.5">
+              <span
+                className={`h-fit rounded-full px-2 py-0.5 text-xs font-medium ${speakerColor(s.speaker, order)}`}
+              >
+                {displayName(s.speaker)}
+              </span>
+              <button
+                type="button"
+                className="font-mono text-[10px] tabular-nums text-muted transition-colors hover:text-accent"
+                onClick={() => onSeek?.(s.startMs / 1000)}
+                aria-label={`跳至 ${fmtClock(s.startMs / 1000)}`}
+              >
+                {fmtClock(s.startMs / 1000)}
+              </button>
+            </span>
+            <p className="m-0 text-sm leading-7">{s.text}</p>
+          </div>
+        ))}
+      </div>
+
+      {editing && (
+        <SpeakerRenameSheet
+          meetingId={meeting.id}
+          code={editing}
+          current={displayName(editing)}
+          existingNames={names}
+          onClose={() => setEditing(null)}
+          onUpdated={(m) => {
+            onUpdated(m)
+            setEditing(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/** 講者改名底部彈窗（PATCH /meetings/:id/speakers）。 */
+function SpeakerRenameSheet({
+  meetingId,
+  code,
+  current,
+  existingNames,
+  onClose,
+  onUpdated,
+}: {
+  meetingId: string
+  code: string
+  current: string
+  existingNames: Record<string, string>
+  onClose: () => void
+  onUpdated: (m: MeetingDetail) => void
+}) {
+  const [draft, setDraft] = useState(current === code ? '' : current)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    const next = draft.trim()
+    setBusy(true)
+    setErr(null)
+    try {
+      const merged = { ...existingNames }
+      if (next) merged[code] = next
+      else delete merged[code]
+      const { meeting } = await updateMeetingSpeakers(await getIdToken(), meetingId, merged)
+      onUpdated(meeting)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '更新失敗')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="animate-fade-in fixed inset-0 z-40 bg-black/50" onClick={onClose} />
+      <div className="animate-sheet-up sm:animate-fade-in fixed inset-x-0 bottom-0 z-50 flex flex-col gap-3 rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:pb-4">
+        <p className="m-0 text-sm font-medium">重新命名講者 {code}</p>
+        <input
+          className="input h-10"
+          value={draft}
+          placeholder={`例如 Ben（留空還原為 ${code}）`}
+          disabled={busy}
+          autoFocus
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void save()
+            if (e.key === 'Escape') onClose()
+          }}
+        />
+        {err && <p className="m-0 text-xs text-red-500">{err}</p>}
+        <div className="flex gap-2">
+          <button type="button" className="btn btn-secondary flex-1" onClick={onClose} disabled={busy}>
+            取消
+          </button>
+          <button type="button" className="btn btn-primary flex-1" onClick={() => void save()} disabled={busy}>
+            {busy ? '儲存中…' : '儲存'}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// fmtClock 秒 → m:ss（時間碼／播放器共用）。
+function fmtClock(seconds: number): string {
+  if (!isFinite(seconds) || seconds < 0) seconds = 0
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+/** 音檔播放器：播放/暫停、±10 秒、可拖曳進度條。時長以後端 durationSeconds 為準
+ *  （MediaRecorder 產生的 webm 常無 duration metadata）。 */
+function AudioPlayer({
+  meetingId,
+  durationSeconds,
+  audioRef,
+}: {
+  meetingId: string
+  durationSeconds: number
+  audioRef: RefObject<HTMLAudioElement | null>
+}) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [playing, setPlaying] = useState(false)
+  const [cur, setCur] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    void (async () => {
+      try {
+        const { url } = await getMeetingAudioURL(await getIdToken(), meetingId)
+        if (active) setUrl(url)
+      } catch {
+        if (active) setFailed(true)
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [meetingId])
+
+  if (failed) return null
+
+  const total = durationSeconds > 0 ? durationSeconds : 0
+  const toggle = () => {
+    const a = audioRef.current
+    if (!a) return
+    if (a.paused) void a.play()
+    else a.pause()
+  }
+  const skip = (delta: number) => {
+    const a = audioRef.current
+    if (a) a.currentTime = Math.max(0, a.currentTime + delta)
+  }
+  const seek = (v: number) => {
+    const a = audioRef.current
+    if (a) a.currentTime = v
+    setCur(v)
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2.5">
+      <audio
+        ref={audioRef}
+        src={url ?? undefined}
+        preload="metadata"
+        onTimeUpdate={(e) => setCur(e.currentTarget.currentTime)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+      />
+      <button
+        type="button"
+        className="btn btn-ghost size-9 shrink-0 px-0 text-muted"
+        aria-label="倒退 10 秒"
+        onClick={() => skip(-10)}
+        disabled={!url}
+      >
+        <Rewind className="size-4" />
+      </button>
+      <button
+        type="button"
+        className="btn btn-primary size-10 shrink-0 rounded-full px-0"
+        aria-label={playing ? '暫停' : '播放'}
+        onClick={toggle}
+        disabled={!url}
+      >
+        {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+      </button>
+      <button
+        type="button"
+        className="btn btn-ghost size-9 shrink-0 px-0 text-muted"
+        aria-label="快轉 10 秒"
+        onClick={() => skip(10)}
+        disabled={!url}
+      >
+        <FastForward className="size-4" />
+      </button>
+      <span className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted">{fmtClock(cur)}</span>
+      <input
+        type="range"
+        className="min-w-0 flex-1 accent-accent"
+        min={0}
+        max={total || 0}
+        step={0.1}
+        value={Math.min(cur, total || 0)}
+        onChange={(e) => seek(Number(e.target.value))}
+        disabled={!url}
+        aria-label="播放進度"
+      />
+      <span className="w-9 shrink-0 font-mono text-[11px] tabular-nums text-muted">{fmtClock(total)}</span>
     </div>
   )
 }

@@ -36,6 +36,28 @@ func (uc *ManageUC) Rename(ctx context.Context, userID, meetingID uuid.UUID, tit
 	return m, nil
 }
 
+// UpdateSpeakerNames 更新講者代號→顯示名對應（本人限定）。
+// 清洗輸入：去空白、丟棄代號或名稱為空的項（名稱清空等同還原為代號預設）。
+func (uc *ManageUC) UpdateSpeakerNames(ctx context.Context, userID, meetingID uuid.UUID, names map[string]string) (domainmeeting.Meeting, error) {
+	clean := make(map[string]string, len(names))
+	for code, name := range names {
+		code = strings.TrimSpace(code)
+		name = strings.TrimSpace(name)
+		if code == "" || name == "" {
+			continue
+		}
+		clean[code] = name
+	}
+	m, err := uc.repo.UpdateSpeakerNames(ctx, meetingID, userID, clean)
+	if err != nil {
+		if errors.Is(err, domainmeeting.ErrNotFound) {
+			return domainmeeting.Meeting{}, apperr.New(errcode.NotFound)
+		}
+		return domainmeeting.Meeting{}, apperr.Wrap(err, errcode.Internal)
+	}
+	return m, nil
+}
+
 func (uc *ManageUC) DeleteScheduled(ctx context.Context, userID, meetingID uuid.UUID) error {
 	if err := uc.repo.DeleteScheduled(ctx, meetingID, userID); err != nil {
 		if errors.Is(err, domainmeeting.ErrNotFound) {

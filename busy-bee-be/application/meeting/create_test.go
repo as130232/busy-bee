@@ -42,7 +42,7 @@ func (f *fakeRepo) Get(_ context.Context, _ uuid.UUID) (domainmeeting.Meeting, e
 	return f.getResult, f.getErr
 }
 
-func (f *fakeRepo) SaveTranscript(_ context.Context, _ uuid.UUID, _ string, _ int) (domainmeeting.Meeting, error) {
+func (f *fakeRepo) SaveTranscript(_ context.Context, _ uuid.UUID, _ string, _ []domainmeeting.TranscriptSegment, _ int) (domainmeeting.Meeting, error) {
 	return f.getResult, nil
 }
 
@@ -67,6 +67,10 @@ type fakeStorage struct {
 func (f *fakeStorage) SignedUploadURL(_ context.Context, path, contentType string, maxBytes int64) (domainmeeting.UploadTarget, error) {
 	f.signedPath, f.signedType, f.signedMax = path, contentType, maxBytes
 	return f.target, nil
+}
+
+func (f *fakeStorage) SignedDownloadURL(_ context.Context, _ string) (string, error) {
+	return "https://signed-download", nil
 }
 
 func (f *fakeStorage) Exists(_ context.Context, path string) (bool, error) {

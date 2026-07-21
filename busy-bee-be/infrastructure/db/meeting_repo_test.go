@@ -113,7 +113,7 @@ func TestMeetingRepo_ListForUser_SearchAndOwnerFilter(t *testing.T) {
 	ctx := context.Background()
 
 	m1, _ := repo.Create(ctx, domainmeeting.Meeting{UserID: u.ID, Title: "架構評審會議", Status: domainmeeting.StatusCompleted})
-	repo.SaveTranscript(ctx, m1.ID, "今天討論了 pgvector 的導入", 60)
+	repo.SaveTranscript(ctx, m1.ID, "今天討論了 pgvector 的導入", nil, 60)
 	repo.Create(ctx, domainmeeting.Meeting{UserID: u.ID, Title: "每週例會", Status: domainmeeting.StatusPending})
 	repo.Create(ctx, domainmeeting.Meeting{UserID: other.ID, Title: "別人的架構會議", Status: domainmeeting.StatusPending})
 
@@ -199,5 +199,76 @@ func TestMeetingRepo_DeleteScheduledOnly(t *testing.T) {
 	}
 	if err := repo.DeleteScheduled(context.Background(), done.ID, u.ID); !errors.Is(err, domainmeeting.ErrNotFound) {
 		t.Errorf("delete non-scheduled err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestMeetingRepo_SaveTranscriptSegmentsRoundTrip(t *testing.T) {
+	pool := testPool(t)
+	u := testUser(t, pool)
+	repo := NewMeetingRepo(pool)
+	ctx := context.Background()
+
+	m, err := repo.Create(ctx, domainmeeting.Meeting{
+		UserID: u.ID, Title: "三人討論", Status: domainmeeting.StatusTranscribing,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	segs := []domainmeeting.TranscriptSegment{
+		{Speaker: "A", Text: "我們先討論架構", StartMs: 0, EndMs: 1500},
+		{Speaker: "B", Text: "用 Clean Architecture", StartMs: 1500, EndMs: 3200},
+	}
+	if _, err := repo.SaveTranscript(ctx, m.ID, "A: 我們先討論架構\nB: 用 Clean Architecture", segs, 3); err != nil {
+		t.Fatalf("SaveTranscript() error = %v", err)
+	}
+
+	got, err := repo.GetForUser(ctx, m.ID, u.ID)
+	if err != nil {
+		t.Fatalf("GetForUser() error = %v", err)
+	}
+	if len(got.TranscriptSegments) != 2 {
+		t.Fatalf("segments len = %d, want 2", len(got.TranscriptSegments))
+	}
+	if got.TranscriptSegments[0].Speaker != "A" || got.TranscriptSegments[0].Text != "我們先討論架構" ||
+		got.TranscriptSegments[1].EndMs != 3200 {
+		t.Errorf("segments round-trip mismatch: %+v", got.TranscriptSegments)
+	}
+}
+
+func TestMeetingRepo_UpdateSpeakerNames(t *testing.T) {
+	pool := testPool(t)
+	u := testUser(t, pool)
+	other := testUser(t, pool)
+	repo := NewMeetingRepo(pool)
+	ctx := context.Background()
+
+	m, err := repo.Create(ctx, domainmeeting.Meeting{
+		UserID: u.ID, Title: "命名測試", Status: domainmeeting.StatusCompleted,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	updated, err := repo.UpdateSpeakerNames(ctx, m.ID, u.ID, map[string]string{"A": "Ben"})
+	if err != nil {
+		t.Fatalf("UpdateSpeakerNames() error = %v", err)
+	}
+	if updated.SpeakerNames["A"] != "Ben" {
+		t.Errorf("SpeakerNames = %v, want A=Ben", updated.SpeakerNames)
+	}
+
+	// round-trip 再讀一次
+	got, err := repo.GetForUser(ctx, m.ID, u.ID)
+	if err != nil {
+		t.Fatalf("GetForUser() error = %v", err)
+	}
+	if got.SpeakerNames["A"] != "Ben" {
+		t.Errorf("persisted SpeakerNames = %v, want A=Ben", got.SpeakerNames)
+	}
+
+	// 非本人不可改（owner 過濾）→ ErrNotFound
+	if _, err := repo.UpdateSpeakerNames(ctx, m.ID, other.ID, map[string]string{"A": "駭客"}); !errors.Is(err, domainmeeting.ErrNotFound) {
+		t.Errorf("non-owner UpdateSpeakerNames err = %v, want ErrNotFound", err)
 	}
 }

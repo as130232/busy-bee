@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pgvector/pgvector-go"
 )
 
 type ActionItem struct {
@@ -32,20 +33,22 @@ type Artifact struct {
 }
 
 type Meeting struct {
-	ID              uuid.UUID
-	UserID          uuid.UUID
-	Title           string
-	AudioGcsPath    string
-	Status          string
-	Transcript      string
-	DurationSeconds int32
-	ErrorMessage    string
-	ScheduledAt     *time.Time
-	RemindBeforeMin int32
-	ProcessedAt     *time.Time
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	RemindedAt      *time.Time
+	ID                 uuid.UUID
+	UserID             uuid.UUID
+	Title              string
+	AudioGcsPath       string
+	Status             string
+	Transcript         string
+	DurationSeconds    int32
+	ErrorMessage       string
+	ScheduledAt        *time.Time
+	RemindBeforeMin    int32
+	ProcessedAt        *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	RemindedAt         *time.Time
+	TranscriptSegments []byte
+	SpeakerNames       []byte
 }
 
 type PushSubscription struct {
@@ -55,6 +58,16 @@ type PushSubscription struct {
 	P256dhKey string
 	AuthKey   string
 	CreatedAt time.Time
+}
+
+type TranscriptChunk struct {
+	ID         uuid.UUID
+	MeetingID  uuid.UUID
+	UserID     uuid.UUID
+	ChunkIndex int32
+	Content    string
+	Embedding  *pgvector.Vector
+	CreatedAt  time.Time
 }
 
 type User struct {

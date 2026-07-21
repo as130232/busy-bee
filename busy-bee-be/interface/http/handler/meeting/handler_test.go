@@ -34,7 +34,7 @@ func (f *fakeRepo) UpdateStatus(_ context.Context, id uuid.UUID, _, to domainmee
 func (f *fakeRepo) Get(_ context.Context, id uuid.UUID) (domainmeeting.Meeting, error) {
 	return domainmeeting.Meeting{ID: id}, nil
 }
-func (f *fakeRepo) SaveTranscript(_ context.Context, id uuid.UUID, _ string, _ int) (domainmeeting.Meeting, error) {
+func (f *fakeRepo) SaveTranscript(_ context.Context, id uuid.UUID, _ string, _ []domainmeeting.TranscriptSegment, _ int) (domainmeeting.Meeting, error) {
 	return domainmeeting.Meeting{ID: id}, nil
 }
 func (f *fakeRepo) SetCompleted(_ context.Context, id uuid.UUID) (domainmeeting.Meeting, error) {
@@ -48,6 +48,9 @@ type fakeStorage struct{}
 
 func (f *fakeStorage) SignedUploadURL(_ context.Context, _, _ string, _ int64) (domainmeeting.UploadTarget, error) {
 	return domainmeeting.UploadTarget{URL: "https://signed", Headers: map[string]string{"Content-Type": "audio/webm"}}, nil
+}
+func (f *fakeStorage) SignedDownloadURL(_ context.Context, _ string) (string, error) {
+	return "https://signed-download", nil
 }
 func (f *fakeStorage) Exists(_ context.Context, _ string) (bool, error) { return true, nil }
 func (f *fakeStorage) Download(_ context.Context, _ string) (io.ReadCloser, int64, error) {
@@ -251,6 +254,10 @@ func (f *fakeRepo) Rename(_ context.Context, id, _ uuid.UUID, title string) (dom
 }
 
 func (f *fakeRepo) DeleteScheduled(_ context.Context, _, _ uuid.UUID) error { return nil }
+
+func (f *fakeRepo) UpdateSpeakerNames(_ context.Context, id, userID uuid.UUID, names map[string]string) (domainmeeting.Meeting, error) {
+	return domainmeeting.Meeting{ID: id, UserID: userID, SpeakerNames: names}, nil
+}
 
 func TestRename_ReturnsUpdatedTitle(t *testing.T) {
 	e := testRouter(t)

@@ -106,6 +106,19 @@
   }
 }
 
+/* 標題跑馬燈（音樂播放器風格）：兩端各停頓後左右來回捲動。位移量由 --marquee-shift 動態帶入，搭配 alternate。
+   定義在 @theme 之外，避免 Tailwind v4 因無 --animate-* 引用而將其移除（改用 inline style 套用）。 */
+@keyframes marquee {
+  0%,
+  12% {
+    transform: translateX(0);
+  }
+  88%,
+  100% {
+    transform: translateX(var(--marquee-shift, 0));
+  }
+}
+
 @layer base {
   body {
     margin: 0;

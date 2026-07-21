@@ -36,7 +36,7 @@
 | 即時通訊 | WebSocket（nhooyr.io/websocket） | 預留即時逐字稿升級空間（ADR-002，單 instance 免 Pub/Sub） |
 | Logger | slog（stdlib） | 結構化，無額外依賴 |
 | 設定管理 | env-based（.env.local） | 同 sport-hub，無 YAML |
-| STT | Groq Whisper Large v3 | 成本低、速度快、中英夾雜佳 |
+| STT | Deepgram nova-2（`language=zh-TW`、diarize=true） | 聲學語者分離（分講者逐字稿）；Groq/Gemini client 保留未 wire，換供應商只動 `infrastructure/stt/`（ADR-011） |
 | LLM | Gemini（`google.golang.org/genai`；預設 gemini-flash-latest，env 可切 gemini-3-flash-preview） | 已有 key；interface 隔離可抽換（ADR-007） |
 | 音訊儲存 | GCS | 與 Cloud Run 同區低延遲 |
 | 身份驗證 | Firebase Auth（Google Login） | 小團隊快速落地 |
@@ -152,7 +152,7 @@ StatusNotifier / TaskQueue / AudioStorage
 1. **建立**：FE `POST /meetings` → auth middleware 驗 JWT → application 建 meeting 記錄 → 回 GCS signed upload URL
 2. **直傳**：FE `PUT {signed URL}` 直傳 GCS（不經後端，ADR-001）
 3. **觸發**：FE `POST /meetings/{id}/complete-upload` → application 驗證物件存在 → 排入記憶體佇列 → status = pending
-4. **轉錄**：worker 下載音訊 →（超過上限則 ffmpeg 壓縮）→ Groq STT → 存 transcript → status: transcribing → analyzing
+4. **轉錄**：worker 下載音訊 → Deepgram STT（diarize）→ 依 speaker 聚合成 A/B/C 片段 → 攤平成帶講者前綴文字存 transcript + transcript_segments（空稿標 failed 可重試）→ status: transcribing → analyzing
 5. **生成**：Gemini 產出 PRD → 存 artifact → 產出 Tech Spec → 存 artifact → status = completed
 6. **通知**：每次狀態變更 → in-process notifier → 單機 WS hub 轉發給該 user 的連線（ADR-010 單 instance）
 7. **失敗**：任一階段失敗 → 記憶體佇列 backoff retry（冪等，ADR-009）→ 達上限 → status = failed；重啟遺失由 Sweeper 掃 DB 復原
@@ -167,7 +167,7 @@ StatusNotifier / TaskQueue / AudioStorage
 |------|------|--------------|
 | Neon（PostgreSQL，production） | 主資料庫 | 斷線時 API 回 503；scale-to-zero 喚醒由 pgx pool 重連吸收 |
 | GCS | 音訊儲存 | 斷線時無法產 signed URL → 上傳功能回 503 |
-| Groq API | STT | 記憶體佇列 backoff retry；達上限標 failed，Sweeper 週期復原 |
+| Deepgram API | STT（語者分離） | 記憶體佇列 backoff retry；空稿/達上限標 failed，Sweeper 週期復原；換供應商只動 `infrastructure/stt/`（ADR-011） |
 | Gemini API | LLM 文件生成 | 同上；LLMClient interface 隔離，可換供應商（ADR-007） |
 | Firebase Auth | JWT 驗證 | Admin SDK 本地驗簽（public key cache），Firebase 短暫不可用不影響已簽發 token 驗證 |
 | Secret Manager | API keys | 啟動時載入；載入失敗直接 fail fast，拒絕啟動 |
@@ -282,6 +282,17 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 - **後果**：retry 零成本、失敗恢復乾淨；代價是每階段多一次 DB 查詢（可忽略）。
 - **替代方案**：任務去重 key → 否決：擋不住「中途失敗後重跑前半段」的重複扣費。
 
+#### ADR-011: 語者分離（diarization）用 Deepgram nova-2，不用 Gemini 音訊
+
+- **狀態**：採納（Phase 16）
+- **背景**：需求為多人會議逐字稿分講者（A/B/C）。Groq Whisper 不支援 diarization，須換供應商。
+- **決策**：用 **Deepgram nova-2 + `language=zh-TW` + diarize=true**（聲學語者分離，依聲紋分群），藏在既有 `STTClient` port 後。
+- **後果**：一個聲音＝一位講者，單人不會被誤拆；換供應商只動 `infrastructure/stt/`。成本隨用隨付、零常駐，符合 scale-to-zero。
+- **踩坑（保留紀錄）**：
+  1. **Gemini 音訊做 diarization 不可靠**——它是 LLM「推測」講者（依內容/語氣），會把一個人硬拆成 A/B/C；架構性問題，prompt 調不好。已放棄。
+  2. **Deepgram nova-3 + `language=multi` 對中文回傳空結果**（有 duration 但 words 空 → 逐字稿空白）。必須用 nova-2 + zh-TW。
+- **替代方案**：AssemblyAI / ElevenLabs Scribe（同為聲學分離，未實測）；自架 pyannote → 否決（需 GPU 常駐，違反 scale-to-zero）。性別/年齡辨識不做（不可靠且無必要，代號＋手動改名已滿足）。
+
 ---
 
 ## 10. 已取消 / 暫緩設計
@@ -292,7 +303,7 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 | OTel tracing / circuit breaker / singleflight / L1L2 快取 | ⏸ 暫緩 | sport-hub 的進階模式，本專案流量不需要，避免過度設計 | — |
 | 即時逐字稿 streaming | ⏸ 暫緩 | WebSocket 架構已預留；等 MVP 驗證後再評估 | — |
 | pgvector 語意搜尋 | ⏸ 暫緩 | post-MVP 升級路徑，見 ADR-006 | — |
-| 說話者分離（diarization，A/B/C 標記） | ⏸ 暫緩 | Groq Whisper 不支援。post-MVP 兩條路：(A) 換支援 diarization 的 STT（AssemblyAI / Deepgram / ElevenLabs Scribe），STTClient port 隔離、只動 infrastructure/stt；(B) 實驗 Gemini 直接吃音訊做轉錄+說話者標記一步到位。性別辨識不做（不可靠且無必要，代號已滿足） | — |
+| 說話者分離（diarization，A/B/C 標記） | ✅ 完成 | Phase 16 以 Deepgram nova-2 聲學分離實作（ADR-011）；含講者改名、音檔播放。性別辨識不做（不可靠且無必要，代號＋改名已滿足） | Phase 16 |
 
 ---
 

@@ -17,8 +17,14 @@ SELECT * FROM meetings WHERE id = $1;
 
 -- name: SaveMeetingTranscript :one
 UPDATE meetings
-SET transcript = $2, duration_seconds = $3, updated_at = now()
+SET transcript = $2, transcript_segments = $3, duration_seconds = $4, updated_at = now()
 WHERE id = $1
+RETURNING *;
+
+-- name: UpdateMeetingSpeakerNames :one
+UPDATE meetings
+SET speaker_names = sqlc.arg(speaker_names), updated_at = now()
+WHERE id = $1 AND user_id = $2
 RETURNING *;
 
 -- name: SetMeetingCompleted :one

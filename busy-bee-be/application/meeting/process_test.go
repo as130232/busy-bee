@@ -20,6 +20,7 @@ type processFakeRepo struct {
 	meeting       domainmeeting.Meeting
 	transitions   []string
 	savedText     string
+	savedSegments []domainmeeting.TranscriptSegment
 	savedDuration int
 	completedCall bool
 	failedMessage string
@@ -42,9 +43,10 @@ func (f *processFakeRepo) UpdateStatus(_ context.Context, _ uuid.UUID, from, to 
 	f.meeting.Status = to
 	return f.meeting, nil
 }
-func (f *processFakeRepo) SaveTranscript(_ context.Context, _ uuid.UUID, text string, duration int) (domainmeeting.Meeting, error) {
-	f.savedText, f.savedDuration = text, duration
+func (f *processFakeRepo) SaveTranscript(_ context.Context, _ uuid.UUID, text string, segments []domainmeeting.TranscriptSegment, duration int) (domainmeeting.Meeting, error) {
+	f.savedText, f.savedSegments, f.savedDuration = text, segments, duration
 	f.meeting.Transcript = text
+	f.meeting.TranscriptSegments = segments
 	f.meeting.DurationSeconds = duration
 	return f.meeting, nil
 }
@@ -71,6 +73,9 @@ type processFakeStorage struct {
 
 func (f *processFakeStorage) SignedUploadURL(_ context.Context, _, _ string, _ int64) (domainmeeting.UploadTarget, error) {
 	return domainmeeting.UploadTarget{}, nil
+}
+func (f *processFakeStorage) SignedDownloadURL(_ context.Context, _ string) (string, error) {
+	return "https://signed-download", nil
 }
 func (f *processFakeStorage) Exists(_ context.Context, _ string) (bool, error) { return true, nil }
 func (f *processFakeStorage) Download(_ context.Context, path string) (io.ReadCloser, int64, error) {
