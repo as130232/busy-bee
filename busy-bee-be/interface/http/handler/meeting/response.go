@@ -15,6 +15,7 @@ type meetingResponse struct {
 	ID              string     `json:"id"`
 	Title           string     `json:"title"`
 	Status          string     `json:"status"`
+	Summary         string     `json:"summary,omitempty"`
 	DurationSeconds int        `json:"durationSeconds"`
 	ErrorMessage    string     `json:"errorMessage,omitempty"`
 	ScheduledAt     *time.Time `json:"scheduledAt,omitempty"`
@@ -40,6 +41,7 @@ func toMeetingResponse(m domainmeeting.Meeting) meetingResponse {
 		ID:              m.ID.String(),
 		Title:           m.Title,
 		Status:          string(m.Status),
+		Summary:         m.Summary,
 		DurationSeconds: m.DurationSeconds,
 		ErrorMessage:    m.ErrorMessage,
 		ScheduledAt:     m.ScheduledAt,

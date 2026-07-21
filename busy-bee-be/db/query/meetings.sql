@@ -27,6 +27,12 @@ SET speaker_names = sqlc.arg(speaker_names), updated_at = now()
 WHERE id = $1 AND user_id = $2
 RETURNING *;
 
+-- name: UpdateMeetingSummary :one
+UPDATE meetings
+SET summary = $2, updated_at = now()
+WHERE id = $1
+RETURNING *;
+
 -- name: UpdateMeetingTranscriptSegments :one
 UPDATE meetings
 SET transcript = $3, transcript_segments = $4, updated_at = now()

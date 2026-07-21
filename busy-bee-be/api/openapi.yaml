@@ -782,6 +782,7 @@ components:
         status:
           type: string
           enum: [scheduled, pending, transcribing, analyzing, completed, failed]
+        summary: { type: string, description: "一句話摘要（TL;DR），未處理則不出現" }
         durationSeconds: { type: integer }
         errorMessage: { type: string }
         scheduledAt: { type: string, format: date-time }

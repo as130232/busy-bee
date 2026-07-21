@@ -98,6 +98,14 @@ func (r *MeetingRepo) SaveTranscript(ctx context.Context, id uuid.UUID, transcri
 	return toDomainMeeting(row), nil
 }
 
+func (r *MeetingRepo) SaveSummary(ctx context.Context, id uuid.UUID, summary string) (domainmeeting.Meeting, error) {
+	row, err := r.q.UpdateMeetingSummary(ctx, sqlcgen.UpdateMeetingSummaryParams{ID: id, Summary: summary})
+	if err != nil {
+		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingSummary: %w", err)
+	}
+	return toDomainMeeting(row), nil
+}
+
 func (r *MeetingRepo) UpdateTranscriptSegments(ctx context.Context, id, userID uuid.UUID, segments []domainmeeting.TranscriptSegment, transcript string) (domainmeeting.Meeting, error) {
 	segJSON, err := marshalJSONB(segments, "[]")
 	if err != nil {
@@ -198,6 +206,7 @@ func toDomainMeeting(row sqlcgen.Meeting) domainmeeting.Meeting {
 		AudioGCSPath:       row.AudioGcsPath,
 		Status:             domainmeeting.Status(row.Status),
 		Transcript:         row.Transcript,
+		Summary:            row.Summary,
 		TranscriptSegments: segments,
 		SpeakerNames:       speakerNames,
 		DurationSeconds:    int(row.DurationSeconds),

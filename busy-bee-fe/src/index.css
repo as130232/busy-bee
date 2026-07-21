@@ -47,6 +47,18 @@
   --animate-sheet-up: sheet-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-breathe: breathe 4s ease-in-out infinite;
   --animate-sonar: sonar 2.8s ease-out infinite;
+  --animate-loader-dot: loader-dot 1.4s ease-in-out infinite;
+
+  @keyframes loader-dot {
+    0%,
+    60%,
+    100% {
+      opacity: 0.2;
+    }
+    30% {
+      opacity: 1;
+    }
+  }
 
   @keyframes breathe {
     0%,

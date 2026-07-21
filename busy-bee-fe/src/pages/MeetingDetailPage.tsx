@@ -16,6 +16,7 @@ import {
 import { ActionItemList } from '../components/ActionItemList'
 import { AppShell } from '../components/AppShell'
 import { ExportBar } from '../components/ExportBar'
+import { Loader } from '../components/Loader'
 import { ScheduleSheet } from '../components/ScheduleForm'
 import { StatusBadge } from '../components/StatusBadge'
 import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
@@ -135,7 +136,7 @@ export function MeetingDetailPage() {
   if (!meeting) {
     return (
       <AppShell>
-        <p className="py-10 text-center text-sm text-muted">載入中…</p>
+        <Loader className="py-16" />
       </AppShell>
     )
   }
@@ -195,6 +196,12 @@ export function MeetingDetailPage() {
             重新處理
           </button>
         </div>
+      )}
+
+      {meeting.summary && (
+        <p className="m-0 rounded-xl border border-accent/20 bg-accent/5 px-4 py-3 text-sm leading-6 text-fg">
+          {meeting.summary}
+        </p>
       )}
 
       <AudioPlayer meetingId={meeting.id} durationSeconds={meeting.durationSeconds} audioRef={audioRef} />

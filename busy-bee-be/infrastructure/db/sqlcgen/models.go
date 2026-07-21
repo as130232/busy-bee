@@ -49,6 +49,7 @@ type Meeting struct {
 	RemindedAt         *time.Time
 	TranscriptSegments []byte
 	SpeakerNames       []byte
+	Summary            string
 }
 
 type PushSubscription struct {

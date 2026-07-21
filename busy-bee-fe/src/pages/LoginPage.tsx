@@ -1,13 +1,18 @@
 import { Navigate } from 'react-router-dom'
 
 import { BrandMark } from '../components/AppShell'
+import { Loader } from '../components/Loader'
 import { useAuth } from '../hooks/useAuth'
 
 export function LoginPage() {
   const { user, initializing, error, signIn } = useAuth()
 
   if (initializing) {
-    return <main className="flex min-h-dvh items-center justify-center text-muted">載入中…</main>
+    return (
+      <main className="flex min-h-dvh items-center justify-center">
+        <Loader />
+      </main>
+    )
   }
   if (user) return <Navigate to="/" replace />
 
