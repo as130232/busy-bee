@@ -45,6 +45,33 @@ func TestHealth(t *testing.T) {
 	}
 }
 
+func TestVersion_ReturnsInjectedBuildInfo(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{Env: "local", Port: "8080"},
+		Log:    config.LogConfig{Level: "error"},
+	}
+	e := NewEngine(cfg, Deps{Commit: "a0cbf3a", BuiltAt: "2026-07-21T10:30:00Z"})
+
+	w := httptest.NewRecorder()
+	e.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/version", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var body struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if body.Data["commit"] != "a0cbf3a" {
+		t.Errorf("data.commit = %v, want a0cbf3a", body.Data["commit"])
+	}
+	if body.Data["builtAt"] != "2026-07-21T10:30:00Z" {
+		t.Errorf("data.builtAt = %v, want injected build time", body.Data["builtAt"])
+	}
+}
+
 func TestRequestIDMiddleware(t *testing.T) {
 	e := testEngine(t)
 	w := httptest.NewRecorder()

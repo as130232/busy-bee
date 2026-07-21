@@ -36,6 +36,13 @@ import (
 const sweepInterval = 2 * time.Minute
 const indexBackfillInterval = 5 * time.Minute
 
+// 建置資訊，由 Dockerfile 經 -ldflags "-X main.commit=... -X main.builtAt=..." 注入；
+// 本地未注入時為預設值。/version 端點回傳，供部署後確認上線的 commit。
+var (
+	commit  = "dev"
+	builtAt = "unknown"
+)
+
 const shutdownTimeout = 10 * time.Second
 
 func main() {
@@ -149,6 +156,8 @@ func main() {
 		PushHandler:     pushHandler,
 		InternalHandler: internalHandler,
 		Hub:             hub,
+		Commit:          commit,
+		BuiltAt:         builtAt,
 	}
 	srv := httpserver.NewServer(cfg, deps)
 
