@@ -98,6 +98,26 @@ func (r *MeetingRepo) SaveTranscript(ctx context.Context, id uuid.UUID, transcri
 	return toDomainMeeting(row), nil
 }
 
+func (r *MeetingRepo) UpdateTranscriptSegments(ctx context.Context, id, userID uuid.UUID, segments []domainmeeting.TranscriptSegment, transcript string) (domainmeeting.Meeting, error) {
+	segJSON, err := marshalJSONB(segments, "[]")
+	if err != nil {
+		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingTranscriptSegments marshal: %w", err)
+	}
+	row, err := r.q.UpdateMeetingTranscriptSegments(ctx, sqlcgen.UpdateMeetingTranscriptSegmentsParams{
+		ID:                 id,
+		UserID:             userID,
+		Transcript:         transcript,
+		TranscriptSegments: segJSON,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domainmeeting.Meeting{}, domainmeeting.ErrNotFound
+		}
+		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingTranscriptSegments: %w", err)
+	}
+	return toDomainMeeting(row), nil
+}
+
 func (r *MeetingRepo) UpdateSpeakerNames(ctx context.Context, id, userID uuid.UUID, names map[string]string) (domainmeeting.Meeting, error) {
 	namesJSON, err := marshalJSONB(names, "{}")
 	if err != nil {

@@ -432,6 +432,49 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
+  /api/v1/meetings/{id}/transcript:
+    patch:
+      tags: [meetings]
+      summary: 修正單一逐字稿片段文字（本人限定）
+      operationId: editMeetingSegment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [index, text]
+              properties:
+                index: { type: integer, description: 片段索引（0 起） }
+                text: { type: string, description: 修正後文字 }
+      responses:
+        "200":
+          description: 已更新
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [meeting]
+                        properties:
+                          meeting:
+                            $ref: "#/components/schemas/MeetingDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 不存在或非本人
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
   /api/v1/meetings/{id}/audio-url:
     get:
       tags: [meetings]

@@ -167,6 +167,23 @@ export interface paths {
         patch: operations["updateMeetingSpeakers"];
         trace?: never;
     };
+    "/api/v1/meetings/{id}/transcript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 修正單一逐字稿片段文字（本人限定） */
+        patch: operations["editMeetingSegment"];
+        trace?: never;
+    };
     "/api/v1/meetings/{id}/audio-url": {
         parameters: {
             query?: never;
@@ -832,6 +849,51 @@ export interface operations {
                     speakerNames: {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            meeting: components["schemas"]["MeetingDetail"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    editMeetingSegment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description 片段索引（0 起） */
+                    index: number;
+                    /** @description 修正後文字 */
+                    text: string;
                 };
             };
         };

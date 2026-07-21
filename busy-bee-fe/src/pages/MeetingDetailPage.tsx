@@ -21,6 +21,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
 import {
   deleteMeeting,
+  editMeetingSegment,
   getMeeting,
   getMeetingAudioURL,
   listArtifacts,
@@ -32,6 +33,7 @@ import {
   type ActionItem,
   type Artifact,
   type MeetingDetail,
+  type TranscriptSegment,
 } from '../services/api/client'
 import { getIdToken } from '../services/token'
 
@@ -422,26 +424,19 @@ function TranscriptView({
         ))}
       </div>
 
-      {/* 逐段內容：標頭（▶ 播放 · 時間 · 講者）整列可點跳播 + 全寬文字 */}
+      {/* 逐段內容：標頭（時間 · 講者 · ▶）整列可點跳播、✏️ 可修正文字 + 全寬文字 */}
       <div className="flex flex-col gap-4">
         {meeting.transcriptSegments.map((s, i) => (
-          <div key={i} className="flex flex-col gap-1">
-            <button
-              type="button"
-              className="group -mx-1 flex w-full items-center gap-2 rounded-md px-1 py-0.5 transition-colors hover:bg-surface-hover"
-              onClick={() => onSeek?.(s.startMs / 1000)}
-              aria-label={`從 ${fmtClock(s.startMs / 1000)} 播放`}
-            >
-              <span className="font-mono text-[11px] tabular-nums text-muted">{fmtClock(s.startMs / 1000)}</span>
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-medium ${speakerColor(s.speaker, order)}`}
-              >
-                {displayName(s.speaker)}
-              </span>
-              <Play className="ml-auto size-3.5 shrink-0 text-muted transition-colors group-hover:text-accent" />
-            </button>
-            <p className="m-0 text-sm leading-7">{s.text}</p>
-          </div>
+          <SegmentRow
+            key={i}
+            meetingId={meeting.id}
+            index={i}
+            seg={s}
+            speakerName={displayName(s.speaker)}
+            colorClass={speakerColor(s.speaker, order)}
+            onSeek={onSeek}
+            onUpdated={onUpdated}
+          />
         ))}
       </div>
 
@@ -457,6 +452,112 @@ function TranscriptView({
             setEditing(null)
           }}
         />
+      )}
+    </div>
+  )
+}
+
+/** 單段逐字稿：標頭可跳播、✏️ 可就地修正文字（PATCH /meetings/:id/transcript）。 */
+function SegmentRow({
+  meetingId,
+  index,
+  seg,
+  speakerName,
+  colorClass,
+  onSeek,
+  onUpdated,
+}: {
+  meetingId: string
+  index: number
+  seg: TranscriptSegment
+  speakerName: string
+  colorClass: string
+  onSeek?: (seconds: number) => void
+  onUpdated: (m: MeetingDetail) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(seg.text)
+  const [busy, setBusy] = useState(false)
+
+  const save = async () => {
+    const next = draft.trim()
+    if (!next || next === seg.text) {
+      setEditing(false)
+      setDraft(seg.text)
+      return
+    }
+    setBusy(true)
+    try {
+      const { meeting } = await editMeetingSegment(await getIdToken(), meetingId, index, next)
+      onUpdated(meeting)
+      setEditing(false)
+    } catch {
+      setDraft(seg.text) // 失敗還原
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          className="group -mx-1 flex flex-1 items-center gap-2 rounded-md px-1 py-0.5 transition-colors hover:bg-surface-hover"
+          onClick={() => onSeek?.(seg.startMs / 1000)}
+          aria-label={`從 ${fmtClock(seg.startMs / 1000)} 播放`}
+        >
+          <span className="font-mono text-[11px] tabular-nums text-muted">{fmtClock(seg.startMs / 1000)}</span>
+          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${colorClass}`}>{speakerName}</span>
+          <Play className="ml-auto size-3.5 shrink-0 text-muted transition-colors group-hover:text-accent" />
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost size-7 shrink-0 px-0 text-muted hover:text-accent"
+          aria-label="修正文字"
+          onClick={() => {
+            setDraft(seg.text)
+            setEditing(true)
+          }}
+        >
+          <Pencil className="size-3.5" />
+        </button>
+      </div>
+
+      {editing ? (
+        <div className="flex flex-col gap-2">
+          <textarea
+            className="input min-h-[4.5rem] text-sm leading-7"
+            value={draft}
+            disabled={busy}
+            autoFocus
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setDraft(seg.text)
+                setEditing(false)
+              }
+            }}
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="btn btn-secondary h-9"
+              disabled={busy}
+              onClick={() => {
+                setDraft(seg.text)
+                setEditing(false)
+              }}
+            >
+              取消
+            </button>
+            <button type="button" className="btn btn-primary h-9" disabled={busy} onClick={() => void save()}>
+              {busy ? '儲存中…' : '儲存'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="m-0 text-sm leading-7">{seg.text}</p>
       )}
     </div>
   )

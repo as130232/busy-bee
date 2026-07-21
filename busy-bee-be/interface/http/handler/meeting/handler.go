@@ -28,6 +28,7 @@ type HandlerUCs struct {
 	Retry          *appmeeting.RetryUC
 	Schedule       *appmeeting.ScheduleUC
 	Manage         *appmeeting.ManageUC
+	EditSegment    *appmeeting.EditSegmentUC
 	Search         *appsearch.SearchUC // 選填；nil 時 List 維持純字面
 }
 
@@ -276,6 +277,35 @@ func (h *Handler) UpdateSpeakers(c *gin.Context) {
 	}
 
 	m, err := h.uc.Manage.UpdateSpeakerNames(c.Request.Context(), userID, meetingID, req.SpeakerNames)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.OK(c, gin.H{"meeting": toMeetingDetailResponse(m)})
+}
+
+// EditSegment PATCH /api/v1/meetings/:id/transcript — 修正單一逐字稿片段文字（本人限定）。
+func (h *Handler) EditSegment(c *gin.Context) {
+	userID, ok := domainuser.IDFrom(c.Request.Context())
+	if !ok {
+		response.Fail(c, apperr.New(errcode.Unauthorized))
+		return
+	}
+	meetingID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "id"))
+		return
+	}
+	var req struct {
+		Index int    `json:"index"`
+		Text  string `json:"text"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "body"))
+		return
+	}
+
+	m, err := h.uc.EditSegment.Execute(c.Request.Context(), userID, meetingID, req.Index, req.Text)
 	if err != nil {
 		response.Fail(c, err)
 		return

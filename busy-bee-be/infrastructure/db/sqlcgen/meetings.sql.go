@@ -579,3 +579,46 @@ func (q *Queries) UpdateMeetingStatus(ctx context.Context, arg UpdateMeetingStat
 	)
 	return i, err
 }
+
+const updateMeetingTranscriptSegments = `-- name: UpdateMeetingTranscriptSegments :one
+UPDATE meetings
+SET transcript = $3, transcript_segments = $4, updated_at = now()
+WHERE id = $1 AND user_id = $2
+RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names
+`
+
+type UpdateMeetingTranscriptSegmentsParams struct {
+	ID                 uuid.UUID
+	UserID             uuid.UUID
+	Transcript         string
+	TranscriptSegments []byte
+}
+
+func (q *Queries) UpdateMeetingTranscriptSegments(ctx context.Context, arg UpdateMeetingTranscriptSegmentsParams) (Meeting, error) {
+	row := q.db.QueryRow(ctx, updateMeetingTranscriptSegments,
+		arg.ID,
+		arg.UserID,
+		arg.Transcript,
+		arg.TranscriptSegments,
+	)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Title,
+		&i.AudioGcsPath,
+		&i.Status,
+		&i.Transcript,
+		&i.DurationSeconds,
+		&i.ErrorMessage,
+		&i.ScheduledAt,
+		&i.RemindBeforeMin,
+		&i.ProcessedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.RemindedAt,
+		&i.TranscriptSegments,
+		&i.SpeakerNames,
+	)
+	return i, err
+}

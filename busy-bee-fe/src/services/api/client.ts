@@ -208,6 +208,24 @@ export function renameMeeting(
 
 export type TranscriptSegment = components['schemas']['TranscriptSegment']
 
+/** 修正單一逐字稿片段文字（校正 STT 錯字），回傳含最新逐字稿的詳情 */
+export function editMeetingSegment(
+  idToken: string,
+  meetingId: string,
+  index: number,
+  text: string,
+): Promise<{ meeting: MeetingDetail }> {
+  return request<{ meeting: MeetingDetail }>(
+    `/api/v1/meetings/${meetingId}/transcript`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ index, text }),
+    },
+    idToken,
+  )
+}
+
 /** 更新講者代號→顯示名（如 {"A":"Ben"}），回傳含最新逐字稿的詳情 */
 export function updateMeetingSpeakers(
   idToken: string,

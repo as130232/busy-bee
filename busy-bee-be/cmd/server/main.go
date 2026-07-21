@@ -138,6 +138,7 @@ func main() {
 			Retry:          appmeeting.NewRetryUC(meetingRepo, taskQueue),
 			Schedule:       appmeeting.NewScheduleUC(meetingRepo),
 			Manage:         appmeeting.NewManageUC(meetingRepo),
+			EditSegment:    appmeeting.NewEditSegmentUC(meetingRepo),
 			Search:         appsearch.NewSearchUC(meetingRepo, llmClient, chunkRepo, meetingRepo),
 		}),
 		ActionItemHandler: actionitemhandler.NewHandler(actionitemhandler.HandlerUCs{
