@@ -38,7 +38,7 @@ func TestEditSegment_UpdatesTextAndReflattens(t *testing.T) {
 			{Speaker: "B", Text: "對啊"},
 		},
 	}}
-	uc := NewEditSegmentUC(repo)
+	uc := NewEditSegmentUC(repo, nil)
 
 	m, err := uc.Execute(context.Background(), uuid.New(), uuid.New(), 0, "  情緒價值  ")
 	if err != nil {
@@ -57,7 +57,7 @@ func TestEditSegment_UpdatesTextAndReflattens(t *testing.T) {
 }
 
 func TestEditSegment_EmptyTextParamError(t *testing.T) {
-	uc := NewEditSegmentUC(&fakeSegmentRepo{})
+	uc := NewEditSegmentUC(&fakeSegmentRepo{}, nil)
 	_, err := uc.Execute(context.Background(), uuid.New(), uuid.New(), 0, "   ")
 	var ae *apperr.Error
 	if !errors.As(err, &ae) || ae.Code != errcode.Param {
@@ -69,7 +69,7 @@ func TestEditSegment_IndexOutOfRange(t *testing.T) {
 	repo := &fakeSegmentRepo{meeting: domainmeeting.Meeting{
 		TranscriptSegments: []domainmeeting.TranscriptSegment{{Speaker: "A", Text: "x"}},
 	}}
-	uc := NewEditSegmentUC(repo)
+	uc := NewEditSegmentUC(repo, nil)
 	_, err := uc.Execute(context.Background(), uuid.New(), uuid.New(), 5, "新文字")
 	var ae *apperr.Error
 	if !errors.As(err, &ae) || ae.Code != errcode.Param {

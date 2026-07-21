@@ -100,9 +100,10 @@ func (q *Queries) CreateScheduledMeeting(ctx context.Context, arg CreateSchedule
 	return i, err
 }
 
-const deleteMeeting = `-- name: DeleteMeeting :execrows
+const deleteMeeting = `-- name: DeleteMeeting :one
 DELETE FROM meetings
 WHERE id = $1 AND user_id = $2
+RETURNING audio_gcs_path
 `
 
 type DeleteMeetingParams struct {
@@ -110,12 +111,11 @@ type DeleteMeetingParams struct {
 	UserID uuid.UUID
 }
 
-func (q *Queries) DeleteMeeting(ctx context.Context, arg DeleteMeetingParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteMeeting, arg.ID, arg.UserID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+func (q *Queries) DeleteMeeting(ctx context.Context, arg DeleteMeetingParams) (string, error) {
+	row := q.db.QueryRow(ctx, deleteMeeting, arg.ID, arg.UserID)
+	var audio_gcs_path string
+	err := row.Scan(&audio_gcs_path)
+	return audio_gcs_path, err
 }
 
 const getMeeting = `-- name: GetMeeting :one
@@ -232,7 +232,8 @@ SELECT id, user_id, title, audio_gcs_path, status, transcript, duration_seconds,
 WHERE user_id = $1
   AND ($2::text = ''
        OR title ILIKE '%' || $2 || '%'
-       OR transcript ILIKE '%' || $2 || '%')
+       OR transcript ILIKE '%' || $2 || '%'
+       OR speaker_names::text ILIKE '%' || $2 || '%')
 ORDER BY created_at DESC
 LIMIT 100
 `

@@ -110,6 +110,14 @@ func (s *Storage) Download(ctx context.Context, objectPath string) (io.ReadClose
 	return r, r.Attrs.Size, nil
 }
 
+func (s *Storage) Delete(ctx context.Context, objectPath string) error {
+	err := s.client.Bucket(s.bucket).Object(objectPath).Delete(ctx)
+	if err != nil && !errors.Is(err, storage.ErrObjectNotExist) {
+		return fmt.Errorf("gcs.Delete: %w", err)
+	}
+	return nil
+}
+
 func (s *Storage) Exists(ctx context.Context, objectPath string) (bool, error) {
 	_, err := s.client.Bucket(s.bucket).Object(objectPath).Attrs(ctx)
 	if errors.Is(err, storage.ErrObjectNotExist) {

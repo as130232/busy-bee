@@ -21,4 +21,6 @@ type AudioStorage interface {
 	Exists(ctx context.Context, objectPath string) (bool, error)
 	// Download 讀取物件內容與大小；caller 負責 Close。
 	Download(ctx context.Context, objectPath string) (io.ReadCloser, int64, error)
+	// Delete 刪除物件（刪會議時清理音檔）；物件不存在視為成功。
+	Delete(ctx context.Context, objectPath string) error
 }

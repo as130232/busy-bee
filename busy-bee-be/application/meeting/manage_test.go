@@ -15,6 +15,7 @@ import (
 type fakeManageRepo struct {
 	renamedTitle        string
 	deletedID           uuid.UUID
+	deletePath          string // Delete 回傳的音檔路徑
 	updatedSpeakerNames map[string]string
 	err                 error
 }
@@ -27,11 +28,24 @@ func (f *fakeManageRepo) Rename(_ context.Context, id, userID uuid.UUID, title s
 	return domainmeeting.Meeting{ID: id, UserID: userID, Title: title}, nil
 }
 
-func (f *fakeManageRepo) Delete(_ context.Context, id, _ uuid.UUID) error {
+func (f *fakeManageRepo) Delete(_ context.Context, id, _ uuid.UUID) (string, error) {
 	if f.err != nil {
-		return f.err
+		return "", f.err
 	}
 	f.deletedID = id
+	return f.deletePath, nil
+}
+
+// fakeDeleter 音檔刪除的 no-op stub。
+type fakeDeleter struct{}
+
+func (fakeDeleter) Delete(_ context.Context, _ string) error { return nil }
+
+// trackDeleter 記錄被要求刪除的音檔路徑。
+type trackDeleter struct{ deleted string }
+
+func (d *trackDeleter) Delete(_ context.Context, path string) error {
+	d.deleted = path
 	return nil
 }
 
@@ -45,7 +59,7 @@ func (f *fakeManageRepo) UpdateSpeakerNames(_ context.Context, id, userID uuid.U
 
 func TestManage_RenameTrimsTitle(t *testing.T) {
 	repo := &fakeManageRepo{}
-	uc := NewManageUC(repo)
+	uc := NewManageUC(repo, fakeDeleter{})
 
 	m, err := uc.Rename(context.Background(), uuid.New(), uuid.New(), "  新名稱  ")
 	if err != nil {
@@ -57,7 +71,7 @@ func TestManage_RenameTrimsTitle(t *testing.T) {
 }
 
 func TestManage_RenameEmptyTitleParamError(t *testing.T) {
-	uc := NewManageUC(&fakeManageRepo{})
+	uc := NewManageUC(&fakeManageRepo{}, fakeDeleter{})
 
 	_, err := uc.Rename(context.Background(), uuid.New(), uuid.New(), "   ")
 
@@ -68,7 +82,7 @@ func TestManage_RenameEmptyTitleParamError(t *testing.T) {
 }
 
 func TestManage_RenameNotFoundMapped(t *testing.T) {
-	uc := NewManageUC(&fakeManageRepo{err: domainmeeting.ErrNotFound})
+	uc := NewManageUC(&fakeManageRepo{err: domainmeeting.ErrNotFound}, fakeDeleter{})
 
 	_, err := uc.Rename(context.Background(), uuid.New(), uuid.New(), "m")
 
@@ -80,7 +94,7 @@ func TestManage_RenameNotFoundMapped(t *testing.T) {
 
 func TestManage_Delete(t *testing.T) {
 	repo := &fakeManageRepo{}
-	uc := NewManageUC(repo)
+	uc := NewManageUC(repo, fakeDeleter{})
 	id := uuid.New()
 
 	if err := uc.Delete(context.Background(), uuid.New(), id); err != nil {
@@ -91,8 +105,21 @@ func TestManage_Delete(t *testing.T) {
 	}
 }
 
+func TestManage_DeleteCleansAudio(t *testing.T) {
+	repo := &fakeManageRepo{deletePath: "audio/u/m.webm"}
+	deleter := &trackDeleter{}
+	uc := NewManageUC(repo, deleter)
+
+	if err := uc.Delete(context.Background(), uuid.New(), uuid.New()); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	if deleter.deleted != "audio/u/m.webm" {
+		t.Errorf("GCS 音檔未清理，deleted=%q", deleter.deleted)
+	}
+}
+
 func TestManage_DeleteNotFoundMapped(t *testing.T) {
-	uc := NewManageUC(&fakeManageRepo{err: domainmeeting.ErrNotFound})
+	uc := NewManageUC(&fakeManageRepo{err: domainmeeting.ErrNotFound}, fakeDeleter{})
 
 	err := uc.Delete(context.Background(), uuid.New(), uuid.New())
 
@@ -104,12 +131,12 @@ func TestManage_DeleteNotFoundMapped(t *testing.T) {
 
 func TestManage_UpdateSpeakerNamesCleansInput(t *testing.T) {
 	repo := &fakeManageRepo{}
-	uc := NewManageUC(repo)
+	uc := NewManageUC(repo, fakeDeleter{})
 
 	_, err := uc.UpdateSpeakerNames(context.Background(), uuid.New(), uuid.New(), map[string]string{
 		"A": "  Ben  ", // 去空白
-		"B": "   ",      // 名稱空 → 丟棄（還原為代號）
-		" ": "Nobody",   // 代號空 → 丟棄
+		"B": "   ",     // 名稱空 → 丟棄（還原為代號）
+		" ": "Nobody",  // 代號空 → 丟棄
 	})
 	if err != nil {
 		t.Fatalf("UpdateSpeakerNames() error = %v", err)
@@ -120,7 +147,7 @@ func TestManage_UpdateSpeakerNamesCleansInput(t *testing.T) {
 }
 
 func TestManage_UpdateSpeakerNamesNotFoundMapped(t *testing.T) {
-	uc := NewManageUC(&fakeManageRepo{err: domainmeeting.ErrNotFound})
+	uc := NewManageUC(&fakeManageRepo{err: domainmeeting.ErrNotFound}, fakeDeleter{})
 
 	_, err := uc.UpdateSpeakerNames(context.Background(), uuid.New(), uuid.New(), map[string]string{"A": "Ben"})
 

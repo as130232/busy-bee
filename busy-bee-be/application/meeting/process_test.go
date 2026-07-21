@@ -77,6 +77,7 @@ func (f *processFakeStorage) SignedUploadURL(_ context.Context, _, _ string, _ i
 func (f *processFakeStorage) SignedDownloadURL(_ context.Context, _ string) (string, error) {
 	return "https://signed-download", nil
 }
+func (f *processFakeStorage) Delete(_ context.Context, _ string) error         { return nil }
 func (f *processFakeStorage) Exists(_ context.Context, _ string) (bool, error) { return true, nil }
 func (f *processFakeStorage) Download(_ context.Context, path string) (io.ReadCloser, int64, error) {
 	f.downloaded = path

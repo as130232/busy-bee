@@ -3,6 +3,7 @@ package meeting
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path"
@@ -83,6 +84,9 @@ func (uc *ProcessUC) notify(ctx context.Context, m domainmeeting.Meeting) {
 func (uc *ProcessUC) Execute(ctx context.Context, meetingID uuid.UUID) error {
 	m, err := uc.repo.Get(ctx, meetingID)
 	if err != nil {
+		if errors.Is(err, domainmeeting.ErrNotFound) {
+			return nil // 會議已被刪除，任務作廢（不重試、不記錯誤）
+		}
 		return fmt.Errorf("process get meeting: %w", err)
 	}
 

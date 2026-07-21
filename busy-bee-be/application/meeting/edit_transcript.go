@@ -3,6 +3,7 @@ package meeting
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/google/uuid"
@@ -18,13 +19,14 @@ type segmentEditorRepo interface {
 	UpdateTranscriptSegments(ctx context.Context, id, userID uuid.UUID, segments []domainmeeting.TranscriptSegment, transcript string) (domainmeeting.Meeting, error)
 }
 
-// EditSegmentUC 修正單一逐字稿片段的文字（校正 STT 錯字），並同步更新攤平 transcript。
+// EditSegmentUC 修正單一逐字稿片段的文字（校正 STT 錯字），並同步更新攤平 transcript 與語意索引。
 type EditSegmentUC struct {
-	repo segmentEditorRepo
+	repo    segmentEditorRepo
+	indexer MeetingIndexer // 選填；nil 時跳過重新索引
 }
 
-func NewEditSegmentUC(repo segmentEditorRepo) *EditSegmentUC {
-	return &EditSegmentUC{repo: repo}
+func NewEditSegmentUC(repo segmentEditorRepo, indexer MeetingIndexer) *EditSegmentUC {
+	return &EditSegmentUC{repo: repo, indexer: indexer}
 }
 
 // Execute 更新第 index 段的文字（本人限定）。text 去空白後不得為空；index 需在範圍內。
@@ -54,6 +56,13 @@ func (uc *EditSegmentUC) Execute(ctx context.Context, userID, meetingID uuid.UUI
 			return domainmeeting.Meeting{}, apperr.New(errcode.NotFound)
 		}
 		return domainmeeting.Meeting{}, apperr.Wrap(err, errcode.Internal)
+	}
+
+	// 修正後重建語意索引（best-effort；失敗不影響編輯結果，避免搜尋引用舊文字）。
+	if uc.indexer != nil {
+		if ierr := uc.indexer.Execute(ctx, meetingID); ierr != nil {
+			slog.WarnContext(ctx, "meeting.edit_segment.reindex_failed", "meeting_id", meetingID, "err", ierr)
+		}
 	}
 	return updated, nil
 }

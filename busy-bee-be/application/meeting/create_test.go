@@ -73,6 +73,8 @@ func (f *fakeStorage) SignedDownloadURL(_ context.Context, _ string) (string, er
 	return "https://signed-download", nil
 }
 
+func (f *fakeStorage) Delete(_ context.Context, _ string) error { return nil }
+
 func (f *fakeStorage) Exists(_ context.Context, path string) (bool, error) {
 	f.existsQueried = path
 	return f.existsResult, f.existsErr

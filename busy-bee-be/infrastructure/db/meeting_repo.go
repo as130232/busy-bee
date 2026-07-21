@@ -285,13 +285,14 @@ func (r *MeetingRepo) Rename(ctx context.Context, id, userID uuid.UUID, title st
 	return toDomainMeeting(row), nil
 }
 
-func (r *MeetingRepo) Delete(ctx context.Context, id, userID uuid.UUID) error {
-	n, err := r.q.DeleteMeeting(ctx, sqlcgen.DeleteMeetingParams{ID: id, UserID: userID})
+// Delete 刪除會議並回傳其音檔路徑（供上層清理 GCS）；不存在或非本人回 ErrNotFound。
+func (r *MeetingRepo) Delete(ctx context.Context, id, userID uuid.UUID) (string, error) {
+	audioPath, err := r.q.DeleteMeeting(ctx, sqlcgen.DeleteMeetingParams{ID: id, UserID: userID})
 	if err != nil {
-		return fmt.Errorf("db.DeleteMeeting: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", domainmeeting.ErrNotFound
+		}
+		return "", fmt.Errorf("db.DeleteMeeting: %w", err)
 	}
-	if n == 0 {
-		return domainmeeting.ErrNotFound
-	}
-	return nil
+	return audioPath, nil
 }

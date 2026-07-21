@@ -170,6 +170,30 @@ func TestMeetingRepo_RenameOwnerOnly(t *testing.T) {
 	}
 }
 
+func TestMeetingRepo_ListForUser_SearchBySpeakerName(t *testing.T) {
+	pool := testPool(t)
+	u := testUser(t, pool)
+	repo := NewMeetingRepo(pool)
+	ctx := context.Background()
+
+	m, err := repo.Create(ctx, domainmeeting.Meeting{UserID: u.ID, Title: "週會", Status: domainmeeting.StatusCompleted})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := repo.UpdateSpeakerNames(ctx, m.ID, u.ID, map[string]string{"A": "Ben"}); err != nil {
+		t.Fatalf("UpdateSpeakerNames() error = %v", err)
+	}
+
+	// 搜尋自訂講者名應命中（比對 speaker_names）
+	got, err := repo.ListForUser(ctx, u.ID, "Ben")
+	if err != nil {
+		t.Fatalf("ListForUser() error = %v", err)
+	}
+	if len(got) != 1 || got[0].ID != m.ID {
+		t.Errorf("search by speaker name = %+v, want the meeting", got)
+	}
+}
+
 func TestMeetingRepo_Delete(t *testing.T) {
 	pool := testPool(t)
 	u := testUser(t, pool)
@@ -186,12 +210,12 @@ func TestMeetingRepo_Delete(t *testing.T) {
 	}
 
 	// 非本人不可刪 → ErrNotFound
-	if err := repo.Delete(ctx, done.ID, other.ID); !errors.Is(err, domainmeeting.ErrNotFound) {
+	if _, err := repo.Delete(ctx, done.ID, other.ID); !errors.Is(err, domainmeeting.ErrNotFound) {
 		t.Errorf("non-owner Delete err = %v, want ErrNotFound", err)
 	}
 
 	// 本人刪除成功，後續查不到
-	if err := repo.Delete(ctx, done.ID, u.ID); err != nil {
+	if _, err := repo.Delete(ctx, done.ID, u.ID); err != nil {
 		t.Fatalf("Delete() error = %v", err)
 	}
 	if _, err := repo.GetForUser(ctx, done.ID, u.ID); !errors.Is(err, domainmeeting.ErrNotFound) {
@@ -199,7 +223,7 @@ func TestMeetingRepo_Delete(t *testing.T) {
 	}
 
 	// 不存在的會議回 ErrNotFound
-	if err := repo.Delete(ctx, uuid.New(), u.ID); !errors.Is(err, domainmeeting.ErrNotFound) {
+	if _, err := repo.Delete(ctx, uuid.New(), u.ID); !errors.Is(err, domainmeeting.ErrNotFound) {
 		t.Errorf("delete non-existent err = %v, want ErrNotFound", err)
 	}
 }

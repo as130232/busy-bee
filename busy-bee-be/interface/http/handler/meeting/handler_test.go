@@ -52,6 +52,7 @@ func (f *fakeStorage) SignedUploadURL(_ context.Context, _, _ string, _ int64) (
 func (f *fakeStorage) SignedDownloadURL(_ context.Context, _ string) (string, error) {
 	return "https://signed-download", nil
 }
+func (f *fakeStorage) Delete(_ context.Context, _ string) error         { return nil }
 func (f *fakeStorage) Exists(_ context.Context, _ string) (bool, error) { return true, nil }
 func (f *fakeStorage) Download(_ context.Context, _ string) (io.ReadCloser, int64, error) {
 	return io.NopCloser(strings.NewReader("")), 0, nil
@@ -72,7 +73,7 @@ func testRouter(t *testing.T) *gin.Engine {
 		List:           appmeeting.NewListUC(repo),
 		Get:            appmeeting.NewGetUC(repo),
 		Retry:          appmeeting.NewRetryUC(repo, q),
-		Manage:         appmeeting.NewManageUC(repo),
+		Manage:         appmeeting.NewManageUC(repo, st),
 		Search:         appsearch.NewSearchUC(repo, &fakeEmbedder{}, &fakeSearchChunks{}, repo),
 	})
 
@@ -253,7 +254,7 @@ func (f *fakeRepo) Rename(_ context.Context, id, _ uuid.UUID, title string) (dom
 	return domainmeeting.Meeting{ID: id, Title: title}, nil
 }
 
-func (f *fakeRepo) Delete(_ context.Context, _, _ uuid.UUID) error { return nil }
+func (f *fakeRepo) Delete(_ context.Context, _, _ uuid.UUID) (string, error) { return "", nil }
 
 func (f *fakeRepo) UpdateSpeakerNames(_ context.Context, id, userID uuid.UUID, names map[string]string) (domainmeeting.Meeting, error) {
 	return domainmeeting.Meeting{ID: id, UserID: userID, SpeakerNames: names}, nil
