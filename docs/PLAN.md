@@ -1,14 +1,15 @@
 # Busy Bee 開發計畫與進度追蹤
 
 > 依 `docs/PRODUCT.md` 的 F-ID 與優先序切分 Phase，記錄任務狀態與進度。
-> 更新日期：2026-07-21
+> 更新日期：2026-07-22
 
 ---
 
 ## 當前焦點
 
-Phase 16（語者辨識 diarization：Deepgram + 講者改名 + 音檔播放）程式完成、全測試綠、本地 e2e 人工驗收通過（分講者、改名、播放、時間碼跳播），待 merge 與 production 部署（DEEPGRAM_API_KEY 進 Secret Manager、prod 跑 migration 000007）。
-Phase 15（RAG 語意搜尋：pgvector + Gemini embedding）程式全數完成、全測試綠，待本地 e2e 人工驗收與 merge（15.9）。
+Phase 16（語者辨識 diarization：Deepgram + 講者改名 + 音檔播放）已 merge（`1da9020`）並部署 production：2026-07-22 實測 `DEEPGRAM_API_KEY` 已掛 Cloud Run（secret `busy-bee-deepgram-key:1`）、migration 000007 已隨 CI 自動套用、prod serving commit `687d52f`。全數完成（16.7 ✅）。
+Phase 15（RAG 語意搜尋：pgvector + Gemini embedding）已 merge（`805659b`）並部署：migration 000006（含 `CREATE EXTENSION vector`）已隨 CI 套用、prod 已上線。僅剩 prod 裝置端 e2e 人工驗收（搜「定價」找「價格策略」）— 15.9。
+Phase 14.3（錄音/上傳邊角情境）程式已具備，僅待裝置端人工驗收。
 Phase 13 已 merge main（F-ACTION / F-EXPORT / 深連結 / 視覺重設計 / Tab 導覽 / 行動裝置修正，人工驗收通過）。
 Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁）程式完成，待人工驗收。
 推播通知顯示問題仍未解（用戶端顯示層）；自動提醒維持暫緩（scale-to-zero 決策）。
@@ -49,7 +50,7 @@ Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁
 | ✅ | Phase 13 — 擴充第一波（F-ACTION、F-EXPORT、深連結） | post-MVP |
 | 🔄 | Phase 14 — 會議與行程管理（F-MANAGE）+ 邊角驗收 | post-MVP |
 | 🔄 | Phase 15 — RAG 語意搜尋（pgvector + Gemini embedding） | post-MVP |
-| 🔄 | Phase 16 — 語者辨識 diarization（Deepgram）+ 講者改名 + 音檔播放 | post-MVP |
+| ✅ | Phase 16 — 語者辨識 diarization（Deepgram）+ 講者改名 + 音檔播放 | post-MVP |
 
 ---
 
@@ -284,7 +285,7 @@ Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁
 | ✅ | 15.6 | SearchUC | `application/search/search.go` | hybrid 合併去重排序 + embed/向量失敗降級純字面（TDD 2 例） | `7e347f7` |
 | ✅ | 15.7 | worker 索引觸發+回填 | `worker/indexer.go`, `application/meeting/process.go` | completed 後 best-effort 觸發、RunIndexBackfill 回填未索引會議（TDD 1 例） | `f641ba0` |
 | ✅ | 15.8 | HTTP handler + wiring + 前端 | `interface/http/...`, `cmd/server/main.go`, `busy-bee-fe/...` | List search 非空走 SearchUC、回 matchSnippet/matchType；openapi + 重生 TS client；main.go wiring（handler TDD 2 例）；前端 MeetingList 顯示片段 | `4f5c7af, 3e1f969` |
-| ⬜ | 15.9 | 人工驗收 + 部署 | — | 搜「定價」找到「價格策略」；owner 過濾、降級可用；Neon `CREATE EXTENSION vector`（migration 已含）；merge | — |
+| 🔄 | 15.9 | 人工驗收 + 部署 | — | 部署已完成（merge `805659b`；migration 000006 含 `CREATE EXTENSION vector` 已隨 CI 自動套用；prod serving `687d52f`，2026-07-22 實測）。僅剩 prod 裝置端 e2e：搜「定價」找到「價格策略」、owner 過濾、embedding 失敗降級純字面 | — |
 
 ---
 
@@ -302,7 +303,7 @@ Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁
 | ✅ | 16.4 | 改名 + 空結果保護 | `application/meeting/manage.go`, `process.go` | `UpdateSpeakerNames` use case（清洗+owner）；STT 空稿標失敗可重試、log 片段/講者數 | — |
 | ✅ | 16.5 | HTTP + 音檔播放端點 | `interface/http/...`, `application/meeting/audio.go`, `gcs/storage.go` | `PATCH /meetings/:id/speakers`；`GET /meetings/:id/audio-url`（`SignedDownloadURL`）；detail 回 segments/speakerNames；openapi | — |
 | ✅ | 16.6 | 前端 | `busy-bee-fe/.../MeetingDetailPage.tsx`, `MeetingList.tsx`, `index.css` | 分講者顯示（晶片配色+時間碼靠左，可點跳播）、改名 bottom-sheet、音檔播放器（±10s/進度條）、匯出用顯示名、列表時長「分秒」tag、返回回列表、標題跑馬燈 | — |
-| ⬜ | 16.7 | merge + 部署 | — | DEEPGRAM_API_KEY 進 Secret Manager；prod 跑 migration 000007；merge | — |
+| ✅ | 16.7 | merge + 部署 | — | merge `1da9020`；`DEEPGRAM_API_KEY` 已掛 Cloud Run（secret `busy-bee-deepgram-key:1`，runtime SA busy-bee-storage）；migration 000007 已隨 CI 自動套用；prod serving `687d52f`（2026-07-22 實測驗證） | `1da9020` |
 
 ---
 
@@ -355,7 +356,8 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-20 | Phase 13 人工驗收通過（除深連結，卡推播顯示）；Phase 14 程式完成：改名/刪除 API（TDD）+ 排程專屬詳情頁 + ScheduleSheet 編輯模式 + 行程頁過濾上傳暫存；盤點確認錄音/上傳邊角程式已存在僅待驗收 | `3f6d23b, 9a4b756` |
 | 2026-07-19 | 找到提醒不觸發根因（scale-to-zero 下 instance=0，進程內 sweeper 不跑）：新增密鑰保護的 `/internal/sweep-reminders` 端點備用（TDD 3 例）。**決策：暫緩自動提醒**——每分鐘 Scheduler 會讓 instance 常駐、失去 scale-to-zero 省錢意義；使用者選擇先不啟用，端點休眠（無密鑰無觸發器＝零額外費用）。未來若要啟用，較省的方向是 Cloud Tasks 精準排程（提醒時刻才喚醒一次） | `49bb919` |
 | 2026-07-20 | Phase 15 RAG 語意搜尋程式完成（15.1–15.8）：pgvector 前置＋migration 000006（transcript_chunks、hnsw cosine、CASCADE）→ domain/search entity/ports＋SplitIntoChunks 切塊（TDD）→ Gemini Embed（gemini-embedding-001 @768 維）→ chunk_repo（手寫 pgx＋pgvector-go，DISTINCT ON＋`<=>`＋owner 過濾，真實 PG 整合測試）→ IndexUC/SearchUC（hybrid 合併＋embedding 失敗降級純字面，TDD）→ worker 回填掃描＋completed best-effort 觸發 → List handler 走 SearchUC 回 matchSnippet＋openapi/TS client＋main.go wiring＋前端片段顯示。全後端 build/vet/test 綠、前端 typecheck/build 綠；待本地 e2e 人工驗收（搜「定價」找「價格策略」）＋Neon extension＋merge（15.9） | `c6a0726..3e1f969` |
-| 2026-07-21 | Phase 16 語者辨識完成（16.1–16.6）＋本地 e2e 驗收通過：domain segments/FlattenSegments（TDD）→ migration 000007（transcript_segments/speaker_names jsonb）＋repo round-trip → STT 換 **Deepgram nova-2 zh-TW**（聲學分離；踩坑：nova-3+multi 中文空、Gemini 音訊誤拆多人皆棄）→ `UpdateSpeakerNames` 改名 use case＋STT 空結果保護 → `PATCH /speakers`＋音檔播放端點 `GET /audio-url`（GCS SignedDownloadURL）→ 前端分講者顯示（晶片配色/時間碼靠左可點跳播）＋改名 sheet＋音檔播放器＋匯出用顯示名＋列表時長分秒 tag＋返回回列表＋標題跑馬燈。全後端 build/vet/test 綠、前端 typecheck/lint/build 綠；清理拋棄式 POC。待 merge＋部署（Deepgram key 進 Secret Manager、prod migration 000007）(16.7) | 待填 |
+| 2026-07-21 | Phase 16 語者辨識完成（16.1–16.6）＋本地 e2e 驗收通過：domain segments/FlattenSegments（TDD）→ migration 000007（transcript_segments/speaker_names jsonb）＋repo round-trip → STT 換 **Deepgram nova-2 zh-TW**（聲學分離；踩坑：nova-3+multi 中文空、Gemini 音訊誤拆多人皆棄）→ `UpdateSpeakerNames` 改名 use case＋STT 空結果保護 → `PATCH /speakers`＋音檔播放端點 `GET /audio-url`（GCS SignedDownloadURL）→ 前端分講者顯示（晶片配色/時間碼靠左可點跳播）＋改名 sheet＋音檔播放器＋匯出用顯示名＋列表時長分秒 tag＋返回回列表＋標題跑馬燈。全後端 build/vet/test 綠、前端 typecheck/lint/build 綠；清理拋棄式 POC。待 merge＋部署（Deepgram key 進 Secret Manager、prod migration 000007）(16.7) | `f53fb6c..1da9020` |
+| 2026-07-22 | 部署收尾實測驗證：Phase 15/16 皆已 merge 並上線。gcloud 確認 `DEEPGRAM_API_KEY` 已掛 Cloud Run（secret `busy-bee-deepgram-key:1`，runtime SA busy-bee-storage）＋Groq/Gemini/VAPID 皆在；prod `/version` 回 commit `687d52f`（main HEAD，晚於 15/16 merge），revision `00023-w9m` serving，故 CI 自動 migration 000006（含 `CREATE EXTENSION vector`）/000007 已套用。16.7 標 ✅、Phase 16 overview ✅；15.9 部署部分完成、僅剩 prod 裝置端 e2e 驗收。**結論：部署/基建零待辦，剩裝置端人工驗收（15.9 RAG、14.3 邊角、Phase 16 diarization e2e）** | — |
 
 ---
 
