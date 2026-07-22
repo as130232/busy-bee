@@ -50,6 +50,8 @@ type Meeting struct {
 	TranscriptSegments []byte
 	SpeakerNames       []byte
 	Summary            string
+	Scenario           string
+	SummarySections    []byte
 }
 
 type PushSubscription struct {

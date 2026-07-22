@@ -16,6 +16,7 @@ type meetingResponse struct {
 	ID              string     `json:"id"`
 	Title           string     `json:"title"`
 	Status          string     `json:"status"`
+	Scenario        string     `json:"scenario"`
 	Summary         string     `json:"summary,omitempty"`
 	DurationSeconds int        `json:"durationSeconds"`
 	ErrorMessage    string     `json:"errorMessage,omitempty"`
@@ -42,6 +43,7 @@ func toMeetingResponse(m domainmeeting.Meeting) meetingResponse {
 		ID:              m.ID.String(),
 		Title:           m.Title,
 		Status:          string(m.Status),
+		Scenario:        string(m.Scenario),
 		Summary:         m.Summary,
 		DurationSeconds: m.DurationSeconds,
 		ErrorMessage:    m.ErrorMessage,
@@ -86,6 +88,13 @@ type segmentResponse struct {
 	EndMs   int    `json:"endMs"`
 }
 
+// summarySectionResponse 依情境產生的結構化摘要區塊。
+type summarySectionResponse struct {
+	Type  string   `json:"type"`
+	Title string   `json:"title"`
+	Items []string `json:"items"`
+}
+
 // meetingDetailResponse 詳情含 transcript 與分講者片段；列表不含（省流量）。
 type meetingDetailResponse struct {
 	meetingResponse
@@ -94,6 +103,8 @@ type meetingDetailResponse struct {
 	TranscriptSegments []segmentResponse `json:"transcriptSegments"`
 	// SpeakerNames 講者代號→顯示名（如 {"A":"Ben"}）；無自訂時為空物件。
 	SpeakerNames map[string]string `json:"speakerNames"`
+	// SummarySections 依情境產生的結構化摘要區塊；未處理時為空陣列。
+	SummarySections []summarySectionResponse `json:"summarySections"`
 }
 
 func toMeetingDetailResponse(m domainmeeting.Meeting) meetingDetailResponse {
@@ -105,11 +116,20 @@ func toMeetingDetailResponse(m domainmeeting.Meeting) meetingDetailResponse {
 	if names == nil {
 		names = map[string]string{}
 	}
+	sections := make([]summarySectionResponse, len(m.SummarySections))
+	for i, s := range m.SummarySections {
+		items := s.Items
+		if items == nil {
+			items = []string{}
+		}
+		sections[i] = summarySectionResponse{Type: s.Type, Title: s.Title, Items: items}
+	}
 	return meetingDetailResponse{
 		meetingResponse:    toMeetingResponse(m),
 		Transcript:         m.Transcript,
 		TranscriptSegments: segments,
 		SpeakerNames:       names,
+		SummarySections:    sections,
 	}
 }
 

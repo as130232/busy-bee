@@ -44,15 +44,55 @@ func (s Status) CanTransitionTo(next Status) bool {
 	return false
 }
 
+// Scenario 紀錄情境：決定 AI 產出的結構化區塊模板。
+// meeting（會議）為預設；casual（閒聊）著重重點/結論/待辦。日後新增情境 = 新 prompt 模板 + section 定義。
+type Scenario string
+
+const (
+	ScenarioMeeting Scenario = "meeting"
+	ScenarioCasual  Scenario = "casual"
+)
+
+func (s Scenario) IsValid() bool {
+	return s == ScenarioMeeting || s == ScenarioCasual
+}
+
+// ParseScenario 將字串轉為 Scenario；無效或空值一律回退預設 meeting（不回錯，容忍舊資料）。
+func ParseScenario(s string) Scenario {
+	sc := Scenario(s)
+	if sc.IsValid() {
+		return sc
+	}
+	return ScenarioMeeting
+}
+
+// SummarySection AI 依情境產生的一個結構化區塊（純條列，不做巢狀）。
+// Type 為穩定機器識別（如 "decisions"）；Title 為顯示標題；Items 為條列內容。
+type SummarySection struct {
+	Type  string   `json:"type"`
+	Title string   `json:"title"`
+	Items []string `json:"items"`
+}
+
+// Summarizer 依情境產生結構化摘要區塊的 port（Gemini 實作在 infrastructure/llm）。
+// 與行動項抽取（actionitem.Extractor）分離，各自一次 LLM 呼叫。
+type Summarizer interface {
+	Summarize(ctx context.Context, transcript string, scenario Scenario) ([]SummarySection, error)
+}
+
 type Meeting struct {
-	ID              uuid.UUID
-	UserID          uuid.UUID
-	Title           string
-	AudioGCSPath    string
-	Status          Status
-	Transcript      string
+	ID           uuid.UUID
+	UserID       uuid.UUID
+	Title        string
+	AudioGCSPath string
+	Status       Status
+	// Scenario 紀錄情境（會議/閒聊）；預設 meeting，決定 AI 產出的區塊模板。
+	Scenario   Scenario
+	Transcript string
 	// Summary 一句話摘要（TL;DR）；分析階段由 LLM 產生，未處理則為空。
 	Summary string
+	// SummarySections 依情境產生的結構化摘要區塊；未處理則為空。
+	SummarySections []SummarySection
 	// TranscriptSegments 分講者逐字稿；供應商支援 diarization 時填入，否則為空。
 	TranscriptSegments []TranscriptSegment
 	// SpeakerNames 講者代號 → 使用者自訂顯示名（如 {"A":"Ben"}）；限本場會議內。
@@ -77,6 +117,8 @@ type Repository interface {
 	SaveTranscript(ctx context.Context, id uuid.UUID, transcript string, segments []TranscriptSegment, durationSeconds int) (Meeting, error)
 	// SaveSummary 儲存會議一句話摘要（分析階段產生）。
 	SaveSummary(ctx context.Context, id uuid.UUID, summary string) (Meeting, error)
+	// SaveSummarySections 儲存依情境產生的結構化摘要區塊（分析階段產生）。
+	SaveSummarySections(ctx context.Context, id uuid.UUID, sections []SummarySection) (Meeting, error)
 	// SetCompleted analyzing → completed，並記錄 processed_at。
 	SetCompleted(ctx context.Context, id uuid.UUID) (Meeting, error)
 	// SetFailed 處理中任一狀態 → failed，記錄 error_message。
@@ -90,6 +132,7 @@ type Repository interface {
 // ScheduleParams 排程會議的輸入欄位。
 type ScheduleParams struct {
 	Title           string
+	Scenario        Scenario
 	ScheduledAt     time.Time
 	RemindBeforeMin int
 }

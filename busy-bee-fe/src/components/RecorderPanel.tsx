@@ -4,7 +4,7 @@ import { Mic, Pause, Play, Trash2 } from 'lucide-react'
 import { useRecorder } from '../hooks/useRecorder'
 import { auth } from '../services/firebase'
 import { uploadAudio } from '../services/upload'
-import type { Meeting } from '../services/api/client'
+import { scenarioLabels, type Meeting, type Scenario } from '../services/api/client'
 
 function fmt(sec: number): string {
   const m = Math.floor(sec / 60)
@@ -20,9 +20,11 @@ type UploadState =
 export function RecorderPanel({
   onUploaded,
   highlight = false,
+  scenario = 'meeting',
 }: {
   onUploaded?: (m: Meeting) => void
   highlight?: boolean
+  scenario?: Scenario
 }) {
   const rec = useRecorder()
   const [upload, setUpload] = useState<UploadState>({ phase: 'idle' })
@@ -33,9 +35,14 @@ export function RecorderPanel({
     setUpload({ phase: 'uploading', percent: 0 })
     try {
       const token = await fbUser.getIdToken()
-      const title = file.name.replace(/\.[^.]+$/, '')
-      const meeting = await uploadAudio(token, title, file, (percent) =>
-        setUpload({ phase: 'uploading', percent }),
+      // 標題依情境組成：「會議錄音 …」/「閒聊錄音 …」（檔名前綴為中性「錄音 日期時間」）。
+      const title = `${scenarioLabels[scenario]}${file.name.replace(/\.[^.]+$/, '')}`
+      const meeting = await uploadAudio(
+        token,
+        title,
+        file,
+        (percent) => setUpload({ phase: 'uploading', percent }),
+        scenario,
       )
       setUpload({ phase: 'idle' })
       onUploaded?.(meeting)

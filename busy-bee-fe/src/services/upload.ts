@@ -1,5 +1,5 @@
 // 三段式直傳：建立會議 → PUT 音訊到 GCS（XHR，含進度）→ complete-upload
-import { completeUpload, createMeeting, type Meeting } from './api/client'
+import { completeUpload, createMeeting, type Meeting, type Scenario } from './api/client'
 
 /** 支援的音訊 MIME type；瀏覽器偵測不到時以副檔名 fallback */
 const extContentType: Record<string, string> = {
@@ -50,11 +50,12 @@ export async function uploadAudio(
   title: string,
   file: File,
   onProgress: (percent: number) => void,
+  scenario: Scenario = 'meeting',
 ): Promise<Meeting> {
   const contentType = resolveContentType(file)
   if (!contentType) throw new Error('不支援的音訊格式（支援 mp3 / m4a / webm / wav）')
 
-  const { meeting, upload } = await createMeeting(idToken, { title, contentType })
+  const { meeting, upload } = await createMeeting(idToken, { title, contentType, scenario })
   await putWithProgress(upload.url, upload.headers, file, onProgress)
   const result = await completeUpload(idToken, meeting.id)
   return result.meeting

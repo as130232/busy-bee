@@ -140,7 +140,7 @@ StatusNotifier / TaskQueue / AudioStorage
 
 ### 資料表
 
-`users`、`meetings`、`artifacts`（artifact_type：`prd` | `tech_spec`）、`push_subscriptions`。
+`users`、`meetings`（含 `scenario` 情境、`summary` 一句話、`summary_sections` jsonb 結構化區塊、`transcript_segments`/`speaker_names`）、`artifacts`（artifact_type：`prd` | `tech_spec` | `action_items`；PRD/TechSpec 已改選用、預設不產）、`action_items`、`transcript_chunks`、`push_subscriptions`。
 欄位明細見 migration 檔（`busy-bee-be/db/migrations/`）；ER 圖見 `docs/superpowers/specs/2026-07-17-busy-bee-mvp-design.md §4`。
 
 ---
@@ -153,7 +153,7 @@ StatusNotifier / TaskQueue / AudioStorage
 2. **直傳**：FE `PUT {signed URL}` 直傳 GCS（不經後端，ADR-001）
 3. **觸發**：FE `POST /meetings/{id}/complete-upload` → application 驗證物件存在 → 排入記憶體佇列 → status = pending
 4. **轉錄**：worker 下載音訊 → Deepgram STT（diarize）→ 依 speaker 聚合成 A/B/C 片段 → 攤平成帶講者前綴文字存 transcript + transcript_segments（空稿標 failed 可重試）→ status: transcribing → analyzing
-5. **生成**：Gemini 產出 PRD → 存 artifact → 產出 Tech Spec → 存 artifact → status = completed
+5. **生成**：analyzing 階段依 `scenario` 選 prompt → Gemini 產出結構化摘要區塊（存 `summary_sections`）＋抽取一句話摘要與行動項（各自冪等）→ status = completed（PRD/Tech Spec 改選用、不自動產，ADR-012）
 6. **通知**：每次狀態變更 → in-process notifier → 單機 WS hub 轉發給該 user 的連線（ADR-010 單 instance）
 7. **失敗**：任一階段失敗 → 記憶體佇列 backoff retry（冪等，ADR-009）→ 達上限 → status = failed；重啟遺失由 Sweeper 掃 DB 復原
 
@@ -292,6 +292,16 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
   1. **Gemini 音訊做 diarization 不可靠**——它是 LLM「推測」講者（依內容/語氣），會把一個人硬拆成 A/B/C；架構性問題，prompt 調不好。已放棄。
   2. **Deepgram nova-3 + `language=multi` 對中文回傳空結果**（有 duration 但 words 空 → 逐字稿空白）。必須用 nova-2 + zh-TW。
 - **替代方案**：AssemblyAI / ElevenLabs Scribe（同為聲學分離，未實測）；自架 pyannote → 否決（需 GPU 常駐，違反 scale-to-zero）。性別/年齡辨識不做（不可靠且無必要，代號＋手動改名已滿足）。
+
+#### ADR-012: 紀錄情境化用「模板 + 結構化區塊」（B-lite），不做每情境專屬 UI
+
+- **狀態**：採納（Phase 17，F-SCENARIO）
+- **背景**：要把單一「會議」擴充為多情境（會議/閒聊，未來面試等）。若每情境刻一套專屬畫面，維護成本隨情境線性上升、產品分散。
+- **決策（B-lite）**：擷取管線（STT + 分講者）情境無關；情境是 `meetings.scenario` 一個屬性，只決定：(1) 選哪個 LLM prompt 模板（`infrastructure/llm/prompts/summary_{scenario}.md`）、(2) 產出哪些「有型別的結構化區塊」（`SummarySection{type,title,items}`，存 `meetings.summary_sections` jsonb）。前端寫**一套通用區塊渲染器**（`SummarySections.tsx`）依 type 顯示。
+- **情境化擴充點**：新增情境 = 新增一個 prompt 模板 + 在 `scenarioPrompts` map 註冊 + `Scenario` 常數，**不動前端、不動管線、不動 DB schema**。對齊 CLAUDE.md「調 prompt 不動 client 邏輯」。
+- **後果**：`Summarizer` port 與行動項 `Extractor` 分離、各一次 LLM 呼叫；PRD/Tech Spec 改為選用、不再自動產生（每筆 LLM 呼叫 3→2 次，降成本，符合 scale-to-zero 省費原則）。`generateArtifacts` 保留供日後 on-demand 觸發。
+- **資料流變更**：analyzing 階段 = `generateSummarySections`（依情境 prompt，冪等：已有 sections 則跳過）+ `extractActionItems`（不變）。無效/空 scenario 一律 `ParseScenario` 回退 meeting（容忍舊資料）。
+- **替代方案**：(A) 只換總結模板、畫面全同 → 差異化不足；(B-full) 每情境專屬 UI → 過重、分散。取中間 B-lite。
 
 ---
 

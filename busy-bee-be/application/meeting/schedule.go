@@ -33,6 +33,7 @@ func validateSchedule(p *domainmeeting.ScheduleParams) error {
 	if p.RemindBeforeMin <= 0 {
 		p.RemindBeforeMin = 15 // PRODUCT.md Q3 預設
 	}
+	p.Scenario = domainmeeting.ParseScenario(string(p.Scenario))
 	return nil
 }
 

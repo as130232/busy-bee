@@ -4,7 +4,7 @@ import { Search } from 'lucide-react'
 import { MeetingList } from '../components/MeetingList'
 import { useMeetings } from '../hooks/useMeetings'
 
-/** 會議分頁：搜尋 + 歷史列表（排除排程中的未來會議）。 */
+/** 紀錄分頁：搜尋 + 歷史列表（排除排程中的未來紀錄）。 */
 export function MeetingsPage() {
   const [search, setSearch] = useState('')
   const { meetings, error, reload } = useMeetings(search)
@@ -17,7 +17,7 @@ export function MeetingsPage() {
         <input
           className="input pl-9"
           type="search"
-          placeholder="搜尋會議標題或逐字稿…"
+          placeholder="搜尋標題或逐字稿…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -35,7 +35,7 @@ export function MeetingsPage() {
       {!error && (
         <MeetingList
           meetings={list}
-          emptyText={search ? '沒有符合的會議。' : '尚無會議紀錄，錄下第一場會議吧。'}
+          emptyText={search ? '沒有符合的紀錄。' : '尚無紀錄，錄下第一段吧。'}
         />
       )}
     </>

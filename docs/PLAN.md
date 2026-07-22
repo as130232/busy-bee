@@ -7,6 +7,7 @@
 
 ## 當前焦點
 
+Phase 17（紀錄情境化 F-SCENARIO：會議/閒聊模板 + 結構化摘要區塊）程式完成：後端 build/vet/test 全綠（24 packages）、前端 typecheck/lint/build 綠、本地 migration 000009 已套用、前後端本地已起。剩裝置端 e2e 人工驗收（錄閒聊看閒聊區塊、錄會議看會議區塊）與 merge/部署。
 Phase 16（語者辨識 diarization：Deepgram + 講者改名 + 音檔播放）已 merge（`1da9020`）並部署 production：2026-07-22 實測 `DEEPGRAM_API_KEY` 已掛 Cloud Run（secret `busy-bee-deepgram-key:1`）、migration 000007 已隨 CI 自動套用、prod serving commit `687d52f`。全數完成（16.7 ✅）。
 Phase 15（RAG 語意搜尋：pgvector + Gemini embedding）已 merge（`805659b`）並部署：migration 000006（含 `CREATE EXTENSION vector`）已隨 CI 套用、prod 已上線。僅剩 prod 裝置端 e2e 人工驗收（搜「定價」找「價格策略」）— 15.9。
 Phase 14.3（錄音/上傳邊角情境）程式已具備，僅待裝置端人工驗收。
@@ -51,6 +52,7 @@ Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁
 | 🔄 | Phase 14 — 會議與行程管理（F-MANAGE）+ 邊角驗收 | post-MVP |
 | 🔄 | Phase 15 — RAG 語意搜尋（pgvector + Gemini embedding） | post-MVP |
 | ✅ | Phase 16 — 語者辨識 diarization（Deepgram）+ 講者改名 + 音檔播放 | post-MVP |
+| 🔄 | Phase 17 — 紀錄情境化（F-SCENARIO：會議/閒聊模板 + 結構化摘要區塊） | post-MVP |
 
 ---
 
@@ -328,6 +330,20 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 
 ---
 
+## Phase 17：紀錄情境化（F-SCENARIO）
+> 里程碑：post-MVP | 🔄 程式完成，待裝置端驗收
+> 把單一「會議」擴充為「紀錄」概念，錄音前選情境（會議/閒聊），AI 依情境產生結構化摘要區塊。設計取向 B-lite：情境只換 prompt 模板 + 輸出區塊定義，前端一套通用渲染器。詳見 `docs/ARCHITECTURE.md`「情境化擴充點」。
+
+- 17.1 ✅ DB：migration 000009（`scenario` text + CHECK、`summary_sections` jsonb）、queries、sqlc
+- 17.2 ✅ domain：`Scenario`/`ParseScenario`、`SummarySection`、`Summarizer` port、`Meeting`/`ScheduleParams` 加欄位
+- 17.3 ✅ infra：`summary_meeting.md`/`summary_casual.md` prompt + `gemini.go` `Summarize()`（依情境選模板）
+- 17.4 ✅ application：analyzing 階段改產結構化區塊（冪等）、移除 PRD/TechSpec 自動產生（保留供日後 on-demand）
+- 17.5 ✅ API/handler：openapi + request/response 串接 scenario / summarySections
+- 17.6 ✅ 前端：頁籤「會議」→「紀錄」、錄音前情境切換、清單情境標籤（標題前）、通用區塊渲染器、詳情頁整合、錄音標題依情境命名
+- 17.7 ⬜ 裝置端 e2e 人工驗收 + merge/部署
+
+---
+
 ## Session Log
 
 | 日期 | 完成事項 | Commit |
@@ -358,6 +374,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-20 | Phase 15 RAG 語意搜尋程式完成（15.1–15.8）：pgvector 前置＋migration 000006（transcript_chunks、hnsw cosine、CASCADE）→ domain/search entity/ports＋SplitIntoChunks 切塊（TDD）→ Gemini Embed（gemini-embedding-001 @768 維）→ chunk_repo（手寫 pgx＋pgvector-go，DISTINCT ON＋`<=>`＋owner 過濾，真實 PG 整合測試）→ IndexUC/SearchUC（hybrid 合併＋embedding 失敗降級純字面，TDD）→ worker 回填掃描＋completed best-effort 觸發 → List handler 走 SearchUC 回 matchSnippet＋openapi/TS client＋main.go wiring＋前端片段顯示。全後端 build/vet/test 綠、前端 typecheck/build 綠；待本地 e2e 人工驗收（搜「定價」找「價格策略」）＋Neon extension＋merge（15.9） | `c6a0726..3e1f969` |
 | 2026-07-21 | Phase 16 語者辨識完成（16.1–16.6）＋本地 e2e 驗收通過：domain segments/FlattenSegments（TDD）→ migration 000007（transcript_segments/speaker_names jsonb）＋repo round-trip → STT 換 **Deepgram nova-2 zh-TW**（聲學分離；踩坑：nova-3+multi 中文空、Gemini 音訊誤拆多人皆棄）→ `UpdateSpeakerNames` 改名 use case＋STT 空結果保護 → `PATCH /speakers`＋音檔播放端點 `GET /audio-url`（GCS SignedDownloadURL）→ 前端分講者顯示（晶片配色/時間碼靠左可點跳播）＋改名 sheet＋音檔播放器＋匯出用顯示名＋列表時長分秒 tag＋返回回列表＋標題跑馬燈。全後端 build/vet/test 綠、前端 typecheck/lint/build 綠；清理拋棄式 POC。待 merge＋部署（Deepgram key 進 Secret Manager、prod migration 000007）(16.7) | `f53fb6c..1da9020` |
 | 2026-07-22 | 部署收尾實測驗證：Phase 15/16 皆已 merge 並上線。gcloud 確認 `DEEPGRAM_API_KEY` 已掛 Cloud Run（secret `busy-bee-deepgram-key:1`，runtime SA busy-bee-storage）＋Groq/Gemini/VAPID 皆在；prod `/version` 回 commit `687d52f`（main HEAD，晚於 15/16 merge），revision `00023-w9m` serving，故 CI 自動 migration 000006（含 `CREATE EXTENSION vector`）/000007 已套用。16.7 標 ✅、Phase 16 overview ✅；15.9 部署部分完成、僅剩 prod 裝置端 e2e 驗收。**結論：部署/基建零待辦，剩裝置端人工驗收（15.9 RAG、14.3 邊角、Phase 16 diarization e2e）** | — |
+| 2026-07-22 | Phase 17 紀錄情境化程式完成（17.1–17.6）：migration 000009（scenario/summary_sections）→ domain Scenario/ParseScenario/SummarySection/Summarizer port → 兩情境 prompt + gemini Summarize → 管線改產結構化區塊（冪等）並移除 PRD/TechSpec 自動產生（LLM 3→2 呼叫）→ openapi/handler 串接 → 前端「會議」頁籤改「紀錄」、錄音前情境分段切換、清單情境標籤（移到標題前、時長改純文字區隔）、SummarySections 通用渲染器、詳情頁整合、錄音標題依情境命名。後端 build/vet/test 綠（24 pkg，含改寫 process 測試 + ParseScenario 測試）、前端 typecheck/lint/build 綠。待裝置端 e2e + merge（17.7） | `feat/scenario-templates` |
 
 ---
 

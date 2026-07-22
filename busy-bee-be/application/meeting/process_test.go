@@ -22,6 +22,7 @@ type processFakeRepo struct {
 	savedText     string
 	savedSegments []domainmeeting.TranscriptSegment
 	savedSummary  string
+	savedSections []domainmeeting.SummarySection
 	savedDuration int
 	completedCall bool
 	failedMessage string
@@ -54,6 +55,11 @@ func (f *processFakeRepo) SaveTranscript(_ context.Context, _ uuid.UUID, text st
 func (f *processFakeRepo) SaveSummary(_ context.Context, _ uuid.UUID, summary string) (domainmeeting.Meeting, error) {
 	f.savedSummary = summary
 	f.meeting.Summary = summary
+	return f.meeting, nil
+}
+func (f *processFakeRepo) SaveSummarySections(_ context.Context, _ uuid.UUID, sections []domainmeeting.SummarySection) (domainmeeting.Meeting, error) {
+	f.savedSections = sections
+	f.meeting.SummarySections = sections
 	return f.meeting, nil
 }
 func (f *processFakeRepo) SetCompleted(_ context.Context, _ uuid.UUID) (domainmeeting.Meeting, error) {
@@ -333,10 +339,29 @@ func (f *fakeLLM) GenerateTechSpec(_ context.Context, _ string) (string, error) 
 	return "# Tech Spec", f.err
 }
 
+// fakeSummarizer 記錄呼叫次數與收到的情境，回傳預設區塊。
+type fakeSummarizer struct {
+	sections    []domainmeeting.SummarySection
+	err         error
+	called      int
+	gotScenario domainmeeting.Scenario
+}
+
+func (f *fakeSummarizer) Summarize(_ context.Context, _ string, scenario domainmeeting.Scenario) ([]domainmeeting.SummarySection, error) {
+	f.called++
+	f.gotScenario = scenario
+	return f.sections, f.err
+}
+
+// defaultSections 供未特別指定的測試使用，確保 SaveSummarySections 有被觸發。
+func defaultSections() []domainmeeting.SummarySection {
+	return []domainmeeting.SummarySection{{Type: "summary", Title: "摘要", Items: []string{"重點"}}}
+}
+
 func newTestProcessUC(repo *processFakeRepo, st *processFakeStorage, stt *fakeSTT, n *fakeNotifier) *ProcessUC {
 	return NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: st, STT: stt,
-		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Notifier: n,
+		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: n,
 		ActionItems: &fakeActionItemRepo{}, Extractor: &fakeExtractor{},
 	})
 }
@@ -396,7 +421,7 @@ func TestProcess_ExtractsActionItems(t *testing.T) {
 	ext := &fakeExtractor{items: []domainactionitem.Extracted{{Description: "做 A"}, {Description: "做 B"}}}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: arts, LLM: &fakeLLM{}, Notifier: &fakeNotifier{},
+		Artifacts: arts, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
 		ActionItems: items, Extractor: ext,
 	})
 
@@ -429,7 +454,7 @@ func TestProcess_ActionItemsIdempotentWhenMarkerExists(t *testing.T) {
 	ext := &fakeExtractor{}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: arts, LLM: &fakeLLM{}, Notifier: &fakeNotifier{},
+		Artifacts: arts, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
 		ActionItems: items, Extractor: ext,
 	})
 
@@ -448,7 +473,7 @@ func TestProcess_ActionItemsEmptyStillMarks(t *testing.T) {
 	ext := &fakeExtractor{items: nil} // 會議無行動項
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: arts, LLM: &fakeLLM{}, Notifier: &fakeNotifier{},
+		Artifacts: arts, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
 		ActionItems: items, Extractor: ext,
 	})
 
@@ -471,7 +496,7 @@ func TestProcess_ActionItemExtractErrorPropagates(t *testing.T) {
 	ext := &fakeExtractor{err: errors.New("gemini 500")}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Notifier: &fakeNotifier{},
+		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
 		ActionItems: &fakeActionItemRepo{}, Extractor: ext,
 	})
 
@@ -483,62 +508,70 @@ func TestProcess_ActionItemExtractErrorPropagates(t *testing.T) {
 	}
 }
 
-func TestProcess_AnalyzingGeneratesBothDocs(t *testing.T) {
-	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusAnalyzing, "逐字稿內容在此")}
-	arts := &fakeArtifactRepo{}
+func TestProcess_AnalyzingGeneratesSummarySections(t *testing.T) {
+	// analyzing 階段依情境產生結構化摘要區塊（不再自動產 PRD/Tech Spec）。
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusAnalyzing, "閒聊逐字稿在此")}
+	repo.meeting.Scenario = domainmeeting.ScenarioCasual
 	llm := &fakeLLM{}
+	sum := &fakeSummarizer{sections: []domainmeeting.SummarySection{
+		{Type: "key_points", Title: "重點摘要", Items: []string{"聊到旅遊"}},
+	}}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: arts, LLM: llm, Notifier: &fakeNotifier{},
+		Artifacts: &fakeArtifactRepo{}, LLM: llm, Summarizer: sum, Notifier: &fakeNotifier{},
 		ActionItems: &fakeActionItemRepo{}, Extractor: &fakeExtractor{},
 	})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if llm.prdCalls != 1 || llm.specCalls != 1 {
-		t.Errorf("llm calls prd=%d spec=%d, want 1/1", llm.prdCalls, llm.specCalls)
+	if sum.called != 1 {
+		t.Errorf("summarizer called %d times, want 1", sum.called)
 	}
-	if arts.saved[domainartifact.TypePRD] == "" || arts.saved[domainartifact.TypeTechSpec] == "" {
-		t.Errorf("saved = %v, want both docs", arts.saved)
+	if sum.gotScenario != domainmeeting.ScenarioCasual {
+		t.Errorf("summarizer scenario = %q, want casual", sum.gotScenario)
+	}
+	if len(repo.savedSections) != 1 || repo.savedSections[0].Type != "key_points" {
+		t.Errorf("saved sections = %v, want the casual section", repo.savedSections)
+	}
+	if llm.prdCalls != 0 || llm.specCalls != 0 {
+		t.Errorf("PRD/Tech Spec 不應自動產生, got prd=%d spec=%d", llm.prdCalls, llm.specCalls)
 	}
 	if !repo.completedCall {
 		t.Error("should complete after generation")
 	}
 }
 
-func TestProcess_AnalyzingSkipsExistingDoc(t *testing.T) {
-	// retry 場景：PRD 已生成，只補 Tech Spec（不重複扣費）
+func TestProcess_SummarySectionsIdempotentWhenExists(t *testing.T) {
+	// retry 場景：已有 summary_sections 則跳過，不重複呼叫 LLM。
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusAnalyzing, "t")}
-	arts := &fakeArtifactRepo{existing: []domainartifact.Artifact{{Type: domainartifact.TypePRD, Content: "old"}}}
-	llm := &fakeLLM{}
+	repo.meeting.SummarySections = defaultSections()
+	sum := &fakeSummarizer{sections: defaultSections()}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: arts, LLM: llm, Notifier: &fakeNotifier{},
+		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: sum, Notifier: &fakeNotifier{},
 		ActionItems: &fakeActionItemRepo{}, Extractor: &fakeExtractor{},
 	})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if llm.prdCalls != 0 {
-		t.Errorf("prdCalls = %d, want 0 (already exists)", llm.prdCalls)
-	}
-	if llm.specCalls != 1 {
-		t.Errorf("specCalls = %d, want 1", llm.specCalls)
+	if sum.called != 0 {
+		t.Errorf("summarizer called %d times, want 0 (already generated)", sum.called)
 	}
 }
 
-func TestProcess_LLMErrorPropagatesWithoutCompletion(t *testing.T) {
+func TestProcess_SummarizerErrorPropagatesWithoutCompletion(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusAnalyzing, "t")}
-	llm := &fakeLLM{err: errors.New("gemini 429")}
+	sum := &fakeSummarizer{err: errors.New("gemini 429")}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: &fakeArtifactRepo{}, LLM: llm, Notifier: &fakeNotifier{},
+		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: sum, Notifier: &fakeNotifier{},
+		ActionItems: &fakeActionItemRepo{}, Extractor: &fakeExtractor{},
 	})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err == nil {
-		t.Fatal("Execute() should propagate llm error for retry")
+		t.Fatal("Execute() should propagate summarizer error for retry")
 	}
 	if repo.completedCall {
 		t.Error("must not complete when generation failed")

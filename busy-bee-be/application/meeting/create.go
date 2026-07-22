@@ -18,17 +18,19 @@ const maxAudioBytes = 200 * 1024 * 1024
 
 // contentTypeExt 支援的音訊格式與副檔名映射；不在表內的一律拒絕。
 var contentTypeExt = map[string]string{
-	"audio/mpeg": ".mp3",
-	"audio/mp4":  ".m4a",
+	"audio/mpeg":  ".mp3",
+	"audio/mp4":   ".m4a",
 	"audio/x-m4a": ".m4a",
-	"audio/webm": ".webm",
-	"audio/wav":  ".wav",
+	"audio/webm":  ".webm",
+	"audio/wav":   ".wav",
 	"audio/x-wav": ".wav",
 }
 
 type CreateInput struct {
 	Title       string
 	ContentType string
+	// Scenario 紀錄情境（會議/閒聊）；空或無效值一律回退 meeting。
+	Scenario string
 }
 
 type CreateOutput struct {
@@ -62,6 +64,7 @@ func (uc *CreateUC) Execute(ctx context.Context, userID uuid.UUID, in CreateInpu
 		UserID:       userID,
 		Title:        title,
 		Status:       domainmeeting.StatusScheduled,
+		Scenario:     domainmeeting.ParseScenario(in.Scenario),
 		AudioGCSPath: fmt.Sprintf("audio/%s/%s%s", userID, id, ext),
 	})
 	if err != nil {

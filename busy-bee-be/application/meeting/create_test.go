@@ -48,6 +48,9 @@ func (f *fakeRepo) SaveTranscript(_ context.Context, _ uuid.UUID, _ string, _ []
 func (f *fakeRepo) SaveSummary(_ context.Context, _ uuid.UUID, _ string) (domainmeeting.Meeting, error) {
 	return f.getResult, nil
 }
+func (f *fakeRepo) SaveSummarySections(_ context.Context, _ uuid.UUID, _ []domainmeeting.SummarySection) (domainmeeting.Meeting, error) {
+	return f.getResult, nil
+}
 
 func (f *fakeRepo) SetCompleted(_ context.Context, _ uuid.UUID) (domainmeeting.Meeting, error) {
 	return f.getResult, nil

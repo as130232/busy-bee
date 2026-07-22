@@ -18,7 +18,9 @@ import { AppShell } from '../components/AppShell'
 import { ExportBar } from '../components/ExportBar'
 import { Loader } from '../components/Loader'
 import { ScheduleSheet } from '../components/ScheduleForm'
+import { Sheet } from '../components/Sheet'
 import { StatusBadge } from '../components/StatusBadge'
+import { SummarySections } from '../components/SummarySections'
 import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
 import {
   deleteMeeting,
@@ -47,13 +49,17 @@ const tabLabels: Record<Tab, string> = {
   transcript: '逐字稿',
 }
 
+// 核心頁籤一律顯示；PRD / Tech Spec 已改為選用，僅在對應 artifact 存在時才出現。
+const coreTabs: Tab[] = ['action_items', 'transcript']
+const optionalDocTabs = ['prd', 'tech_spec'] as const satisfies readonly Tab[]
+
 export function MeetingDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [meeting, setMeeting] = useState<MeetingDetail | null>(null)
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [actionItems, setActionItems] = useState<ActionItem[]>([])
-  const [tab, setTab] = useState<Tab>('prd')
+  const [tab, setTab] = useState<Tab>('action_items')
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -151,6 +157,9 @@ export function MeetingDetailPage() {
   }
 
   const artifactByType = new Map(artifacts.map((a) => [a.type, a]))
+  // 頁籤 = 核心頁籤 + 已存在的選用文件頁籤（PRD / Tech Spec 不再預設出現）。
+  const visibleTabs: Tab[] = [...coreTabs, ...optionalDocTabs.filter((t) => artifactByType.has(t))]
+  // tab 預設 action_items（恆在），使用者只能點可見頁籤，故 tab 恆有效。
   const docContent =
     tab === 'transcript'
       ? meeting.transcript
@@ -204,14 +213,16 @@ export function MeetingDetailPage() {
         </p>
       )}
 
+      <SummarySections sections={meeting.summarySections} />
+
       <AudioPlayer meetingId={meeting.id} durationSeconds={meeting.durationSeconds} audioRef={audioRef} />
 
-      <nav className="grid grid-cols-4 border-b border-border">
-        {(Object.keys(tabLabels) as Tab[]).map((t) => (
+      <nav className="flex border-b border-border">
+        {visibleTabs.map((t) => (
           <button
             key={t}
             type="button"
-            className={`-mb-px h-11 cursor-pointer border-b-2 text-sm font-medium transition ${
+            className={`-mb-px h-11 flex-1 cursor-pointer border-b-2 text-sm font-medium transition ${
               tab === t ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg'
             }`}
             onClick={() => setTab(t)}
@@ -252,25 +263,19 @@ export function MeetingDetailPage() {
       </article>
 
       {confirmDelete && (
-        <>
-          <div
-            className="animate-fade-in fixed inset-0 z-40 bg-black/50"
-            onClick={() => setConfirmDelete(false)}
-          />
-          <div className="animate-sheet-up sm:animate-fade-in fixed inset-x-0 bottom-0 z-50 flex flex-col gap-3 rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:pb-4">
-            <p className="m-0 text-sm">
-              確定刪除「{meeting.title}」？逐字稿、PRD、Tech Spec、行動項將一併刪除，此動作無法復原。
-            </p>
-            <div className="flex gap-2">
-              <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmDelete(false)}>
-                取消
-              </button>
-              <button type="button" className="btn btn-primary flex-1 bg-red-600" onClick={() => void remove()}>
-                刪除
-              </button>
-            </div>
+        <Sheet onClose={() => setConfirmDelete(false)}>
+          <p className="m-0 text-sm">
+            確定刪除「{meeting.title}」？逐字稿、PRD、Tech Spec、行動項將一併刪除，此動作無法復原。
+          </p>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmDelete(false)}>
+              取消
+            </button>
+            <button type="button" className="btn btn-primary flex-1 bg-red-600" onClick={() => void remove()}>
+              刪除
+            </button>
           </div>
-        </>
+        </Sheet>
       )}
     </AppShell>
   )
@@ -607,33 +612,30 @@ function SpeakerRenameSheet({
   }
 
   return (
-    <>
-      <div className="animate-fade-in fixed inset-0 z-40 bg-black/50" onClick={onClose} />
-      <div className="animate-sheet-up sm:animate-fade-in fixed inset-x-0 bottom-0 z-50 flex flex-col gap-3 rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:pb-4">
-        <p className="m-0 text-sm font-medium">重新命名講者 {code}</p>
-        <input
-          className="input h-10"
-          value={draft}
-          placeholder={`例如 Ben（留空還原為 ${code}）`}
-          disabled={busy}
-          autoFocus
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void save()
-            if (e.key === 'Escape') onClose()
-          }}
-        />
-        {err && <p className="m-0 text-xs text-red-500">{err}</p>}
-        <div className="flex gap-2">
-          <button type="button" className="btn btn-secondary flex-1" onClick={onClose} disabled={busy}>
-            取消
-          </button>
-          <button type="button" className="btn btn-primary flex-1" onClick={() => void save()} disabled={busy}>
-            {busy ? '儲存中…' : '儲存'}
-          </button>
-        </div>
+    <Sheet onClose={onClose}>
+      <p className="m-0 text-sm font-medium">重新命名講者 {code}</p>
+      <input
+        className="input h-10"
+        value={draft}
+        placeholder={`例如 Ben（留空還原為 ${code}）`}
+        disabled={busy}
+        autoFocus
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void save()
+          if (e.key === 'Escape') onClose()
+        }}
+      />
+      {err && <p className="m-0 text-xs text-red-500">{err}</p>}
+      <div className="flex gap-2">
+        <button type="button" className="btn btn-secondary flex-1" onClick={onClose} disabled={busy}>
+          取消
+        </button>
+        <button type="button" className="btn btn-primary flex-1" onClick={() => void save()} disabled={busy}>
+          {busy ? '儲存中…' : '儲存'}
+        </button>
       </div>
-    </>
+    </Sheet>
   )
 }
 
@@ -836,20 +838,17 @@ function ScheduledDetail({
       )}
 
       {confirmDelete && (
-        <>
-          <div className="animate-fade-in fixed inset-0 z-40 bg-black/50" onClick={() => setConfirmDelete(false)} />
-          <div className="animate-sheet-up sm:animate-fade-in fixed inset-x-0 bottom-0 z-50 flex flex-col gap-3 rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:pb-4">
-            <p className="m-0 text-sm">確定刪除「{meeting.title}」這筆排程？此動作無法復原。</p>
-            <div className="flex gap-2">
-              <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmDelete(false)}>
-                取消
-              </button>
-              <button type="button" className="btn btn-primary flex-1 bg-red-600" onClick={() => void remove()}>
-                刪除
-              </button>
-            </div>
+        <Sheet onClose={() => setConfirmDelete(false)}>
+          <p className="m-0 text-sm">確定刪除「{meeting.title}」這筆排程？此動作無法復原。</p>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmDelete(false)}>
+              取消
+            </button>
+            <button type="button" className="btn btn-primary flex-1 bg-red-600" onClick={() => void remove()}>
+              刪除
+            </button>
           </div>
-        </>
+        </Sheet>
       )}
     </AppShell>
   )

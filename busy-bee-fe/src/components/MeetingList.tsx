@@ -1,7 +1,16 @@
 import { Link } from 'react-router-dom'
 
 import { StatusBadge } from './StatusBadge'
-import type { Meeting } from '../services/api/client'
+import { scenarioLabels, type Meeting } from '../services/api/client'
+
+/** 情境標籤（會議/閒聊）；閒聊用不同色以利辨識。 */
+function ScenarioTag({ scenario }: { scenario: Meeting['scenario'] }) {
+  const label = scenarioLabels[scenario]
+  if (!label) return null
+  const tone =
+    scenario === 'casual' ? 'bg-violet-500/10 text-violet-500' : 'bg-accent/10 text-accent'
+  return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
+}
 
 // formatDuration 以「X 分 Y 秒」呈現時長（不足 1 分只顯示秒；0 秒不顯示）。
 function formatDuration(totalSeconds: number): string {
@@ -33,11 +42,9 @@ function Subtitle({ m }: { m: Meeting }) {
   }
   const dur = formatDuration(m.durationSeconds)
   return (
-    <span className="mt-0.5 flex items-center gap-2 text-xs text-muted">
+    <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
       <span className="font-mono">{new Date(m.createdAt).toLocaleString('zh-TW', dateTimeFmt)}</span>
-      {dur && (
-        <span className="rounded bg-accent/10 px-1.5 py-0.5 font-medium text-accent tabular-nums">{dur}</span>
-      )}
+      {dur && <span className="tabular-nums text-muted/80">· {dur}</span>}
     </span>
   )
 }
@@ -61,7 +68,12 @@ export function MeetingList({ meetings, emptyText }: { meetings: Meeting[]; empt
             className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-surface-hover active:bg-surface-hover"
           >
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium">{m.title}</span>
+              <span className="flex items-center gap-2">
+                <span className="shrink-0">
+                  <ScenarioTag scenario={m.scenario} />
+                </span>
+                <span className="min-w-0 truncate text-sm font-medium">{m.title}</span>
+              </span>
               {m.summary && <span className="mt-0.5 block truncate text-xs text-muted">{m.summary}</span>}
               <Subtitle m={m} />
               {m.matchSnippet && (

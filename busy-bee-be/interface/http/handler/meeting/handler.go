@@ -57,6 +57,7 @@ func (h *Handler) Create(c *gin.Context) {
 	out, err := h.uc.Create.Execute(c.Request.Context(), userID, appmeeting.CreateInput{
 		Title:       req.Title,
 		ContentType: req.ContentType,
+		Scenario:    req.Scenario,
 	})
 	if err != nil {
 		response.Fail(c, err)
@@ -159,6 +160,7 @@ func (h *Handler) Get(c *gin.Context) {
 
 type scheduleRequest struct {
 	Title           string `json:"title"`
+	Scenario        string `json:"scenario"`    // meeting/casual；省略回退 meeting
 	ScheduledAt     string `json:"scheduledAt"` // RFC3339
 	RemindBeforeMin int    `json:"remindBeforeMin"`
 }
@@ -168,7 +170,12 @@ func (r scheduleRequest) toParams() (domainmeeting.ScheduleParams, error) {
 	if err != nil {
 		return domainmeeting.ScheduleParams{}, err
 	}
-	return domainmeeting.ScheduleParams{Title: r.Title, ScheduledAt: at, RemindBeforeMin: r.RemindBeforeMin}, nil
+	return domainmeeting.ScheduleParams{
+		Title:           r.Title,
+		Scenario:        domainmeeting.ParseScenario(r.Scenario),
+		ScheduledAt:     at,
+		RemindBeforeMin: r.RemindBeforeMin,
+	}, nil
 }
 
 // CreateScheduled POST /api/v1/meetings/scheduled — 建立未來會議（提醒用）。

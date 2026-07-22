@@ -40,6 +40,9 @@ func (f *fakeRepo) SaveTranscript(_ context.Context, id uuid.UUID, _ string, _ [
 func (f *fakeRepo) SaveSummary(_ context.Context, id uuid.UUID, summary string) (domainmeeting.Meeting, error) {
 	return domainmeeting.Meeting{ID: id, Summary: summary}, nil
 }
+func (f *fakeRepo) SaveSummarySections(_ context.Context, id uuid.UUID, sections []domainmeeting.SummarySection) (domainmeeting.Meeting, error) {
+	return domainmeeting.Meeting{ID: id, SummarySections: sections}, nil
+}
 func (f *fakeRepo) SetCompleted(_ context.Context, id uuid.UUID) (domainmeeting.Meeting, error) {
 	return domainmeeting.Meeting{ID: id}, nil
 }

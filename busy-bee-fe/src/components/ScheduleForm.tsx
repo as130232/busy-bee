@@ -5,8 +5,11 @@ import {
   createScheduledMeeting,
   updateMeetingSchedule,
   type Meeting,
+  type Scenario,
 } from '../services/api/client'
 import { getIdToken } from '../services/token'
+import { ScenarioToggle } from './ScenarioToggle'
+import { Sheet } from './Sheet'
 
 /** Date/ISO 字串 → datetime-local input 值（本地時區） */
 function toLocalInputValue(iso: string): string {
@@ -25,6 +28,7 @@ interface SheetProps {
 /** 排程表單 bottom sheet（手機底部滑入，桌面置中）；建立與編輯共用。 */
 export function ScheduleSheet({ editing, onClose, onSaved }: SheetProps) {
   const [title, setTitle] = useState(editing?.title ?? '')
+  const [scenario, setScenario] = useState<Scenario>('meeting')
   const [at, setAt] = useState(editing?.scheduledAt ? toLocalInputValue(editing.scheduledAt) : '')
   const [remind, setRemind] = useState(editing?.remindBeforeMin ?? 15)
   const [error, setError] = useState<string | null>(null)
@@ -36,9 +40,10 @@ export function ScheduleSheet({ editing, onClose, onSaved }: SheetProps) {
     try {
       const input = { title, scheduledAt: new Date(at).toISOString(), remindBeforeMin: remind }
       const token = await getIdToken()
+      // 情境僅於建立時設定（排程編輯不改情境）。
       const { meeting } = editing
         ? await updateMeetingSchedule(token, editing.id, input)
-        : await createScheduledMeeting(token, input)
+        : await createScheduledMeeting(token, { ...input, scenario })
       onClose()
       onSaved?.(meeting)
     } catch (e) {
@@ -49,10 +54,8 @@ export function ScheduleSheet({ editing, onClose, onSaved }: SheetProps) {
   }
 
   return (
-    <>
-      <div className="animate-fade-in fixed inset-0 z-40 bg-black/50" onClick={onClose} />
-      <div className="animate-sheet-up sm:animate-fade-in fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] flex-col gap-3 overflow-y-auto rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:max-h-[85dvh] sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:pb-4">
-        <div className="flex items-center justify-between">
+    <Sheet onClose={onClose} className="max-h-[85dvh] overflow-y-auto sm:max-h-[85dvh]">
+      <div className="flex items-center justify-between">
           <h2 className="m-0 text-base font-semibold">{editing ? '編輯排程' : '排程會議提醒'}</h2>
           <button type="button" className="btn btn-ghost size-9 px-0" aria-label="關閉" onClick={onClose}>
             <X className="size-4" />
@@ -61,10 +64,16 @@ export function ScheduleSheet({ editing, onClose, onSaved }: SheetProps) {
         <input
           className="input"
           type="text"
-          placeholder="會議標題"
+          placeholder="標題"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
+        {!editing && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted">情境</span>
+            <ScenarioToggle value={scenario} onChange={setScenario} disabled={busy} />
+          </div>
+        )}
         <input
           className="input"
           type="datetime-local"
@@ -92,8 +101,7 @@ export function ScheduleSheet({ editing, onClose, onSaved }: SheetProps) {
         >
           {editing ? '儲存' : '建立'}
         </button>
-      </div>
-    </>
+    </Sheet>
   )
 }
 
