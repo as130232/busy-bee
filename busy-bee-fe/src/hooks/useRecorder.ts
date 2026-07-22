@@ -115,8 +115,9 @@ export function useRecorder() {
           resolve(null)
           return
         }
+        // 檔名前綴中性（「錄音」）；情境前綴（會議/閒聊）由上層依所選情境組合標題。
         const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ')
-        resolve(new File([blob], `會議錄音 ${stamp}.${extFor(mimeType)}`, { type: mimeType }))
+        resolve(new File([blob], `錄音 ${stamp}.${extFor(mimeType)}`, { type: mimeType }))
       }
       recorder.stop()
     })

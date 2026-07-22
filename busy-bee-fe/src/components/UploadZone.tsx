@@ -3,7 +3,7 @@ import { CheckCircle2, Upload } from 'lucide-react'
 
 import { auth } from '../services/firebase'
 import { uploadAudio } from '../services/upload'
-import type { Meeting } from '../services/api/client'
+import type { Meeting, Scenario } from '../services/api/client'
 
 type UploadState =
   | { phase: 'idle' }
@@ -11,7 +11,13 @@ type UploadState =
   | { phase: 'done'; meeting: Meeting }
   | { phase: 'error'; message: string; file: File }
 
-export function UploadZone({ onUploaded }: { onUploaded?: (m: Meeting) => void }) {
+export function UploadZone({
+  onUploaded,
+  scenario = 'meeting',
+}: {
+  onUploaded?: (m: Meeting) => void
+  scenario?: Scenario
+}) {
   const [state, setState] = useState<UploadState>({ phase: 'idle' })
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -24,8 +30,12 @@ export function UploadZone({ onUploaded }: { onUploaded?: (m: Meeting) => void }
       try {
         const idToken = await fbUser.getIdToken()
         const title = file.name.replace(/\.[^.]+$/, '') || '未命名會議'
-        const meeting = await uploadAudio(idToken, title, file, (percent) =>
-          setState({ phase: 'uploading', percent, fileName: file.name }),
+        const meeting = await uploadAudio(
+          idToken,
+          title,
+          file,
+          (percent) => setState({ phase: 'uploading', percent, fileName: file.name }),
+          scenario,
         )
         setState({ phase: 'done', meeting })
         onUploaded?.(meeting)
@@ -37,7 +47,7 @@ export function UploadZone({ onUploaded }: { onUploaded?: (m: Meeting) => void }
         })
       }
     },
-    [onUploaded],
+    [onUploaded, scenario],
   )
 
   const onDrop = useCallback(

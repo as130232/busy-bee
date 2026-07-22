@@ -338,6 +338,11 @@ export interface components {
             title: string;
             /** @enum {string} */
             status: "scheduled" | "pending" | "transcribing" | "analyzing" | "completed" | "failed";
+            /**
+             * @description 紀錄情境（會議/閒聊/面試）
+             * @enum {string}
+             */
+            scenario: "meeting" | "casual" | "interview";
             /** @description 一句話摘要（TL;DR），未處理則不出現 */
             summary?: string;
             durationSeconds: number;
@@ -364,6 +369,13 @@ export interface components {
             /** @description 結束毫秒 */
             endMs: number;
         };
+        SummarySection: {
+            /** @description 區塊機器識別（如 decisions/topics/todos） */
+            type: string;
+            /** @description 顯示標題 */
+            title: string;
+            items: string[];
+        };
         MeetingDetail: components["schemas"]["Meeting"] & {
             transcript: string;
             transcriptSegments: components["schemas"]["TranscriptSegment"][];
@@ -371,6 +383,8 @@ export interface components {
             speakerNames: {
                 [key: string]: string;
             };
+            /** @description 依情境產生的結構化摘要區塊；未處理時為空陣列 */
+            summarySections: components["schemas"]["SummarySection"][];
         };
         Artifact: {
             /** Format: uuid */
@@ -523,6 +537,12 @@ export interface operations {
                      * @example audio/webm
                      */
                     contentType: string;
+                    /**
+                     * @description 紀錄情境（會議/閒聊/面試）；決定 AI 產出的結構化摘要區塊模板。省略或無效值回退 meeting。
+                     * @default meeting
+                     * @enum {string}
+                     */
+                    scenario?: "meeting" | "casual" | "interview";
                 };
             };
         };
@@ -570,6 +590,12 @@ export interface operations {
             content: {
                 "application/json": {
                     title: string;
+                    /**
+                     * @description 紀錄情境（會議/閒聊/面試）；省略或無效值回退 meeting。
+                     * @default meeting
+                     * @enum {string}
+                     */
+                    scenario?: "meeting" | "casual" | "interview";
                     /** Format: date-time */
                     scheduledAt: string;
                     /** @default 15 */

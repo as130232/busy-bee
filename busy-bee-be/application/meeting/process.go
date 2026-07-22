@@ -45,6 +45,7 @@ type ProcessDeps struct {
 	STT         domainmeeting.STTClient
 	Artifacts   domainartifact.Repository
 	LLM         domainartifact.LLMClient
+	Summarizer  domainmeeting.Summarizer
 	Notifier    domainmeeting.StatusNotifier
 	ActionItems domainactionitem.Repository
 	Extractor   domainactionitem.Extractor
@@ -57,6 +58,7 @@ type ProcessUC struct {
 	stt         domainmeeting.STTClient
 	artifacts   domainartifact.Repository
 	llm         domainartifact.LLMClient
+	summarizer  domainmeeting.Summarizer
 	notifier    domainmeeting.StatusNotifier
 	actionItems domainactionitem.Repository
 	extractor   domainactionitem.Extractor
@@ -66,7 +68,7 @@ type ProcessUC struct {
 func NewProcessUC(d ProcessDeps) *ProcessUC {
 	return &ProcessUC{
 		repo: d.Meetings, storage: d.Storage, stt: d.STT,
-		artifacts: d.Artifacts, llm: d.LLM, notifier: d.Notifier,
+		artifacts: d.Artifacts, llm: d.LLM, summarizer: d.Summarizer, notifier: d.Notifier,
 		actionItems: d.ActionItems, extractor: d.Extractor,
 		indexer: d.Indexer,
 	}
@@ -142,9 +144,10 @@ func (uc *ProcessUC) Execute(ctx context.Context, meetingID uuid.UUID) error {
 		uc.notify(ctx, m)
 	}
 
-	// analyzing 階段：生成 PRD 與 Tech Spec；缺哪份補哪份（冪等，不重複扣費）
+	// analyzing 階段：依情境產生結構化摘要區塊 + 抽取行動項（各自冪等，不重複扣費）。
+	// PRD / Tech Spec 已改為選用、不再自動產生（generateArtifacts 保留供日後 on-demand 觸發）。
 	if m.Status == domainmeeting.StatusAnalyzing {
-		if err := uc.generateArtifacts(ctx, m); err != nil {
+		if err := uc.generateSummarySections(ctx, m); err != nil {
 			return err
 		}
 		if err := uc.extractActionItems(ctx, m); err != nil {
@@ -167,6 +170,29 @@ func (uc *ProcessUC) Execute(ctx context.Context, meetingID uuid.UUID) error {
 	return nil
 }
 
+// generateSummarySections 依情境（會議/閒聊）產生結構化摘要區塊並落庫。
+// 冪等（ADR-009）：meeting 已有 summary_sections 則跳過，不重複呼叫 LLM。
+func (uc *ProcessUC) generateSummarySections(ctx context.Context, m domainmeeting.Meeting) error {
+	if len(m.SummarySections) > 0 {
+		return nil // 已產生
+	}
+	sections, err := uc.summarizer.Summarize(ctx, m.Transcript, m.Scenario)
+	if err != nil {
+		return fmt.Errorf("process summarize: %w", err)
+	}
+	if len(sections) == 0 {
+		return nil // 無區塊可存；不覆寫成空（空稿已於 STT 階段擋下）
+	}
+	if _, err := uc.repo.SaveSummarySections(ctx, m.ID, sections); err != nil {
+		return fmt.Errorf("process save summary sections: %w", err)
+	}
+	slog.InfoContext(ctx, "meeting.process.summary_sections_saved",
+		"meeting_id", m.ID, "scenario", m.Scenario, "sections", len(sections))
+	return nil
+}
+
+// generateArtifacts 產生 PRD 與 Tech Spec（缺哪份補哪份，冪等）。
+// 已不在預設管線自動觸發；保留供日後 on-demand（進階）產生使用。
 func (uc *ProcessUC) generateArtifacts(ctx context.Context, m domainmeeting.Meeting) error {
 	existing, err := uc.artifacts.ListByMeeting(ctx, m.ID)
 	if err != nil {

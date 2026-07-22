@@ -1,4 +1,5 @@
 import { type CSSProperties, type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import {
@@ -10,6 +11,7 @@ import {
   Pencil,
   Play,
   Rewind,
+  Sparkles,
   Trash2,
 } from 'lucide-react'
 
@@ -18,7 +20,9 @@ import { AppShell } from '../components/AppShell'
 import { ExportBar } from '../components/ExportBar'
 import { Loader } from '../components/Loader'
 import { ScheduleSheet } from '../components/ScheduleForm'
+import { Sheet } from '../components/Sheet'
 import { StatusBadge } from '../components/StatusBadge'
+import { SummarySections } from '../components/SummarySections'
 import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
 import {
   deleteMeeting,
@@ -29,6 +33,7 @@ import {
   listMeetingActionItems,
   renameMeeting,
   retryMeeting,
+  scenarioLabels,
   toggleActionItem,
   updateMeetingSpeakers,
   type ActionItem,
@@ -47,13 +52,17 @@ const tabLabels: Record<Tab, string> = {
   transcript: '逐字稿',
 }
 
+// 核心頁籤一律顯示；PRD / Tech Spec 已改為選用，僅在對應 artifact 存在時才出現。
+const coreTabs: Tab[] = ['action_items', 'transcript']
+const optionalDocTabs = ['prd', 'tech_spec'] as const satisfies readonly Tab[]
+
 export function MeetingDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [meeting, setMeeting] = useState<MeetingDetail | null>(null)
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [actionItems, setActionItems] = useState<ActionItem[]>([])
-  const [tab, setTab] = useState<Tab>('prd')
+  const [tab, setTab] = useState<Tab>('action_items')
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -128,14 +137,14 @@ export function MeetingDetailPage() {
 
   if (error) {
     return (
-      <AppShell>
+      <AppShell hideTopBar>
         <p className="py-10 text-center text-sm text-red-500">{error}</p>
       </AppShell>
     )
   }
   if (!meeting) {
     return (
-      <AppShell>
+      <AppShell hideTopBar>
         <Loader className="py-16" />
       </AppShell>
     )
@@ -151,6 +160,12 @@ export function MeetingDetailPage() {
   }
 
   const artifactByType = new Map(artifacts.map((a) => [a.type, a]))
+  // 頁籤 = 核心頁籤 + 已存在的選用文件頁籤（PRD / Tech Spec 不再預設出現）。
+  const visibleTabs: Tab[] = [...coreTabs, ...optionalDocTabs.filter((t) => artifactByType.has(t))]
+  // meta 統計皆前端可得：講者數取自逐字稿實際出現的代號。
+  const speakerCount = new Set(meeting.transcriptSegments.map((s) => s.speaker)).size
+  const hasSummary = Boolean(meeting.summary) || meeting.summarySections.some((s) => s.items.length > 0)
+  // tab 預設 action_items（恆在），使用者只能點可見頁籤，故 tab 恆有效。
   const docContent =
     tab === 'transcript'
       ? meeting.transcript
@@ -168,26 +183,51 @@ export function MeetingDetailPage() {
   const exportContent = tab === 'transcript' ? transcriptExport : docContent
 
   return (
-    <AppShell>
-      <header className="flex items-center gap-2">
-        <Link to="/meetings" className="btn btn-ghost size-11 shrink-0 px-0" aria-label="返回">
-          <ChevronLeft className="size-5" />
-        </Link>
-        <EditableTitle
-          meetingId={meeting.id}
-          title={meeting.title}
-          onRenamed={(title) => setMeeting({ ...meeting, title })}
-        />
-        <StatusBadge status={meeting.status} />
-        <button
-          type="button"
-          className="btn btn-ghost size-9 shrink-0 px-0 text-muted hover:text-red-500"
-          aria-label="刪除會議"
-          onClick={() => setConfirmDelete(true)}
-        >
-          <Trash2 className="size-4" />
-        </button>
-      </header>
+    <AppShell hideTopBar>
+      <div className="flex flex-col gap-1.5">
+        <header className="flex items-center gap-2">
+          <Link to="/meetings" className="btn btn-ghost size-11 shrink-0 px-0" aria-label="返回">
+            <ChevronLeft className="size-5" />
+          </Link>
+          <EditableTitle
+            meetingId={meeting.id}
+            title={meeting.title}
+            onRenamed={(title) => setMeeting({ ...meeting, title })}
+          />
+          {/* 完成後不再顯示狀態（只在處理中/失敗等變化階段提示），版面更簡約 */}
+          {meeting.status !== 'completed' && <StatusBadge status={meeting.status} />}
+          <button
+            type="button"
+            className="btn btn-ghost size-9 shrink-0 px-0 text-muted hover:text-red-500"
+            aria-label="刪除會議"
+            onClick={() => setConfirmDelete(true)}
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </header>
+        {/* meta：情境 · 時長 · 講者數 · 行動項數（皆前端計算，一眼定位這場的樣貌） */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-[3.25rem] text-xs text-muted tabular-nums">
+          <span>{scenarioLabels[meeting.scenario]}</span>
+          {meeting.durationSeconds > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <span>{fmtClock(meeting.durationSeconds)}</span>
+            </>
+          )}
+          {speakerCount > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <span>{speakerCount} 位講者</span>
+            </>
+          )}
+          {meeting.status === 'completed' && (
+            <>
+              <span aria-hidden>·</span>
+              <span>{actionItems.length} 行動項</span>
+            </>
+          )}
+        </div>
+      </div>
 
       {meeting.status === 'failed' && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3">
@@ -198,20 +238,31 @@ export function MeetingDetailPage() {
         </div>
       )}
 
-      {meeting.summary && (
-        <p className="m-0 rounded-xl border border-accent/20 bg-accent/5 px-4 py-3 text-sm leading-6 text-fg">
-          {meeting.summary}
-        </p>
+      {hasSummary && (
+        <section className="rounded-xl border border-accent/20 bg-accent/[0.06] px-4 py-3.5">
+          <div className="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide text-accent">
+            <Sparkles className="size-3.5" />
+            AI 摘要
+          </div>
+          {meeting.summary && (
+            <p className="m-0 text-[15px] leading-6 font-medium text-fg">{meeting.summary}</p>
+          )}
+          <SummarySections
+            sections={meeting.summarySections}
+            bare
+            className={meeting.summary ? 'mt-3' : ''}
+          />
+        </section>
       )}
 
       <AudioPlayer meetingId={meeting.id} durationSeconds={meeting.durationSeconds} audioRef={audioRef} />
 
-      <nav className="grid grid-cols-4 border-b border-border">
-        {(Object.keys(tabLabels) as Tab[]).map((t) => (
+      <nav className="sticky top-0 z-20 flex border-b border-border bg-bg">
+        {visibleTabs.map((t) => (
           <button
             key={t}
             type="button"
-            className={`-mb-px h-11 cursor-pointer border-b-2 text-sm font-medium transition ${
+            className={`-mb-px h-11 flex-1 cursor-pointer border-b-2 text-sm font-medium transition ${
               tab === t ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg'
             }`}
             onClick={() => setTab(t)}
@@ -251,26 +302,23 @@ export function MeetingDetailPage() {
         )}
       </article>
 
+      {/* 讓開貼底 mini-player，避免最後內容被蓋住 */}
+      <div aria-hidden className="h-16" />
+
       {confirmDelete && (
-        <>
-          <div
-            className="animate-fade-in fixed inset-0 z-40 bg-black/50"
-            onClick={() => setConfirmDelete(false)}
-          />
-          <div className="animate-sheet-up sm:animate-fade-in fixed inset-x-0 bottom-0 z-50 flex flex-col gap-3 rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:pb-4">
-            <p className="m-0 text-sm">
-              確定刪除「{meeting.title}」？逐字稿、PRD、Tech Spec、行動項將一併刪除，此動作無法復原。
-            </p>
-            <div className="flex gap-2">
-              <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmDelete(false)}>
-                取消
-              </button>
-              <button type="button" className="btn btn-primary flex-1 bg-red-600" onClick={() => void remove()}>
-                刪除
-              </button>
-            </div>
+        <Sheet onClose={() => setConfirmDelete(false)}>
+          <p className="m-0 text-sm">
+            確定刪除「{meeting.title}」？逐字稿、PRD、Tech Spec、行動項將一併刪除，此動作無法復原。
+          </p>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmDelete(false)}>
+              取消
+            </button>
+            <button type="button" className="btn btn-primary flex-1 bg-red-600" onClick={() => void remove()}>
+              刪除
+            </button>
           </div>
-        </>
+        </Sheet>
       )}
     </AppShell>
   )
@@ -518,17 +566,6 @@ function SegmentRow({
           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${colorClass}`}>{speakerName}</span>
           <Play className="ml-auto size-3.5 shrink-0 text-muted transition-colors group-hover:text-accent" />
         </button>
-        <button
-          type="button"
-          className="btn btn-ghost size-7 shrink-0 px-0 text-muted hover:text-accent"
-          aria-label="修正文字"
-          onClick={() => {
-            setDraft(seg.text)
-            setEditing(true)
-          }}
-        >
-          <Pencil className="size-3.5" />
-        </button>
       </div>
 
       {editing ? (
@@ -564,7 +601,20 @@ function SegmentRow({
           </div>
         </div>
       ) : (
-        <p className="m-0 text-sm leading-7">{seg.text}</p>
+        <p className="m-0 text-sm leading-7">
+          {seg.text}
+          <button
+            type="button"
+            className="ml-1 inline-flex translate-y-0.5 text-muted transition-colors hover:text-accent"
+            aria-label="修正文字"
+            onClick={() => {
+              setDraft(seg.text)
+              setEditing(true)
+            }}
+          >
+            <Pencil className="size-3.5" />
+          </button>
+        </p>
       )}
     </div>
   )
@@ -607,33 +657,30 @@ function SpeakerRenameSheet({
   }
 
   return (
-    <>
-      <div className="animate-fade-in fixed inset-0 z-40 bg-black/50" onClick={onClose} />
-      <div className="animate-sheet-up sm:animate-fade-in fixed inset-x-0 bottom-0 z-50 flex flex-col gap-3 rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:pb-4">
-        <p className="m-0 text-sm font-medium">重新命名講者 {code}</p>
-        <input
-          className="input h-10"
-          value={draft}
-          placeholder={`例如 Ben（留空還原為 ${code}）`}
-          disabled={busy}
-          autoFocus
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void save()
-            if (e.key === 'Escape') onClose()
-          }}
-        />
-        {err && <p className="m-0 text-xs text-red-500">{err}</p>}
-        <div className="flex gap-2">
-          <button type="button" className="btn btn-secondary flex-1" onClick={onClose} disabled={busy}>
-            取消
-          </button>
-          <button type="button" className="btn btn-primary flex-1" onClick={() => void save()} disabled={busy}>
-            {busy ? '儲存中…' : '儲存'}
-          </button>
-        </div>
+    <Sheet onClose={onClose}>
+      <p className="m-0 text-sm font-medium">重新命名講者 {code}</p>
+      <input
+        className="input h-10"
+        value={draft}
+        placeholder={`例如 Ben（留空還原為 ${code}）`}
+        disabled={busy}
+        autoFocus
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void save()
+          if (e.key === 'Escape') onClose()
+        }}
+      />
+      {err && <p className="m-0 text-xs text-red-500">{err}</p>}
+      <div className="flex gap-2">
+        <button type="button" className="btn btn-secondary flex-1" onClick={onClose} disabled={busy}>
+          取消
+        </button>
+        <button type="button" className="btn btn-primary flex-1" onClick={() => void save()} disabled={busy}>
+          {busy ? '儲存中…' : '儲存'}
+        </button>
       </div>
-    </>
+    </Sheet>
   )
 }
 
@@ -695,17 +742,20 @@ function AudioPlayer({
     setCur(v)
   }
 
-  return (
-    <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2.5">
-      <audio
-        ref={audioRef}
-        src={url ?? undefined}
-        preload="metadata"
-        onTimeUpdate={(e) => setCur(e.currentTarget.currentTime)}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)}
-      />
+  // 貼底常駐 mini-player：透過 Portal 掛到 body，避免 AppShell 帶 transform 的 <main>
+  // 成為 fixed containing block（與 Sheet 同源問題）。閱讀長逐字稿時隨時可播/seek。
+  return createPortal(
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+      <div className="mx-auto flex h-14 max-w-xl items-center gap-1.5 px-3">
+        <audio
+          ref={audioRef}
+          src={url ?? undefined}
+          preload="metadata"
+          onTimeUpdate={(e) => setCur(e.currentTarget.currentTime)}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onEnded={() => setPlaying(false)}
+        />
       <button
         type="button"
         className="btn btn-ghost size-9 shrink-0 px-0 text-muted"
@@ -746,7 +796,9 @@ function AudioPlayer({
         aria-label="播放進度"
       />
       <span className="w-9 shrink-0 font-mono text-[11px] tabular-nums text-muted">{fmtClock(total)}</span>
-    </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -780,7 +832,7 @@ function ScheduledDetail({
   }
 
   return (
-    <AppShell>
+    <AppShell hideTopBar>
       <header className="flex items-center gap-2">
         <Link to="/schedule" className="btn btn-ghost size-11 shrink-0 px-0" aria-label="返回">
           <ChevronLeft className="size-5" />
@@ -836,20 +888,17 @@ function ScheduledDetail({
       )}
 
       {confirmDelete && (
-        <>
-          <div className="animate-fade-in fixed inset-0 z-40 bg-black/50" onClick={() => setConfirmDelete(false)} />
-          <div className="animate-sheet-up sm:animate-fade-in fixed inset-x-0 bottom-0 z-50 flex flex-col gap-3 rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:pb-4">
-            <p className="m-0 text-sm">確定刪除「{meeting.title}」這筆排程？此動作無法復原。</p>
-            <div className="flex gap-2">
-              <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmDelete(false)}>
-                取消
-              </button>
-              <button type="button" className="btn btn-primary flex-1 bg-red-600" onClick={() => void remove()}>
-                刪除
-              </button>
-            </div>
+        <Sheet onClose={() => setConfirmDelete(false)}>
+          <p className="m-0 text-sm">確定刪除「{meeting.title}」這筆排程？此動作無法復原。</p>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmDelete(false)}>
+              取消
+            </button>
+            <button type="button" className="btn btn-primary flex-1 bg-red-600" onClick={() => void remove()}>
+              刪除
+            </button>
           </div>
-        </>
+        </Sheet>
       )}
     </AppShell>
   )

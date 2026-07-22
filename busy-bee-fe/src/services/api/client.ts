@@ -54,6 +54,16 @@ export function syncUser(idToken: string): Promise<User> {
 
 export type Meeting = components['schemas']['Meeting']
 
+/** 紀錄情境（會議 / 閒聊 / 面試）；決定 AI 產出的結構化摘要區塊模板。 */
+export type Scenario = Meeting['scenario']
+
+/** 情境顯示標籤（前端一律以此對應中文標籤，避免各處硬編）。 */
+export const scenarioLabels: Record<Scenario, string> = {
+  meeting: '會議',
+  casual: '閒聊',
+  interview: '面試',
+}
+
 export interface CreateMeetingResult {
   meeting: Meeting
   upload: { url: string; headers: Record<string, string> }
@@ -62,7 +72,7 @@ export interface CreateMeetingResult {
 /** 建立會議並取得 GCS 直傳 signed URL */
 export function createMeeting(
   idToken: string,
-  input: { title: string; contentType: string },
+  input: { title: string; contentType: string; scenario?: Scenario },
 ): Promise<CreateMeetingResult> {
   return request<CreateMeetingResult>(
     '/api/v1/meetings',
@@ -159,7 +169,7 @@ export function toggleActionItem(
 /** 建立排程會議（提醒用） */
 export function createScheduledMeeting(
   idToken: string,
-  input: { title: string; scheduledAt: string; remindBeforeMin?: number },
+  input: { title: string; scheduledAt: string; remindBeforeMin?: number; scenario?: Scenario },
 ): Promise<{ meeting: Meeting }> {
   return request<{ meeting: Meeting }>(
     '/api/v1/meetings/scheduled',

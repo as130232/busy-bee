@@ -35,6 +35,7 @@ func (r *MeetingRepo) Create(ctx context.Context, m domainmeeting.Meeting) (doma
 		Title:           m.Title,
 		AudioGcsPath:    m.AudioGCSPath,
 		Status:          string(m.Status),
+		Scenario:        string(domainmeeting.ParseScenario(string(m.Scenario))),
 		ScheduledAt:     m.ScheduledAt,
 		RemindBeforeMin: int32(remind),
 	})
@@ -102,6 +103,18 @@ func (r *MeetingRepo) SaveSummary(ctx context.Context, id uuid.UUID, summary str
 	row, err := r.q.UpdateMeetingSummary(ctx, sqlcgen.UpdateMeetingSummaryParams{ID: id, Summary: summary})
 	if err != nil {
 		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingSummary: %w", err)
+	}
+	return toDomainMeeting(row), nil
+}
+
+func (r *MeetingRepo) SaveSummarySections(ctx context.Context, id uuid.UUID, sections []domainmeeting.SummarySection) (domainmeeting.Meeting, error) {
+	secJSON, err := marshalJSONB(sections, "[]")
+	if err != nil {
+		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingSummarySections marshal: %w", err)
+	}
+	row, err := r.q.UpdateMeetingSummarySections(ctx, sqlcgen.UpdateMeetingSummarySectionsParams{ID: id, SummarySections: secJSON})
+	if err != nil {
+		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingSummarySections: %w", err)
 	}
 	return toDomainMeeting(row), nil
 }
@@ -199,14 +212,20 @@ func toDomainMeeting(row sqlcgen.Meeting) domainmeeting.Meeting {
 	if len(row.SpeakerNames) > 0 {
 		_ = json.Unmarshal(row.SpeakerNames, &speakerNames)
 	}
+	var sections []domainmeeting.SummarySection
+	if len(row.SummarySections) > 0 {
+		_ = json.Unmarshal(row.SummarySections, &sections)
+	}
 	return domainmeeting.Meeting{
 		ID:                 row.ID,
 		UserID:             row.UserID,
 		Title:              row.Title,
 		AudioGCSPath:       row.AudioGcsPath,
 		Status:             domainmeeting.Status(row.Status),
+		Scenario:           domainmeeting.ParseScenario(row.Scenario),
 		Transcript:         row.Transcript,
 		Summary:            row.Summary,
+		SummarySections:    sections,
 		TranscriptSegments: segments,
 		SpeakerNames:       speakerNames,
 		DurationSeconds:    int(row.DurationSeconds),
@@ -237,6 +256,7 @@ func (r *MeetingRepo) CreateScheduled(ctx context.Context, userID uuid.UUID, p d
 	row, err := r.q.CreateScheduledMeeting(ctx, sqlcgen.CreateScheduledMeetingParams{
 		UserID:          userID,
 		Title:           p.Title,
+		Scenario:        string(domainmeeting.ParseScenario(string(p.Scenario))),
 		ScheduledAt:     &at,
 		RemindBeforeMin: int32(p.RemindBeforeMin),
 	})

@@ -115,6 +115,11 @@ paths:
                   type: string
                   description: 音訊 MIME type（audio/mpeg, audio/mp4, audio/x-m4a, audio/webm, audio/wav）
                   example: audio/webm
+                scenario:
+                  type: string
+                  enum: [meeting, casual, interview]
+                  default: meeting
+                  description: 紀錄情境（會議/閒聊/面試）；決定 AI 產出的結構化摘要區塊模板。省略或無效值回退 meeting。
       responses:
         "200":
           description: 建立成功
@@ -164,6 +169,11 @@ paths:
               required: [title, scheduledAt]
               properties:
                 title: { type: string }
+                scenario:
+                  type: string
+                  enum: [meeting, casual, interview]
+                  default: meeting
+                  description: 紀錄情境（會議/閒聊/面試）；省略或無效值回退 meeting。
                 scheduledAt: { type: string, format: date-time }
                 remindBeforeMin: { type: integer, default: 15, minimum: 1 }
       responses:
@@ -775,13 +785,17 @@ components:
 
     Meeting:
       type: object
-      required: [id, title, status, durationSeconds, remindBeforeMin, createdAt]
+      required: [id, title, status, scenario, durationSeconds, remindBeforeMin, createdAt]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
         status:
           type: string
           enum: [scheduled, pending, transcribing, analyzing, completed, failed]
+        scenario:
+          type: string
+          enum: [meeting, casual, interview]
+          description: "紀錄情境（會議/閒聊/面試）"
         summary: { type: string, description: "一句話摘要（TL;DR），未處理則不出現" }
         durationSeconds: { type: integer }
         errorMessage: { type: string }
@@ -800,11 +814,21 @@ components:
         startMs: { type: integer, description: 起始毫秒 }
         endMs: { type: integer, description: 結束毫秒 }
 
+    SummarySection:
+      type: object
+      required: [type, title, items]
+      properties:
+        type: { type: string, description: 區塊機器識別（如 decisions/topics/todos） }
+        title: { type: string, description: 顯示標題 }
+        items:
+          type: array
+          items: { type: string }
+
     MeetingDetail:
       allOf:
         - $ref: "#/components/schemas/Meeting"
         - type: object
-          required: [transcript, transcriptSegments, speakerNames]
+          required: [transcript, transcriptSegments, speakerNames, summarySections]
           properties:
             transcript: { type: string }
             transcriptSegments:
@@ -814,6 +838,10 @@ components:
               type: object
               additionalProperties: { type: string }
               description: 講者代號→顯示名，如 {"A":"Ben"}
+            summarySections:
+              type: array
+              items: { $ref: "#/components/schemas/SummarySection" }
+              description: 依情境產生的結構化摘要區塊；未處理時為空陣列
 
     Artifact:
       type: object

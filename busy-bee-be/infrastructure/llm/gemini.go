@@ -13,6 +13,7 @@ import (
 
 	domainactionitem "github.com/as130232/busy-bee/busy-bee-be/domain/actionitem"
 	domainartifact "github.com/as130232/busy-bee/busy-bee-be/domain/artifact"
+	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 )
 
 //go:embed prompts/*.md
@@ -23,6 +24,13 @@ const (
 	promptTechSpec    = "prompts/tech_spec.md"
 	promptActionItems = "prompts/action_items.md"
 )
+
+// scenarioPrompts 每個情境對應的結構化摘要 prompt 模板。
+var scenarioPrompts = map[domainmeeting.Scenario]string{
+	domainmeeting.ScenarioMeeting:   "prompts/summary_meeting.md",
+	domainmeeting.ScenarioCasual:    "prompts/summary_casual.md",
+	domainmeeting.ScenarioInterview: "prompts/summary_interview.md",
+}
 
 func buildPrompt(templatePath, transcript string) (string, error) {
 	raw, err := promptFS.ReadFile(templatePath)
@@ -40,6 +48,7 @@ type GeminiClient struct {
 var (
 	_ domainartifact.LLMClient   = (*GeminiClient)(nil)
 	_ domainactionitem.Extractor = (*GeminiClient)(nil)
+	_ domainmeeting.Summarizer   = (*GeminiClient)(nil)
 )
 
 func NewGemini(ctx context.Context, apiKey, model string) (*GeminiClient, error) {
@@ -73,18 +82,42 @@ func (c *GeminiClient) Extract(ctx context.Context, transcript string) (domainac
 
 // parseExtraction 解析模型輸出的 JSON 物件，容忍被 ```json fence 包裹的情形。
 func parseExtraction(text string) (domainactionitem.Extraction, error) {
-	s := strings.TrimSpace(text)
-	s = strings.TrimPrefix(s, "```json")
-	s = strings.TrimPrefix(s, "```")
-	s = strings.TrimSpace(s)
-	s = strings.TrimSuffix(s, "```")
-	s = strings.TrimSpace(s)
-
+	s := stripJSONFence(text)
 	var out domainactionitem.Extraction
 	if err := json.Unmarshal([]byte(s), &out); err != nil {
 		return domainactionitem.Extraction{}, fmt.Errorf("llm.parseExtraction: %w", err)
 	}
 	return out, nil
+}
+
+// stripJSONFence 去除模型輸出可能包裹的 ```json fence 與前後空白。
+func stripJSONFence(text string) string {
+	s := strings.TrimSpace(text)
+	s = strings.TrimPrefix(s, "```json")
+	s = strings.TrimPrefix(s, "```")
+	s = strings.TrimSpace(s)
+	s = strings.TrimSuffix(s, "```")
+	return strings.TrimSpace(s)
+}
+
+// Summarize 依情境選 prompt，一次呼叫產出結構化摘要區塊。
+// 情境無對應模板時回退會議模板（ParseScenario 已保證有效值，此處為雙保險）。
+func (c *GeminiClient) Summarize(ctx context.Context, transcript string, scenario domainmeeting.Scenario) ([]domainmeeting.SummarySection, error) {
+	tmpl, ok := scenarioPrompts[scenario]
+	if !ok {
+		tmpl = scenarioPrompts[domainmeeting.ScenarioMeeting]
+	}
+	text, err := c.generate(ctx, tmpl, transcript)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Sections []domainmeeting.SummarySection `json:"sections"`
+	}
+	if err := json.Unmarshal([]byte(stripJSONFence(text)), &out); err != nil {
+		return nil, fmt.Errorf("llm.Summarize parse: %w", err)
+	}
+	return out.Sections, nil
 }
 
 func (c *GeminiClient) generate(ctx context.Context, templatePath, transcript string) (string, error) {

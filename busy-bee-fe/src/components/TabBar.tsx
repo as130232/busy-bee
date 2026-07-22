@@ -3,7 +3,7 @@ import { CalendarClock, FileText, Mic, Settings } from 'lucide-react'
 
 const tabs = [
   { to: '/', label: '錄音', Icon: Mic, end: true },
-  { to: '/meetings', label: '會議', Icon: FileText, end: false },
+  { to: '/meetings', label: '紀錄', Icon: FileText, end: false },
   { to: '/schedule', label: '行程', Icon: CalendarClock, end: false },
   { to: '/settings', label: '設定', Icon: Settings, end: false },
 ]

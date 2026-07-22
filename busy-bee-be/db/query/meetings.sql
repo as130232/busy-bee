@@ -1,6 +1,6 @@
 -- name: CreateMeeting :one
-INSERT INTO meetings (user_id, title, audio_gcs_path, status, scheduled_at, remind_before_min)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO meetings (user_id, title, audio_gcs_path, status, scenario, scheduled_at, remind_before_min)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: GetMeetingForUser :one
@@ -33,6 +33,12 @@ SET summary = $2, updated_at = now()
 WHERE id = $1
 RETURNING *;
 
+-- name: UpdateMeetingSummarySections :one
+UPDATE meetings
+SET summary_sections = $2, updated_at = now()
+WHERE id = $1
+RETURNING *;
+
 -- name: UpdateMeetingTranscriptSegments :one
 UPDATE meetings
 SET transcript = $3, transcript_segments = $4, updated_at = now()
@@ -56,8 +62,8 @@ ORDER BY created_at DESC
 LIMIT 100;
 
 -- name: CreateScheduledMeeting :one
-INSERT INTO meetings (user_id, title, status, scheduled_at, remind_before_min)
-VALUES ($1, $2, 'scheduled', $3, $4)
+INSERT INTO meetings (user_id, title, status, scenario, scheduled_at, remind_before_min)
+VALUES ($1, $2, 'scheduled', $3, $4, $5)
 RETURNING *;
 
 -- name: UpdateMeetingSchedule :one
