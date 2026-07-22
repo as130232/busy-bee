@@ -339,10 +339,10 @@ export interface components {
             /** @enum {string} */
             status: "scheduled" | "pending" | "transcribing" | "analyzing" | "completed" | "failed";
             /**
-             * @description 紀錄情境（會議/閒聊）
+             * @description 紀錄情境（會議/閒聊/面試）
              * @enum {string}
              */
-            scenario: "meeting" | "casual";
+            scenario: "meeting" | "casual" | "interview";
             /** @description 一句話摘要（TL;DR），未處理則不出現 */
             summary?: string;
             durationSeconds: number;
@@ -538,11 +538,11 @@ export interface operations {
                      */
                     contentType: string;
                     /**
-                     * @description 紀錄情境（會議/閒聊）；決定 AI 產出的結構化摘要區塊模板。省略或無效值回退 meeting。
+                     * @description 紀錄情境（會議/閒聊/面試）；決定 AI 產出的結構化摘要區塊模板。省略或無效值回退 meeting。
                      * @default meeting
                      * @enum {string}
                      */
-                    scenario?: "meeting" | "casual";
+                    scenario?: "meeting" | "casual" | "interview";
                 };
             };
         };
@@ -591,11 +591,11 @@ export interface operations {
                 "application/json": {
                     title: string;
                     /**
-                     * @description 紀錄情境（會議/閒聊）；省略或無效值回退 meeting。
+                     * @description 紀錄情境（會議/閒聊/面試）；省略或無效值回退 meeting。
                      * @default meeting
                      * @enum {string}
                      */
-                    scenario?: "meeting" | "casual";
+                    scenario?: "meeting" | "casual" | "interview";
                     /** Format: date-time */
                     scheduledAt: string;
                     /** @default 15 */

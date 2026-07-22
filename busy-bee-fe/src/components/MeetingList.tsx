@@ -3,12 +3,16 @@ import { Link } from 'react-router-dom'
 import { StatusBadge } from './StatusBadge'
 import { scenarioLabels, type Meeting } from '../services/api/client'
 
-/** 情境標籤（會議/閒聊）；閒聊用不同色以利辨識。 */
+/** 情境標籤（會議/閒聊/面試）；配色對齊錄音頁情境色（會議琥珀、閒聊天藍、面試翠綠）。 */
 function ScenarioTag({ scenario }: { scenario: Meeting['scenario'] }) {
   const label = scenarioLabels[scenario]
   if (!label) return null
   const tone =
-    scenario === 'casual' ? 'bg-violet-500/10 text-violet-500' : 'bg-accent/10 text-accent'
+    scenario === 'casual'
+      ? 'bg-sky-500/10 text-sky-500'
+      : scenario === 'interview'
+        ? 'bg-emerald-500/10 text-emerald-500'
+        : 'bg-accent/10 text-accent'
   return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
 }
 
@@ -80,7 +84,8 @@ export function MeetingList({ meetings, emptyText }: { meetings: Meeting[]; empt
                 <span className="mt-1 block truncate text-xs italic text-muted">…{m.matchSnippet}…</span>
               )}
             </span>
-            <StatusBadge status={m.status} />
+            {/* 完成後不再顯示狀態徽章，列表更簡約；只在處理中/排程/失敗等階段提示 */}
+            {m.status !== 'completed' && <StatusBadge status={m.status} />}
           </Link>
         </li>
       ))}

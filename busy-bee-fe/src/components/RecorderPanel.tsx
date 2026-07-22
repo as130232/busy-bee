@@ -5,6 +5,7 @@ import { useRecorder } from '../hooks/useRecorder'
 import { auth } from '../services/firebase'
 import { uploadAudio } from '../services/upload'
 import { scenarioLabels, type Meeting, type Scenario } from '../services/api/client'
+import { scenarioThemes } from './scenarioTheme'
 
 function fmt(sec: number): string {
   const m = Math.floor(sec / 60)
@@ -80,6 +81,8 @@ export function RecorderPanel({
     )
   }
 
+  const theme = scenarioThemes[scenario]
+
   if (!rec.isActive) {
     return (
       <div className="flex flex-col items-center gap-6">
@@ -89,25 +92,25 @@ export function RecorderPanel({
           onClick={() => void rec.start()}
           className="group relative flex size-40 items-center justify-center"
         >
-          {/* 向外擴散的聲波環（三層錯開，像聲納） */}
-          <span className="animate-sonar absolute size-28 rounded-full border border-amber-400/40" />
-          <span className="animate-sonar absolute size-28 rounded-full border border-amber-400/40 [animation-delay:0.9s]" />
-          <span className="animate-sonar absolute size-28 rounded-full border border-amber-400/40 [animation-delay:1.8s]" />
+          {/* 向外擴散的聲波環（三層錯開，像聲納）；顏色隨情境 */}
+          <span className={`animate-sonar absolute size-28 rounded-full border ${theme.ring}`} />
+          <span className={`animate-sonar absolute size-28 rounded-full border ${theme.ring} [animation-delay:0.9s]`} />
+          <span className={`animate-sonar absolute size-28 rounded-full border ${theme.ring} [animation-delay:1.8s]`} />
 
           {/* 柔和光暈（呼吸脹縮） */}
-          <span className="animate-breathe absolute size-32 rounded-full bg-amber-400/25 blur-2xl" />
+          <span className={`animate-breathe absolute size-32 rounded-full blur-2xl ${theme.glow}`} />
 
           {/* 環繞旋轉的光點 */}
           <span className="absolute size-40 animate-[spin_9s_linear_infinite]">
-            <span className="absolute top-0 left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-amber-300 shadow-[0_0_8px] shadow-amber-300" />
-            <span className="absolute bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full bg-amber-400/70" />
-            <span className="absolute top-1/2 right-1 size-1 -translate-y-1/2 rounded-full bg-amber-300/60" />
+            <span className={`absolute top-0 left-1/2 size-1.5 -translate-x-1/2 rounded-full shadow-[0_0_8px] ${theme.dotBright}`} />
+            <span className={`absolute bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full ${theme.dotSoft}`} />
+            <span className={`absolute top-1/2 right-1 size-1 -translate-y-1/2 rounded-full ${theme.dotFaint}`} />
           </span>
 
-          {/* 主鈕（呼吸放大縮小） */}
+          {/* 主鈕（呼吸放大縮小）；漸層/陰影/高亮環皆隨情境 */}
           <span
-            className={`animate-breathe relative flex size-24 items-center justify-center rounded-full bg-gradient-to-b from-amber-400 to-amber-500 text-zinc-900 shadow-[0_0_70px_-8px] shadow-amber-400/60 transition-shadow duration-300 group-hover:shadow-[0_0_100px_-4px] group-hover:shadow-amber-400/80${
-              highlight ? ' ring-4 ring-accent ring-offset-2 ring-offset-bg' : ''
+            className={`animate-breathe relative flex size-24 items-center justify-center rounded-full bg-gradient-to-b text-zinc-900 shadow-[0_0_70px_-8px] transition-shadow duration-300 group-hover:shadow-[0_0_100px_-4px] ${theme.button} ${theme.buttonHover}${
+              highlight ? ` ring-4 ${theme.highlightRing} ring-offset-2 ring-offset-bg` : ''
             }`}
           >
             <Mic className="size-9" strokeWidth={1.75} />

@@ -45,16 +45,18 @@ func (s Status) CanTransitionTo(next Status) bool {
 }
 
 // Scenario 紀錄情境：決定 AI 產出的結構化區塊模板。
-// meeting（會議）為預設；casual（閒聊）著重重點/結論/待辦。日後新增情境 = 新 prompt 模板 + section 定義。
+// meeting（會議）為預設；casual（閒聊）著重重點/結論/待辦；interview（面試）著重問答/評估/後續。
+// 日後新增情境 = 新 prompt 模板 + section 定義 + 此處常數與 IsValid。
 type Scenario string
 
 const (
-	ScenarioMeeting Scenario = "meeting"
-	ScenarioCasual  Scenario = "casual"
+	ScenarioMeeting   Scenario = "meeting"
+	ScenarioCasual    Scenario = "casual"
+	ScenarioInterview Scenario = "interview"
 )
 
 func (s Scenario) IsValid() bool {
-	return s == ScenarioMeeting || s == ScenarioCasual
+	return s == ScenarioMeeting || s == ScenarioCasual || s == ScenarioInterview
 }
 
 // ParseScenario 將字串轉為 Scenario；無效或空值一律回退預設 meeting（不回錯，容忍舊資料）。

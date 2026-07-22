@@ -27,8 +27,9 @@ const (
 
 // scenarioPrompts 每個情境對應的結構化摘要 prompt 模板。
 var scenarioPrompts = map[domainmeeting.Scenario]string{
-	domainmeeting.ScenarioMeeting: "prompts/summary_meeting.md",
-	domainmeeting.ScenarioCasual:  "prompts/summary_casual.md",
+	domainmeeting.ScenarioMeeting:   "prompts/summary_meeting.md",
+	domainmeeting.ScenarioCasual:    "prompts/summary_casual.md",
+	domainmeeting.ScenarioInterview: "prompts/summary_interview.md",
 }
 
 func buildPrompt(templatePath, transcript string) (string, error) {

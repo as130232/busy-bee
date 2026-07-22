@@ -117,9 +117,9 @@ paths:
                   example: audio/webm
                 scenario:
                   type: string
-                  enum: [meeting, casual]
+                  enum: [meeting, casual, interview]
                   default: meeting
-                  description: 紀錄情境（會議/閒聊）；決定 AI 產出的結構化摘要區塊模板。省略或無效值回退 meeting。
+                  description: 紀錄情境（會議/閒聊/面試）；決定 AI 產出的結構化摘要區塊模板。省略或無效值回退 meeting。
       responses:
         "200":
           description: 建立成功
@@ -171,9 +171,9 @@ paths:
                 title: { type: string }
                 scenario:
                   type: string
-                  enum: [meeting, casual]
+                  enum: [meeting, casual, interview]
                   default: meeting
-                  description: 紀錄情境（會議/閒聊）；省略或無效值回退 meeting。
+                  description: 紀錄情境（會議/閒聊/面試）；省略或無效值回退 meeting。
                 scheduledAt: { type: string, format: date-time }
                 remindBeforeMin: { type: integer, default: 15, minimum: 1 }
       responses:
@@ -794,8 +794,8 @@ components:
           enum: [scheduled, pending, transcribing, analyzing, completed, failed]
         scenario:
           type: string
-          enum: [meeting, casual]
-          description: "紀錄情境（會議/閒聊）"
+          enum: [meeting, casual, interview]
+          description: "紀錄情境（會議/閒聊/面試）"
         summary: { type: string, description: "一句話摘要（TL;DR），未處理則不出現" }
         durationSeconds: { type: integer }
         errorMessage: { type: string }

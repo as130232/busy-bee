@@ -7,7 +7,7 @@
 
 ## 當前焦點
 
-Phase 17（紀錄情境化 F-SCENARIO：會議/閒聊模板 + 結構化摘要區塊）程式完成：後端 build/vet/test 全綠（24 packages）、前端 typecheck/lint/build 綠、本地 migration 000009 已套用、前後端本地已起。剩裝置端 e2e 人工驗收（錄閒聊看閒聊區塊、錄會議看會議區塊）與 merge/部署。
+Phase 17（紀錄情境化 F-SCENARIO：會議/閒聊模板 + 結構化摘要區塊）程式完成：後端 build/vet/test 全綠（24 packages）、前端 typecheck/lint/build 綠、本地 migration 000009 已套用、前後端本地已起。已再擴充第三情境「面試」（interview，17.8 ✅：migration 000010、面試 prompt、翠綠配色）。本 session 另含錄音頁情境配色化（會議黃/閒聊藍/面試綠，含大錄音鈕/光環/背景）、紀錄詳情頁改版（貼底 mini-player + hero 摘要 + meta 行 + 移除品牌列 + 完成狀態隱藏 + 頁籤 sticky）、品牌化載入動畫、確認彈窗改 Portal（修長頁被推到頁尾）。剩裝置端 e2e 人工驗收（三情境各看對應區塊）與 merge/部署。
 Phase 16（語者辨識 diarization：Deepgram + 講者改名 + 音檔播放）已 merge（`1da9020`）並部署 production：2026-07-22 實測 `DEEPGRAM_API_KEY` 已掛 Cloud Run（secret `busy-bee-deepgram-key:1`）、migration 000007 已隨 CI 自動套用、prod serving commit `687d52f`。全數完成（16.7 ✅）。
 Phase 15（RAG 語意搜尋：pgvector + Gemini embedding）已 merge（`805659b`）並部署：migration 000006（含 `CREATE EXTENSION vector`）已隨 CI 套用、prod 已上線。僅剩 prod 裝置端 e2e 人工驗收（搜「定價」找「價格策略」）— 15.9。
 Phase 14.3（錄音/上傳邊角情境）程式已具備，僅待裝置端人工驗收。
@@ -341,6 +341,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 - 17.5 ✅ API/handler：openapi + request/response 串接 scenario / summarySections
 - 17.6 ✅ 前端：頁籤「會議」→「紀錄」、錄音前情境切換、清單情境標籤（標題前）、通用區塊渲染器、詳情頁整合、錄音標題依情境命名
 - 17.7 ⬜ 裝置端 e2e 人工驗收 + merge/部署
+- 17.8 ✅ 情境擴充「面試」（interview）：migration 000010（scenario CHECK 放寬）＋domain 常數/IsValid＋`summary_interview.md` prompt＋gemini 註冊＋openapi enum；前端 scenarioTheme 翠綠（emerald）＋label＋toggle 選項＋清單標籤配色（順帶把閒聊改天藍對齊錄音頁情境色）。後端 build/test 綠、前端 typecheck/lint 綠、本地 migration 000010 已套用（待裝置端 e2e）
 
 ---
 
@@ -375,6 +376,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-21 | Phase 16 語者辨識完成（16.1–16.6）＋本地 e2e 驗收通過：domain segments/FlattenSegments（TDD）→ migration 000007（transcript_segments/speaker_names jsonb）＋repo round-trip → STT 換 **Deepgram nova-2 zh-TW**（聲學分離；踩坑：nova-3+multi 中文空、Gemini 音訊誤拆多人皆棄）→ `UpdateSpeakerNames` 改名 use case＋STT 空結果保護 → `PATCH /speakers`＋音檔播放端點 `GET /audio-url`（GCS SignedDownloadURL）→ 前端分講者顯示（晶片配色/時間碼靠左可點跳播）＋改名 sheet＋音檔播放器＋匯出用顯示名＋列表時長分秒 tag＋返回回列表＋標題跑馬燈。全後端 build/vet/test 綠、前端 typecheck/lint/build 綠；清理拋棄式 POC。待 merge＋部署（Deepgram key 進 Secret Manager、prod migration 000007）(16.7) | `f53fb6c..1da9020` |
 | 2026-07-22 | 部署收尾實測驗證：Phase 15/16 皆已 merge 並上線。gcloud 確認 `DEEPGRAM_API_KEY` 已掛 Cloud Run（secret `busy-bee-deepgram-key:1`，runtime SA busy-bee-storage）＋Groq/Gemini/VAPID 皆在；prod `/version` 回 commit `687d52f`（main HEAD，晚於 15/16 merge），revision `00023-w9m` serving，故 CI 自動 migration 000006（含 `CREATE EXTENSION vector`）/000007 已套用。16.7 標 ✅、Phase 16 overview ✅；15.9 部署部分完成、僅剩 prod 裝置端 e2e 驗收。**結論：部署/基建零待辦，剩裝置端人工驗收（15.9 RAG、14.3 邊角、Phase 16 diarization e2e）** | — |
 | 2026-07-22 | Phase 17 紀錄情境化程式完成（17.1–17.6）：migration 000009（scenario/summary_sections）→ domain Scenario/ParseScenario/SummarySection/Summarizer port → 兩情境 prompt + gemini Summarize → 管線改產結構化區塊（冪等）並移除 PRD/TechSpec 自動產生（LLM 3→2 呼叫）→ openapi/handler 串接 → 前端「會議」頁籤改「紀錄」、錄音前情境分段切換、清單情境標籤（移到標題前、時長改純文字區隔）、SummarySections 通用渲染器、詳情頁整合、錄音標題依情境命名。後端 build/vet/test 綠（24 pkg，含改寫 process 測試 + ParseScenario 測試）、前端 typecheck/lint/build 綠。待裝置端 e2e + merge（17.7） | `feat/scenario-templates` |
+| 2026-07-22 | UI 調整 + 情境擴充「面試」（17.8）：① 品牌化載入動畫 `Loader`（蜂巢 sonar/breathe）；② 確認彈窗抽出 `Sheet` 改 React Portal 掛 body，修正 AppShell transform 讓 fixed 被推到頁尾（iOS）；③ 紀錄詳情頁改版：貼底 mini-player（AudioPlayer portal）、hero 摘要合併雙卡、meta 行（情境·時長·講者數·行動項）、頁籤 sticky、移除全域品牌列（`AppShell hideTopBar`）、完成狀態不再顯示（詳情＋列表）；④ 錄音頁情境配色化 `scenarioTheme`（會議黃/閒聊藍/面試綠，含大鈕/聲波環/光點/背景暈染）、情境切換上移放大；⑤ 面試情境全端：migration 000010（CHECK 放寬，已套用）、domain 常數/IsValid、`summary_interview.md`+gemini 註冊、openapi enum、重生 TS client、前端 label/theme/toggle/清單標籤。後端 build/test 綠、前端 typecheck/lint 綠。待裝置端 e2e | `feat/scenario-templates` |
 
 ---
 

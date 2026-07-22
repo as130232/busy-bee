@@ -54,13 +54,14 @@ export function syncUser(idToken: string): Promise<User> {
 
 export type Meeting = components['schemas']['Meeting']
 
-/** 紀錄情境（會議 / 閒聊）；決定 AI 產出的結構化摘要區塊模板。 */
+/** 紀錄情境（會議 / 閒聊 / 面試）；決定 AI 產出的結構化摘要區塊模板。 */
 export type Scenario = Meeting['scenario']
 
 /** 情境顯示標籤（前端一律以此對應中文標籤，避免各處硬編）。 */
 export const scenarioLabels: Record<Scenario, string> = {
   meeting: '會議',
   casual: '閒聊',
+  interview: '面試',
 }
 
 export interface CreateMeetingResult {
