@@ -37,7 +37,7 @@ export function PendingActionItems() {
     <section className="animate-fade-in-up rounded-xl border border-border bg-surface p-4">
       <h2 className="m-0 mb-1 flex items-center gap-2 text-sm font-semibold">
         <ListChecks className="size-4 text-accent" />
-        待辦行動項
+        待辦
         <span className="text-muted">{items.length}</span>
       </h2>
       <ActionItemList items={items} onToggle={toggle} showMeeting />

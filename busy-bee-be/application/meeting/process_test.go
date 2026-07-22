@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -355,7 +356,7 @@ func (f *fakeSummarizer) Summarize(_ context.Context, _ string, scenario domainm
 
 // defaultSections 供未特別指定的測試使用，確保 SaveSummarySections 有被觸發。
 func defaultSections() []domainmeeting.SummarySection {
-	return []domainmeeting.SummarySection{{Type: "summary", Title: "摘要", Items: []string{"重點"}}}
+	return []domainmeeting.SummarySection{{Type: "summary", Title: "摘要", Items: []domainmeeting.SummaryPoint{{Text: "重點"}}}}
 }
 
 func newTestProcessUC(repo *processFakeRepo, st *processFakeStorage, stt *fakeSTT, n *fakeNotifier) *ProcessUC {
@@ -379,6 +380,14 @@ func (f *fakeActionItemRepo) Insert(_ context.Context, meetingID, userID uuid.UU
 	defer f.mu.Unlock()
 	f.inserted = append(f.inserted, item)
 	return domainactionitem.ActionItem{MeetingID: meetingID, UserID: userID, Description: item.Description}, nil
+}
+
+func (f *fakeActionItemRepo) InsertManual(_ context.Context, _, _ uuid.UUID, _, _ string) (domainactionitem.ActionItem, error) {
+	return domainactionitem.ActionItem{}, nil
+}
+
+func (f *fakeActionItemRepo) UpdateDescription(_ context.Context, _, _ uuid.UUID, _ string) (domainactionitem.ActionItem, error) {
+	return domainactionitem.ActionItem{}, nil
 }
 
 func (f *fakeActionItemRepo) DeleteForMeeting(_ context.Context, _ uuid.UUID) error {
@@ -407,7 +416,7 @@ type fakeExtractor struct {
 	called  int
 }
 
-func (f *fakeExtractor) Extract(_ context.Context, _ string) (domainactionitem.Extraction, error) {
+func (f *fakeExtractor) Extract(_ context.Context, _ string, _ time.Time) (domainactionitem.Extraction, error) {
 	f.called++
 	return domainactionitem.Extraction{Summary: f.summary, Items: f.items}, f.err
 }
@@ -514,7 +523,7 @@ func TestProcess_AnalyzingGeneratesSummarySections(t *testing.T) {
 	repo.meeting.Scenario = domainmeeting.ScenarioCasual
 	llm := &fakeLLM{}
 	sum := &fakeSummarizer{sections: []domainmeeting.SummarySection{
-		{Type: "key_points", Title: "重點摘要", Items: []string{"聊到旅遊"}},
+		{Type: "key_points", Title: "重點摘要", Items: []domainmeeting.SummaryPoint{{Text: "聊到旅遊"}}},
 	}}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},

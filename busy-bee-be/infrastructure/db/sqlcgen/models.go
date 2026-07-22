@@ -22,6 +22,9 @@ type ActionItem struct {
 	SortOrder   int32
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	DueAt       *time.Time
+	RemindedAt  *time.Time
+	Source      string
 }
 
 type Artifact struct {

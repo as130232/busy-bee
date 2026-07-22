@@ -677,6 +677,55 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Envelope"
+    post:
+      tags: [meetings]
+      summary: 手動新增待辦（source=manual，重跑分析不刪）
+      operationId: addMeetingActionItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [description]
+              properties:
+                description: { type: string, description: 待辦內容 }
+                assignee: { type: string, description: 指派對象（講者代號或名字，可空） }
+      responses:
+        "200":
+          description: 新增成功，回傳建立的待辦
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [actionItem]
+                        properties:
+                          actionItem:
+                            $ref: "#/components/schemas/ActionItem"
+        "400":
+          description: description 為空（errCode 40001）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 會議不存在或非本人所有（errCode 40401）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
 
   /api/v1/action-items:
     get:
@@ -707,8 +756,8 @@ paths:
   /api/v1/action-items/{id}:
     patch:
       tags: [meetings]
-      summary: 標記行動項完成 / 取消完成
-      operationId: toggleActionItem
+      summary: 更新待辦（帶 description 改內容，帶 done 改完成狀態）
+      operationId: updateActionItem
       parameters:
         - name: id
           in: path
@@ -720,9 +769,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [done]
               properties:
-                done: { type: boolean }
+                done: { type: boolean, description: 完成狀態（擇一提供） }
+                description: { type: string, description: 待辦內容（擇一提供） }
       responses:
         "200":
           description: 已更新
@@ -814,6 +863,14 @@ components:
         startMs: { type: integer, description: 起始毫秒 }
         endMs: { type: integer, description: 結束毫秒 }
 
+    SummaryPoint:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, description: 重點內容（純條列即內容，卡片則為說明） }
+        heading: { type: string, description: 卡片標題；有值才渲染成卡片 }
+        speaker: { type: string, description: 講者代號（如 A/B/C）；有值才顯示徽章 }
+
     SummarySection:
       type: object
       required: [type, title, items]
@@ -822,7 +879,7 @@ components:
         title: { type: string, description: 顯示標題 }
         items:
           type: array
-          items: { type: string }
+          items: { $ref: "#/components/schemas/SummaryPoint" }
 
     MeetingDetail:
       allOf:
@@ -869,6 +926,10 @@ components:
         dueText:
           type: string
           description: 時限（原文說法）；會議未提及時為空字串
+        dueAt:
+          type: string
+          format: date-time
+          description: 解析後到期時點（供提醒/行事曆）；無法解析時省略
         done: { type: boolean }
         createdAt: { type: string, format: date-time }
 

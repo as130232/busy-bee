@@ -88,11 +88,18 @@ type segmentResponse struct {
 	EndMs   int    `json:"endMs"`
 }
 
+// summaryPointResponse 區塊內一個重點：text 必填，heading/speaker 有值才附。
+type summaryPointResponse struct {
+	Text    string `json:"text"`
+	Heading string `json:"heading,omitempty"`
+	Speaker string `json:"speaker,omitempty"`
+}
+
 // summarySectionResponse 依情境產生的結構化摘要區塊。
 type summarySectionResponse struct {
-	Type  string   `json:"type"`
-	Title string   `json:"title"`
-	Items []string `json:"items"`
+	Type  string                 `json:"type"`
+	Title string                 `json:"title"`
+	Items []summaryPointResponse `json:"items"`
 }
 
 // meetingDetailResponse 詳情含 transcript 與分講者片段；列表不含（省流量）。
@@ -118,9 +125,9 @@ func toMeetingDetailResponse(m domainmeeting.Meeting) meetingDetailResponse {
 	}
 	sections := make([]summarySectionResponse, len(m.SummarySections))
 	for i, s := range m.SummarySections {
-		items := s.Items
-		if items == nil {
-			items = []string{}
+		items := make([]summaryPointResponse, len(s.Items))
+		for j, p := range s.Items {
+			items[j] = summaryPointResponse{Text: p.Text, Heading: p.Heading, Speaker: p.Speaker}
 		}
 		sections[i] = summarySectionResponse{Type: s.Type, Title: s.Title, Items: items}
 	}

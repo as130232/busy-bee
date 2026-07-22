@@ -119,7 +119,7 @@ func main() {
 	var reminderUC *appmeeting.ReminderUC
 	if cfg.Push.VAPIDPublicKey != "" && cfg.Push.VAPIDPrivateKey != "" {
 		sender := webpush.New(cfg.Push.VAPIDPublicKey, cfg.Push.VAPIDPrivateKey, cfg.Push.SubscriberEmail)
-		reminderUC = appmeeting.NewReminderUC(meetingRepo, pushRepo, sender)
+		reminderUC = appmeeting.NewReminderUC(meetingRepo, pushRepo, sender, actionItemRepo)
 		go worker.RunReminderSweep(sweepCtx, reminderUC, time.Minute)
 		pushHandler = pushhandler.NewHandler(apppush.NewSubscribeUC(pushRepo), cfg.Push.VAPIDPublicKey)
 	} else {
@@ -152,6 +152,8 @@ func main() {
 			ListByMeeting: appactionitem.NewListByMeetingUC(meetingRepo, actionItemRepo),
 			ListPending:   appactionitem.NewListPendingUC(actionItemRepo),
 			Toggle:        appactionitem.NewToggleUC(actionItemRepo),
+			Add:           appactionitem.NewAddUC(meetingRepo, actionItemRepo),
+			Edit:          appactionitem.NewEditUC(actionItemRepo),
 		}),
 		PushHandler:     pushHandler,
 		InternalHandler: internalHandler,

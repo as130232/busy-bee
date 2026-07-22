@@ -3,6 +3,7 @@ package meeting
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -68,12 +69,37 @@ func ParseScenario(s string) Scenario {
 	return ScenarioMeeting
 }
 
-// SummarySection AI 依情境產生的一個結構化區塊（純條列，不做巢狀）。
-// Type 為穩定機器識別（如 "decisions"）；Title 為顯示標題；Items 為條列內容。
+// SummaryPoint 區塊內的一個重點。Text 為必填內容（純條列時即內容，卡片時為說明）；
+// Heading 有值時渲染成卡片標題，Speaker 有值時顯示講者徽章（多為 meeting 情境）。
+type SummaryPoint struct {
+	Text    string `json:"text"`
+	Heading string `json:"heading,omitempty"`
+	Speaker string `json:"speaker,omitempty"`
+}
+
+// UnmarshalJSON 容忍 LLM 回裸字串的情形：字串收斂成 {Text: s}，避免整段解析失敗。
+func (p *SummaryPoint) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		p.Text = s
+		return nil
+	}
+	// 用別名避免遞迴呼叫本方法。
+	type alias SummaryPoint
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*p = SummaryPoint(a)
+	return nil
+}
+
+// SummarySection AI 依情境產生的一個結構化區塊。
+// Type 為穩定機器識別（如 "decisions"）；Title 為顯示標題；Items 為區塊內的重點。
 type SummarySection struct {
-	Type  string   `json:"type"`
-	Title string   `json:"title"`
-	Items []string `json:"items"`
+	Type  string         `json:"type"`
+	Title string         `json:"title"`
+	Items []SummaryPoint `json:"items"`
 }
 
 // Summarizer 依情境產生結構化摘要區塊的 port（Gemini 實作在 infrastructure/llm）。

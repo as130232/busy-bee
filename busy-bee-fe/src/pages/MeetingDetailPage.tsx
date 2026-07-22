@@ -10,8 +10,8 @@ import {
   Pause,
   Pencil,
   Play,
+  Plus,
   Rewind,
-  Sparkles,
   Trash2,
 } from 'lucide-react'
 
@@ -23,9 +23,12 @@ import { ScheduleSheet } from '../components/ScheduleForm'
 import { Sheet } from '../components/Sheet'
 import { StatusBadge } from '../components/StatusBadge'
 import { SummarySections } from '../components/SummarySections'
+import { speakerColor } from '../components/speakerColor'
 import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
 import {
+  addMeetingActionItem,
   deleteMeeting,
+  editActionItem,
   editMeetingSegment,
   getMeeting,
   getMeetingAudioURL,
@@ -43,17 +46,18 @@ import {
 } from '../services/api/client'
 import { getIdToken } from '../services/token'
 
-type Tab = 'prd' | 'tech_spec' | 'action_items' | 'transcript'
+type Tab = 'summary' | 'prd' | 'tech_spec' | 'action_items' | 'transcript'
 
 const tabLabels: Record<Tab, string> = {
+  summary: '摘要',
   prd: 'PRD',
   tech_spec: 'Tech Spec',
-  action_items: '行動項',
+  action_items: '待辦',
   transcript: '逐字稿',
 }
 
 // 核心頁籤一律顯示；PRD / Tech Spec 已改為選用，僅在對應 artifact 存在時才出現。
-const coreTabs: Tab[] = ['action_items', 'transcript']
+const coreTabs: Tab[] = ['summary', 'action_items', 'transcript']
 const optionalDocTabs = ['prd', 'tech_spec'] as const satisfies readonly Tab[]
 
 export function MeetingDetailPage() {
@@ -62,7 +66,7 @@ export function MeetingDetailPage() {
   const [meeting, setMeeting] = useState<MeetingDetail | null>(null)
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [actionItems, setActionItems] = useState<ActionItem[]>([])
-  const [tab, setTab] = useState<Tab>('action_items')
+  const [tab, setTab] = useState<Tab>('summary')
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -135,6 +139,12 @@ export function MeetingDetailPage() {
     }
   }
 
+  // 修改待辦內容：以伺服器回傳結果更新清單（失敗由 ActionItemRow 還原輸入）。
+  const editItem = async (itemId: string, description: string) => {
+    const { actionItem } = await editActionItem(await getIdToken(), itemId, description)
+    setActionItems((prev) => prev.map((it) => (it.id === itemId ? actionItem : it)))
+  }
+
   if (error) {
     return (
       <AppShell hideTopBar>
@@ -164,12 +174,14 @@ export function MeetingDetailPage() {
   const visibleTabs: Tab[] = [...coreTabs, ...optionalDocTabs.filter((t) => artifactByType.has(t))]
   // meta 統計皆前端可得：講者數取自逐字稿實際出現的代號。
   const speakerCount = new Set(meeting.transcriptSegments.map((s) => s.speaker)).size
+  // speakerOrder 依逐字稿首次出現順序，供摘要卡片講者徽章配色（與逐字稿一致）。
+  const speakerOrder = [...new Set(meeting.transcriptSegments.map((s) => s.speaker))]
   const hasSummary = Boolean(meeting.summary) || meeting.summarySections.some((s) => s.items.length > 0)
-  // tab 預設 action_items（恆在），使用者只能點可見頁籤，故 tab 恆有效。
+  // 摘要 / 待辦 頁另行渲染，docContent 僅供逐字稿與選用文件（PRD/Tech Spec）。
   const docContent =
     tab === 'transcript'
       ? meeting.transcript
-      : tab === 'action_items'
+      : tab === 'summary' || tab === 'action_items'
         ? ''
         : (artifactByType.get(tab)?.content ?? '')
 
@@ -205,7 +217,7 @@ export function MeetingDetailPage() {
             <Trash2 className="size-4" />
           </button>
         </header>
-        {/* meta：情境 · 時長 · 講者數 · 行動項數（皆前端計算，一眼定位這場的樣貌） */}
+        {/* meta：情境 · 時長 · 講者數 · 待辦數（皆前端計算，一眼定位這場的樣貌） */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-[3.25rem] text-xs text-muted tabular-nums">
           <span>{scenarioLabels[meeting.scenario]}</span>
           {meeting.durationSeconds > 0 && (
@@ -223,7 +235,7 @@ export function MeetingDetailPage() {
           {meeting.status === 'completed' && (
             <>
               <span aria-hidden>·</span>
-              <span>{actionItems.length} 行動項</span>
+              <span>{actionItems.length} 待辦</span>
             </>
           )}
         </div>
@@ -236,23 +248,6 @@ export function MeetingDetailPage() {
             重新處理
           </button>
         </div>
-      )}
-
-      {hasSummary && (
-        <section className="rounded-xl border border-accent/20 bg-accent/[0.06] px-4 py-3.5">
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide text-accent">
-            <Sparkles className="size-3.5" />
-            AI 摘要
-          </div>
-          {meeting.summary && (
-            <p className="m-0 text-[15px] leading-6 font-medium text-fg">{meeting.summary}</p>
-          )}
-          <SummarySections
-            sections={meeting.summarySections}
-            bare
-            className={meeting.summary ? 'mt-3' : ''}
-          />
-        </section>
       )}
 
       <AudioPlayer meetingId={meeting.id} durationSeconds={meeting.durationSeconds} audioRef={audioRef} />
@@ -272,16 +267,49 @@ export function MeetingDetailPage() {
         ))}
       </nav>
 
-      {tab !== 'action_items' && exportContent && (
+      {tab !== 'action_items' && tab !== 'summary' && exportContent && (
         <div className="-mb-2 flex justify-end">
           <ExportBar content={exportContent} filename={`${meeting.title}-${tab}`} />
         </div>
       )}
 
       <article key={tab} className="animate-fade-in rounded-xl border border-border bg-surface px-5 py-4">
-        {tab === 'action_items' ? (
+        {tab === 'summary' ? (
+          hasSummary ? (
+            <div>
+              {meeting.summary && (
+                <p className="m-0 text-[15px] leading-6 font-medium text-fg">{meeting.summary}</p>
+              )}
+              <SummarySections
+                sections={meeting.summarySections}
+                bare
+                className={meeting.summary ? 'mt-3' : ''}
+                speakerNames={meeting.speakerNames ?? {}}
+                speakerOrder={speakerOrder}
+              />
+            </div>
+          ) : (
+            <p className="m-0 text-sm text-muted">
+              {meeting.status === 'completed' ? '無摘要' : '處理完成後將顯示於此。'}
+            </p>
+          )
+        ) : tab === 'action_items' ? (
           meeting.status === 'completed' ? (
-            <ActionItemList items={actionItems} onToggle={toggleItem} />
+            <div className="flex flex-col gap-3">
+              <AddTodoForm
+                meetingId={meeting.id}
+                speakerNames={meeting.speakerNames ?? {}}
+                speakerOrder={speakerOrder}
+                onAdded={(it) => setActionItems((prev) => [...prev, it])}
+              />
+              <ActionItemList
+                items={actionItems}
+                onToggle={toggleItem}
+                onEdit={editItem}
+                speakerNames={meeting.speakerNames ?? {}}
+                speakerOrder={speakerOrder}
+              />
+            </div>
           ) : (
             <p className="m-0 text-sm text-muted">處理完成後將顯示於此。</p>
           )
@@ -308,7 +336,7 @@ export function MeetingDetailPage() {
       {confirmDelete && (
         <Sheet onClose={() => setConfirmDelete(false)}>
           <p className="m-0 text-sm">
-            確定刪除「{meeting.title}」？逐字稿、PRD、Tech Spec、行動項將一併刪除，此動作無法復原。
+            確定刪除「{meeting.title}」？逐字稿、PRD、Tech Spec、待辦將一併刪除，此動作無法復原。
           </p>
           <div className="flex gap-2">
             <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmDelete(false)}>
@@ -321,6 +349,84 @@ export function MeetingDetailPage() {
         </Sheet>
       )}
     </AppShell>
+  )
+}
+
+/** 手動新增待辦：輸入 + 指派人 + 送出（POST /meetings/:id/action-items），成功後回呼交父層插入清單。 */
+function AddTodoForm({
+  meetingId,
+  speakerNames,
+  speakerOrder,
+  onAdded,
+}: {
+  meetingId: string
+  speakerNames: Record<string, string>
+  speakerOrder: string[]
+  onAdded: (item: ActionItem) => void
+}) {
+  const [text, setText] = useState('')
+  const [assignee, setAssignee] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const submit = async () => {
+    const desc = text.trim()
+    if (!desc || busy) return
+    setBusy(true)
+    try {
+      const { actionItem } = await addMeetingActionItem(await getIdToken(), meetingId, desc, assignee)
+      onAdded(actionItem)
+      setText('')
+      setAssignee('')
+    } catch {
+      // 失敗保留輸入讓使用者重試
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form
+      className="flex flex-col gap-2"
+      onSubmit={(e) => {
+        e.preventDefault()
+        void submit()
+      }}
+    >
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="新增待辦…"
+          className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm text-fg outline-none focus:border-accent"
+        />
+        <button
+          type="submit"
+          disabled={!text.trim() || busy}
+          aria-label="新增待辦"
+          className="btn btn-primary size-9 shrink-0 px-0 disabled:opacity-40"
+        >
+          <Plus className="size-4" />
+        </button>
+      </div>
+      {speakerOrder.length > 0 && (
+        <label className="flex items-center gap-2 text-xs text-muted">
+          指派給
+          <select
+            value={assignee}
+            onChange={(e) => setAssignee(e.target.value)}
+            className="rounded-lg border border-border bg-bg px-2 py-1 text-sm text-fg outline-none focus:border-accent"
+          >
+            <option value="">不指派</option>
+            {speakerOrder.map((code) => (
+              <option key={code} value={code}>
+                {speakerNames[code]?.trim() || code}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+    </form>
   )
 }
 
@@ -425,21 +531,6 @@ function MarqueeTitle({ title }: { title: string }) {
       </h1>
     </div>
   )
-}
-
-// 講者晶片配色：依首次出現順序輪替。
-const SPEAKER_COLORS = [
-  'bg-blue-500/15 text-blue-600 dark:text-blue-400',
-  'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-  'bg-amber-500/15 text-amber-600 dark:text-amber-400',
-  'bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400',
-  'bg-rose-500/15 text-rose-600 dark:text-rose-400',
-  'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
-]
-
-function speakerColor(code: string, order: string[]): string {
-  const i = order.indexOf(code)
-  return SPEAKER_COLORS[(i < 0 ? 0 : i) % SPEAKER_COLORS.length]
 }
 
 /** 分講者逐字稿：講者晶片可點擊改名（PATCH speakers），逐段顯示。 */
@@ -877,7 +968,7 @@ function ScheduledDetail({
         </button>
       </div>
 
-      <p className="m-0 text-xs text-muted">會議開始後上傳錄音，處理完成會出現 PRD、Tech Spec 與行動項。</p>
+      <p className="m-0 text-xs text-muted">會議開始後上傳錄音，處理完成會出現 PRD、Tech Spec 與待辦。</p>
 
       {editOpen && (
         <ScheduleSheet

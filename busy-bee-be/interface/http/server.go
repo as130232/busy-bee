@@ -96,8 +96,9 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 
 		if deps.ActionItemHandler != nil {
 			authed.GET("/meetings/:id/action-items", deps.ActionItemHandler.ListByMeeting)
+			authed.POST("/meetings/:id/action-items", deps.ActionItemHandler.Add)
 			authed.GET("/action-items", deps.ActionItemHandler.ListPending)
-			authed.PATCH("/action-items/:id", deps.ActionItemHandler.Toggle)
+			authed.PATCH("/action-items/:id", deps.ActionItemHandler.Update)
 		}
 
 		if deps.PushHandler != nil {

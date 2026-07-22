@@ -8,13 +8,14 @@ import (
 )
 
 type actionItemResponse struct {
-	ID          string    `json:"id"`
-	MeetingID   string    `json:"meetingId"`
-	Description string    `json:"description"`
-	Assignee    string    `json:"assignee"`
-	DueText     string    `json:"dueText"`
-	Done        bool      `json:"done"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID          string     `json:"id"`
+	MeetingID   string     `json:"meetingId"`
+	Description string     `json:"description"`
+	Assignee    string     `json:"assignee"`
+	DueText     string     `json:"dueText"`
+	DueAt       *time.Time `json:"dueAt,omitempty"` // 解析後到期時點；供提醒/行事曆，無則省略
+	Done        bool       `json:"done"`
+	CreatedAt   time.Time  `json:"createdAt"`
 }
 
 type pendingActionItemResponse struct {
@@ -29,6 +30,7 @@ func toActionItemResponse(a domainactionitem.ActionItem) actionItemResponse {
 		Description: a.Description,
 		Assignee:    a.Assignee,
 		DueText:     a.DueText,
+		DueAt:       a.DueAt,
 		Done:        a.Done,
 		CreatedAt:   a.CreatedAt,
 	}

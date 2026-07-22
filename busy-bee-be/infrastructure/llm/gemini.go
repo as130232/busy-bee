@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"google.golang.org/genai"
 
@@ -72,8 +73,14 @@ func (c *GeminiClient) GenerateTechSpec(ctx context.Context, transcript string) 
 
 // Extract 於同一次呼叫產出一句話摘要與行動項。prompt 要求輸出 JSON 物件
 // （即使無行動項也回 {"summary":..., "actionItems":[]}），故不會被空回應檢查誤判。
-func (c *GeminiClient) Extract(ctx context.Context, transcript string) (domainactionitem.Extraction, error) {
-	text, err := c.generate(ctx, promptActionItems, transcript)
+// now（會議日期）注入 {{TODAY}}，供模型把「下週五」等相對時限推算成絕對日期 dueISO。
+func (c *GeminiClient) Extract(ctx context.Context, transcript string, now time.Time) (domainactionitem.Extraction, error) {
+	prompt, err := buildPrompt(promptActionItems, transcript)
+	if err != nil {
+		return domainactionitem.Extraction{}, err
+	}
+	prompt = strings.ReplaceAll(prompt, "{{TODAY}}", now.Format("2006-01-02"))
+	text, err := c.complete(ctx, promptActionItems, prompt)
 	if err != nil {
 		return domainactionitem.Extraction{}, err
 	}
@@ -125,14 +132,18 @@ func (c *GeminiClient) generate(ctx context.Context, templatePath, transcript st
 	if err != nil {
 		return "", err
 	}
+	return c.complete(ctx, templatePath, prompt)
+}
 
+// complete 送出已組好的 prompt 並回傳非空文字回應（空回應視為錯誤）。
+func (c *GeminiClient) complete(ctx context.Context, label, prompt string) (string, error) {
 	resp, err := c.client.Models.GenerateContent(ctx, c.model, genai.Text(prompt), nil)
 	if err != nil {
-		return "", fmt.Errorf("llm.generate %s: %w", templatePath, err)
+		return "", fmt.Errorf("llm.generate %s: %w", label, err)
 	}
 	text := resp.Text()
 	if strings.TrimSpace(text) == "" {
-		return "", fmt.Errorf("llm.generate %s: empty response", templatePath)
+		return "", fmt.Errorf("llm.generate %s: empty response", label)
 	}
 	return text, nil
 }

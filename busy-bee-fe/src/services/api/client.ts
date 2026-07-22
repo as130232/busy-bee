@@ -142,6 +142,24 @@ export function listMeetingActionItems(
   )
 }
 
+/** 手動新增待辦（source=manual，重跑分析不刪；assignee 可指派講者代號） */
+export function addMeetingActionItem(
+  idToken: string,
+  meetingId: string,
+  description: string,
+  assignee = '',
+): Promise<{ actionItem: ActionItem }> {
+  return request<{ actionItem: ActionItem }>(
+    `/api/v1/meetings/${meetingId}/action-items`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description, assignee }),
+    },
+    idToken,
+  )
+}
+
 /** 跨會議的未完成行動項 */
 export function listPendingActionItems(
   idToken: string,
@@ -161,6 +179,23 @@ export function toggleActionItem(
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ done }),
+    },
+    idToken,
+  )
+}
+
+/** 修改待辦內容 */
+export function editActionItem(
+  idToken: string,
+  id: string,
+  description: string,
+): Promise<{ actionItem: ActionItem }> {
+  return request<{ actionItem: ActionItem }>(
+    `/api/v1/action-items/${id}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description }),
     },
     idToken,
   )

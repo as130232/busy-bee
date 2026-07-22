@@ -8,9 +8,24 @@ import (
 
 	"github.com/google/uuid"
 
+	domainactionitem "github.com/as130232/busy-bee/busy-bee-be/domain/actionitem"
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 	domainpush "github.com/as130232/busy-bee/busy-bee-be/domain/push"
 )
+
+type fakeActionReminderRepo struct {
+	due      []domainactionitem.PendingItem
+	reminded []uuid.UUID
+}
+
+func (f *fakeActionReminderRepo) ListDueReminders(_ context.Context) ([]domainactionitem.PendingItem, error) {
+	return f.due, nil
+}
+
+func (f *fakeActionReminderRepo) MarkReminded(_ context.Context, id uuid.UUID) error {
+	f.reminded = append(f.reminded, id)
+	return nil
+}
 
 type fakeReminderRepo struct {
 	due      []domainmeeting.Meeting
@@ -75,7 +90,7 @@ func TestReminder_SendsToAllUserSubsAndMarks(t *testing.T) {
 		userID: {{Endpoint: "ep1", UserID: userID}, {Endpoint: "ep2", UserID: userID}},
 	}}
 	sender := &fakeSender{}
-	uc := NewReminderUC(repo, pushRepo, sender)
+	uc := NewReminderUC(repo, pushRepo, sender, nil)
 
 	uc.SweepOnce(context.Background())
 
@@ -101,7 +116,7 @@ func TestReminder_GoneSubscriptionDeleted(t *testing.T) {
 	sender := &fakeSender{failOn: map[string]error{
 		"dead": domainpush.ErrSubscriptionGone{Endpoint: "dead"},
 	}}
-	uc := NewReminderUC(repo, pushRepo, sender)
+	uc := NewReminderUC(repo, pushRepo, sender, nil)
 
 	uc.SweepOnce(context.Background())
 
@@ -120,12 +135,65 @@ func TestReminder_NoSubsStillMarks(t *testing.T) {
 	// 用戶沒訂閱也要標記，避免每分鐘重掃同一場會議
 	m := dueMeeting(uuid.New())
 	repo := &fakeReminderRepo{due: []domainmeeting.Meeting{m}}
-	uc := NewReminderUC(repo, &fakePushRepo{}, &fakeSender{})
+	uc := NewReminderUC(repo, &fakePushRepo{}, &fakeSender{}, nil)
 
 	uc.SweepOnce(context.Background())
 
 	if len(repo.reminded) != 1 {
 		t.Error("should mark reminded even without subscriptions")
+	}
+}
+
+func TestReminder_ActionItemDueSendsAndMarks(t *testing.T) {
+	// 到期行動項推播「待辦提醒」並標記已提醒，深連結指向所屬會議。
+	userID := uuid.New()
+	meetingID := uuid.New()
+	item := domainactionitem.PendingItem{
+		ActionItem: domainactionitem.ActionItem{
+			ID: uuid.New(), MeetingID: meetingID, UserID: userID, Description: "交付登入規格",
+		},
+		MeetingTitle: "架構週會",
+	}
+	arepo := &fakeActionReminderRepo{due: []domainactionitem.PendingItem{item}}
+	pushRepo := &fakePushRepo{subs: map[uuid.UUID][]domainpush.Subscription{
+		userID: {{Endpoint: "ep1", UserID: userID}},
+	}}
+	sender := &fakeSender{}
+	uc := NewReminderUC(&fakeReminderRepo{}, pushRepo, sender, arepo)
+
+	uc.SweepOnce(context.Background())
+
+	if len(sender.sent) != 1 {
+		t.Errorf("sent = %v, want 1", sender.sent)
+	}
+	if len(arepo.reminded) != 1 || arepo.reminded[0] != item.ID {
+		t.Errorf("reminded = %v, want [%v]", arepo.reminded, item.ID)
+	}
+	if sender.lastMsg.Title != "待辦提醒" {
+		t.Errorf("title = %q, want 待辦提醒", sender.lastMsg.Title)
+	}
+	if sender.lastMsg.URL != "/meetings/"+meetingID.String() {
+		t.Errorf("URL = %q, want /meetings/%s", sender.lastMsg.URL, meetingID)
+	}
+}
+
+func TestReminder_ActionItemTransientDoesNotMark(t *testing.T) {
+	// 全部暫時性失敗 → 不標記，下一輪重試（與會議提醒一致）。
+	userID := uuid.New()
+	item := domainactionitem.PendingItem{
+		ActionItem: domainactionitem.ActionItem{ID: uuid.New(), MeetingID: uuid.New(), UserID: userID, Description: "x"},
+	}
+	arepo := &fakeActionReminderRepo{due: []domainactionitem.PendingItem{item}}
+	pushRepo := &fakePushRepo{subs: map[uuid.UUID][]domainpush.Subscription{
+		userID: {{Endpoint: "ep1", UserID: userID}},
+	}}
+	sender := &fakeSender{failOn: map[string]error{"ep1": errors.New("503")}}
+	uc := NewReminderUC(&fakeReminderRepo{}, pushRepo, sender, arepo)
+
+	uc.SweepOnce(context.Background())
+
+	if len(arepo.reminded) != 0 {
+		t.Error("transient failure should leave action item unmarked for retry")
 	}
 }
 
@@ -138,7 +206,7 @@ func TestReminder_TransientSendErrorDoesNotMark(t *testing.T) {
 		userID: {{Endpoint: "ep1", UserID: userID}},
 	}}
 	sender := &fakeSender{failOn: map[string]error{"ep1": errors.New("503 from push service")}}
-	uc := NewReminderUC(repo, pushRepo, sender)
+	uc := NewReminderUC(repo, pushRepo, sender, nil)
 
 	uc.SweepOnce(context.Background())
 

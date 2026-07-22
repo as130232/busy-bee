@@ -11,7 +11,8 @@ export function TabLayout() {
     <div className="flex h-dvh flex-col">
       <TopBar />
       {/* key 綁路徑：切分頁時重播進場動畫並重新載入該頁資料 */}
-      <main key={location.pathname} className="flex-1 overflow-y-auto">
+      {/* overflow-x-hidden：釘住橫向，避免錄音頁裝飾光暈溢出造成整頁可左右滑 */}
+      <main key={location.pathname} className="flex-1 overflow-x-hidden overflow-y-auto">
         <div className="animate-fade-in-up mx-auto flex min-h-full max-w-xl flex-col gap-6 px-4 py-6">
           <Outlet />
         </div>

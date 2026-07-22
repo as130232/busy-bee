@@ -7,7 +7,7 @@
 
 ## 當前焦點
 
-Phase 17（紀錄情境化 F-SCENARIO：會議/閒聊模板 + 結構化摘要區塊）程式完成：後端 build/vet/test 全綠（24 packages）、前端 typecheck/lint/build 綠、本地 migration 000009 已套用、前後端本地已起。已再擴充第三情境「面試」（interview，17.8 ✅：migration 000010、面試 prompt、翠綠配色）。本 session 另含錄音頁情境配色化（會議黃/閒聊藍/面試綠，含大錄音鈕/光環/背景）、紀錄詳情頁改版（貼底 mini-player + hero 摘要 + meta 行 + 移除品牌列 + 完成狀態隱藏 + 頁籤 sticky）、品牌化載入動畫、確認彈窗改 Portal（修長頁被推到頁尾）。剩裝置端 e2e 人工驗收（三情境各看對應區塊）與 merge/部署。
+Phase 17（紀錄情境化 F-SCENARIO：會議/閒聊模板 + 結構化摘要區塊）程式完成：後端 build/vet/test 全綠（24 packages）、前端 typecheck/lint/build 綠、本地 migration 000009 已套用、前後端本地已起。已再擴充第三情境「面試」（interview，17.8 ✅：migration 000010、面試 prompt、翠綠配色）。本 session 另含錄音頁情境配色化（會議黃/閒聊藍/面試綠，含大錄音鈕/光環/背景）、紀錄詳情頁改版（貼底 mini-player + hero 摘要 + meta 行 + 移除品牌列 + 完成狀態隱藏 + 頁籤 sticky）、品牌化載入動畫、確認彈窗改 Portal（修長頁被推到頁尾）。另對標競品 Aimture Shorts 擴充三項（同分支）：17.9 摘要卡片化（SummaryPoint heading/text/speaker＋講者徽章）、Phase 18 行動項到期日解析＋Web Push 到期提醒＋.ics 加入行事曆。全程 TDD、後端 build/vet/test 全綠、前端 typecheck/lint/build 綠、sqlc/openapi/TS client 重生成。剩裝置端 e2e 人工驗收（三情境各看對應區塊、卡片版型/講者徽章、dueISO 解析、Push 到期提醒、iOS 加入行事曆）與本地 migration 000011 套用 + merge/部署。
 Phase 16（語者辨識 diarization：Deepgram + 講者改名 + 音檔播放）已 merge（`1da9020`）並部署 production：2026-07-22 實測 `DEEPGRAM_API_KEY` 已掛 Cloud Run（secret `busy-bee-deepgram-key:1`）、migration 000007 已隨 CI 自動套用、prod serving commit `687d52f`。全數完成（16.7 ✅）。
 Phase 15（RAG 語意搜尋：pgvector + Gemini embedding）已 merge（`805659b`）並部署：migration 000006（含 `CREATE EXTENSION vector`）已隨 CI 套用、prod 已上線。僅剩 prod 裝置端 e2e 人工驗收（搜「定價」找「價格策略」）— 15.9。
 Phase 14.3（錄音/上傳邊角情境）程式已具備，僅待裝置端人工驗收。
@@ -342,6 +342,24 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 - 17.6 ✅ 前端：頁籤「會議」→「紀錄」、錄音前情境切換、清單情境標籤（標題前）、通用區塊渲染器、詳情頁整合、錄音標題依情境命名
 - 17.7 ⬜ 裝置端 e2e 人工驗收 + merge/部署
 - 17.8 ✅ 情境擴充「面試」（interview）：migration 000010（scenario CHECK 放寬）＋domain 常數/IsValid＋`summary_interview.md` prompt＋gemini 註冊＋openapi enum；前端 scenarioTheme 翠綠（emerald）＋label＋toggle 選項＋清單標籤配色（順帶把閒聊改天藍對齊錄音頁情境色）。後端 build/test 綠、前端 typecheck/lint 綠、本地 migration 000010 已套用（待裝置端 e2e）
+- 17.9 ✅ 摘要區塊卡片化（對標競品 Aimture 版型）：`SummarySection.Items` `[]string`→`[]SummaryPoint{Text, Heading?, Speaker?}`＋容忍式 UnmarshalJSON（裸字串收斂）；meeting/interview 議題型區塊 prompt 改輸出 heading/text/speaker（casual 維持字串）；`SummarySections.tsx` 單一渲染器看資料決定樣式（有 heading→卡片＋講者徽章，否則條列），抽共用 `speakerColor.ts` 與逐字稿同色。TDD domain（三案）、後端 build/vet/test 綠、前端 typecheck/lint/build 綠
+
+---
+
+## Phase 18：行動項到期日 + 行事曆（F-ACTION 擴充）
+> 里程碑：post-MVP | 🔄 程式完成，待裝置端驗收
+> 把行動項的 `due_text`（原文如「下週五」）解析成真實日期，接上既有 Web Push 提醒；行動項可一鍵加入行事曆。對標競品「時程自動同步」。
+
+- 18.1 ✅ 截止日解析：`action_items.md` prompt 加 `dueISO`（注入 `{{TODAY}}`=會議日期推算）＋domain `Extracted.DueISO`/`DueDate()`（TDD，解析成當日 09:00 UTC+8，固定時區避免容器缺 tzdata）
+- 18.2 ✅ DB：migration 000011（`due_at`/`reminded_at` + 部分索引）、`InsertActionItem` 帶 due_at、`ListDueActionItemReminders`/`MarkActionItemReminded` 查詢、sqlc 重生成、repo mapping
+- 18.3 ✅ 提醒：`ReminderUC` 擴充掃描到期行動項並推播「待辦提醒」（深連結 `/meetings/:id`），複用既有 push/sweeper（不新增常駐服務、scale-to-zero 不變）；`deliver` helper 抽共用（TDD 2 例：送達標記、暫時性失敗不標記）
+- 18.4 ✅ API：`actionItemResponse` 加 `dueAt`、openapi ActionItem schema、重生 TS client
+- 18.5 ✅ 行事曆 .ics（純前端，零後端成本）：`services/ics.ts` `buildICS`/`addToCalendar`（全日 VEVENT、RFC5545 轉義、`navigator.share` files 優先退回下載）＋`ActionItemList` 有 dueAt 顯示「加入行事曆」鈕
+- 18.6 ⬜ 裝置端 e2e：真實錄音驗證 dueISO 解析正確、手動觸發 sweep 收到 Push、iOS 加入行事曆日期正確 + merge/部署
+- 18.7 ✅ 詳情頁頁籤重構：新增「摘要」頁籤（原 hero 摘要卡改為第一個頁籤且預設選中）、頁籤移到標題/meta 下方 sticky；命名統一「行動項」→「待辦」（詳情頁 meta/頁籤/空狀態、Schedule 待辦卡）
+- 18.9 ✅ 待辦就地編輯（比照逐字稿 ✏️）：domain `UpdateDescription` port + sqlc `UpdateActionItemDescription` + repo；`EditUC`（空描述擋 400、ErrNotFound→404，TDD 3 例）；PATCH `/action-items/:id` 改為 `Update`（帶 description 改內容 / 帶 done 改狀態）；前端 `editActionItem` client + `ActionItemList` 拆 `ActionItemRow` 加 ✏️ 就地編輯。另修錄音頁可左右滑（TabLayout main 補 `overflow-x-hidden`）
+- 18.10 ✅ 待辦指派人：顯示端 assignee 經 speakerNames 解析（改名連動）並以講者色晶片呈現（修 orphaned 「B」排版）；新增待辦可指派成員（AddTodoForm select、InsertManual/AddUC/handler/openapi/client 帶 assignee，TDD 更新）；ActionItemRow 版面重排（描述＋✏️ 一行、指派晶片＋時限一行）
+- 18.8 ✅ 手動新增待辦：migration 000012（`source` llm/manual + CHECK）、`DeleteActionItemsForMeeting` 只刪 llm（保護手動項不被重跑刪除）、domain `InsertManual` port、`AddUC`（owner 驗證 + 空描述擋 400，TDD 3 例）、`POST /meetings/:id/action-items` handler/route/openapi、前端 client `addMeetingActionItem` + 待辦頁 `AddTodoForm` 輸入框。後端 build/vet/test 全綠、前端 typecheck/lint/build 綠、本地 migration 000011/000012 已套用
 
 ---
 
@@ -376,6 +394,8 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-21 | Phase 16 語者辨識完成（16.1–16.6）＋本地 e2e 驗收通過：domain segments/FlattenSegments（TDD）→ migration 000007（transcript_segments/speaker_names jsonb）＋repo round-trip → STT 換 **Deepgram nova-2 zh-TW**（聲學分離；踩坑：nova-3+multi 中文空、Gemini 音訊誤拆多人皆棄）→ `UpdateSpeakerNames` 改名 use case＋STT 空結果保護 → `PATCH /speakers`＋音檔播放端點 `GET /audio-url`（GCS SignedDownloadURL）→ 前端分講者顯示（晶片配色/時間碼靠左可點跳播）＋改名 sheet＋音檔播放器＋匯出用顯示名＋列表時長分秒 tag＋返回回列表＋標題跑馬燈。全後端 build/vet/test 綠、前端 typecheck/lint/build 綠；清理拋棄式 POC。待 merge＋部署（Deepgram key 進 Secret Manager、prod migration 000007）(16.7) | `f53fb6c..1da9020` |
 | 2026-07-22 | 部署收尾實測驗證：Phase 15/16 皆已 merge 並上線。gcloud 確認 `DEEPGRAM_API_KEY` 已掛 Cloud Run（secret `busy-bee-deepgram-key:1`，runtime SA busy-bee-storage）＋Groq/Gemini/VAPID 皆在；prod `/version` 回 commit `687d52f`（main HEAD，晚於 15/16 merge），revision `00023-w9m` serving，故 CI 自動 migration 000006（含 `CREATE EXTENSION vector`）/000007 已套用。16.7 標 ✅、Phase 16 overview ✅；15.9 部署部分完成、僅剩 prod 裝置端 e2e 驗收。**結論：部署/基建零待辦，剩裝置端人工驗收（15.9 RAG、14.3 邊角、Phase 16 diarization e2e）** | — |
 | 2026-07-22 | Phase 17 紀錄情境化程式完成（17.1–17.6）：migration 000009（scenario/summary_sections）→ domain Scenario/ParseScenario/SummarySection/Summarizer port → 兩情境 prompt + gemini Summarize → 管線改產結構化區塊（冪等）並移除 PRD/TechSpec 自動產生（LLM 3→2 呼叫）→ openapi/handler 串接 → 前端「會議」頁籤改「紀錄」、錄音前情境分段切換、清單情境標籤（移到標題前、時長改純文字區隔）、SummarySections 通用渲染器、詳情頁整合、錄音標題依情境命名。後端 build/vet/test 綠（24 pkg，含改寫 process 測試 + ParseScenario 測試）、前端 typecheck/lint/build 綠。待裝置端 e2e + merge（17.7） | `feat/scenario-templates` |
+| 2026-07-22 | 對標競品 Aimture Shorts 擴充三項：**17.9** 摘要卡片化（SummaryPoint heading/text/speaker＋容忍式 unmarshal、prompt 分情境密度、SummarySections 單一渲染器＋講者徽章、共用 speakerColor）；**Phase 18** 行動項到期日（dueISO 解析＋migration 000011 due_at/reminded_at＋ReminderUC 掃描到期行動項推「待辦提醒」複用既有 push/sweeper）＋**.ics 行事曆**（純前端 services/ics.ts、ActionItemList「加入行事曆」鈕）。全程 TDD（SummaryPoint 3 例、DueDate 4 例、行動項提醒 2 例）；後端 build/vet/test 全綠、前端 typecheck/lint/build 綠、sqlc/openapi/TS client 重生成、本地 migration 000011 待套用。待裝置端 e2e + merge | `feat/scenario-templates` |
+| 2026-07-22 | 詳情頁 UX + 手動待辦（18.7–18.8，實測回饋驅動）：摘要改頁籤（預設選中）＋頁籤移標題下 sticky＋命名統一「待辦」；手動新增待辦全端（migration 000012 source 欄位、重跑只刪 llm 保護手動項、AddUC owner 驗證 TDD、POST 端點、前端 AddTodoForm）。後端 build/vet/test 全綠、前端三檢綠、本地 migration 000012 已套用、後端已重啟含新路由 | `feat/scenario-templates` |
 | 2026-07-22 | UI 調整 + 情境擴充「面試」（17.8）：① 品牌化載入動畫 `Loader`（蜂巢 sonar/breathe）；② 確認彈窗抽出 `Sheet` 改 React Portal 掛 body，修正 AppShell transform 讓 fixed 被推到頁尾（iOS）；③ 紀錄詳情頁改版：貼底 mini-player（AudioPlayer portal）、hero 摘要合併雙卡、meta 行（情境·時長·講者數·行動項）、頁籤 sticky、移除全域品牌列（`AppShell hideTopBar`）、完成狀態不再顯示（詳情＋列表）；④ 錄音頁情境配色化 `scenarioTheme`（會議黃/閒聊藍/面試綠，含大鈕/聲波環/光點/背景暈染）、情境切換上移放大；⑤ 面試情境全端：migration 000010（CHECK 放寬，已套用）、domain 常數/IsValid、`summary_interview.md`+gemini 註冊、openapi enum、重生 TS client、前端 label/theme/toggle/清單標籤。後端 build/test 綠、前端 typecheck/lint 綠。待裝置端 e2e | `feat/scenario-templates` |
 
 ---

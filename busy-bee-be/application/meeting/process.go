@@ -241,7 +241,8 @@ func (uc *ProcessUC) extractActionItems(ctx context.Context, m domainmeeting.Mee
 	}
 
 	// 同一次呼叫產出摘要 + 行動項（A 方案：不增加額外 LLM 呼叫）。
-	result, err := uc.extractor.Extract(ctx, m.Transcript)
+	// 以會議建立時間為參考日期，供模型把相對時限推算成絕對日期。
+	result, err := uc.extractor.Extract(ctx, m.Transcript, m.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("process extract: %w", err)
 	}

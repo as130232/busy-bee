@@ -18,10 +18,31 @@ type fakeItemRepo struct {
 	gotUserID  uuid.UUID
 	gotDone    bool
 	returnItem domainactionitem.ActionItem
+
+	manualMeeting  uuid.UUID
+	manualUser     uuid.UUID
+	manualDesc     string
+	manualAssignee string
+
+	updateErr error
+	editDesc  string
 }
 
 func (f *fakeItemRepo) Insert(context.Context, uuid.UUID, uuid.UUID, domainactionitem.Extracted, int) (domainactionitem.ActionItem, error) {
 	return domainactionitem.ActionItem{}, nil
+}
+
+func (f *fakeItemRepo) InsertManual(_ context.Context, meetingID, userID uuid.UUID, description, assignee string) (domainactionitem.ActionItem, error) {
+	f.manualMeeting, f.manualUser, f.manualDesc, f.manualAssignee = meetingID, userID, description, assignee
+	return f.returnItem, nil
+}
+
+func (f *fakeItemRepo) UpdateDescription(_ context.Context, id, userID uuid.UUID, description string) (domainactionitem.ActionItem, error) {
+	f.gotID, f.gotUserID, f.editDesc = id, userID, description
+	if f.updateErr != nil {
+		return domainactionitem.ActionItem{}, f.updateErr
+	}
+	return f.returnItem, nil
 }
 func (f *fakeItemRepo) DeleteForMeeting(context.Context, uuid.UUID) error { return nil }
 func (f *fakeItemRepo) ListByMeeting(context.Context, uuid.UUID) ([]domainactionitem.ActionItem, error) {

@@ -265,7 +265,8 @@ export interface paths {
         /** 取回會議的行動項 */
         get: operations["listMeetingActionItems"];
         put?: never;
-        post?: never;
+        /** 手動新增待辦（source=manual，重跑分析不刪） */
+        post: operations["addMeetingActionItem"];
         delete?: never;
         options?: never;
         head?: never;
@@ -302,8 +303,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** 標記行動項完成 / 取消完成 */
-        patch: operations["toggleActionItem"];
+        /** 更新待辦（帶 description 改內容，帶 done 改完成狀態） */
+        patch: operations["updateActionItem"];
         trace?: never;
     };
 }
@@ -369,12 +370,20 @@ export interface components {
             /** @description 結束毫秒 */
             endMs: number;
         };
+        SummaryPoint: {
+            /** @description 重點內容（純條列即內容，卡片則為說明） */
+            text: string;
+            /** @description 卡片標題；有值才渲染成卡片 */
+            heading?: string;
+            /** @description 講者代號（如 A/B/C）；有值才顯示徽章 */
+            speaker?: string;
+        };
         SummarySection: {
             /** @description 區塊機器識別（如 decisions/topics/todos） */
             type: string;
             /** @description 顯示標題 */
             title: string;
-            items: string[];
+            items: components["schemas"]["SummaryPoint"][];
         };
         MeetingDetail: components["schemas"]["Meeting"] & {
             transcript: string;
@@ -406,6 +415,11 @@ export interface components {
             assignee: string;
             /** @description 時限（原文說法）；會議未提及時為空字串 */
             dueText: string;
+            /**
+             * Format: date-time
+             * @description 解析後到期時點（供提醒/行事曆）；無法解析時省略
+             */
+            dueAt?: string;
             done: boolean;
             /** Format: date-time */
             createdAt: string;
@@ -1159,6 +1173,60 @@ export interface operations {
             };
         };
     };
+    addMeetingActionItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description 待辦內容 */
+                    description: string;
+                    /** @description 指派對象（講者代號或名字，可空） */
+                    assignee?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 新增成功，回傳建立的待辦 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            actionItem: components["schemas"]["ActionItem"];
+                        };
+                    };
+                };
+            };
+            /** @description description 為空（errCode 40001） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 會議不存在或非本人所有（errCode 40401） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
     listPendingActionItems: {
         parameters: {
             query?: never;
@@ -1184,7 +1252,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
         };
     };
-    toggleActionItem: {
+    updateActionItem: {
         parameters: {
             query?: never;
             header?: never;
@@ -1196,7 +1264,10 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    done: boolean;
+                    /** @description 完成狀態（擇一提供） */
+                    done?: boolean;
+                    /** @description 待辦內容（擇一提供） */
+                    description?: string;
                 };
             };
         };
