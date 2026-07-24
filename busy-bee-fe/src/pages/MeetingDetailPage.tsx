@@ -577,6 +577,12 @@ function TranscriptView({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 只偵測到一位講者時提示：可能是單人錄音，或多人但音色相近/錄音條件未能分離 */}
+      {order.length <= 1 && meeting.transcriptSegments.length > 0 && (
+        <p className="m-0 rounded-lg border border-border bg-surface px-3 py-2 text-xs leading-5 text-muted">
+          只偵測到一位講者。若實際為多人，可能因音色相近或錄音條件，未能自動分離。
+        </p>
+      )}
       {/* 講者圖例：點晶片可改名 */}
       <div className="flex flex-wrap gap-2 border-b border-border pb-3">
         {order.map((code) => (
