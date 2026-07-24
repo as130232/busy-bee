@@ -23,7 +23,7 @@ import { ScheduleSheet } from '../components/ScheduleForm'
 import { Sheet } from '../components/Sheet'
 import { StatusBadge } from '../components/StatusBadge'
 import { SummarySections } from '../components/SummarySections'
-import { speakerColor } from '../components/speakerColor'
+import { resolveSpeakerNames, speakerColor } from '../components/speakerColor'
 import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
 import {
   addMeetingActionItem,
@@ -59,6 +59,25 @@ const tabLabels: Record<Tab, string> = {
 // 核心頁籤一律顯示；PRD / Tech Spec 已改為選用，僅在對應 artifact 存在時才出現。
 const coreTabs: Tab[] = ['summary', 'action_items', 'transcript']
 const optionalDocTabs = ['prd', 'tech_spec'] as const satisfies readonly Tab[]
+
+// buildSummaryMarkdown 把 AI 摘要（TL;DR + 各區塊）組成 Markdown 供匯出；講者代號一併換成顯示名。
+function buildSummaryMarkdown(meeting: MeetingDetail): string {
+  const names = meeting.speakerNames ?? {}
+  const lines: string[] = []
+  if (meeting.summary) lines.push(resolveSpeakerNames(meeting.summary, names), '')
+  for (const s of meeting.summarySections) {
+    if (s.items.length === 0) continue
+    lines.push(`## ${s.title}`)
+    for (const p of s.items) {
+      const text = resolveSpeakerNames(p.text ?? '', names)
+      const heading = resolveSpeakerNames(p.heading ?? '', names)
+      const who = p.speaker ? `（${names[p.speaker]?.trim() || p.speaker}）` : ''
+      lines.push(heading ? `- **${heading}**${who}${text ? `：${text}` : ''}` : `- ${text}`)
+    }
+    lines.push('')
+  }
+  return lines.join('\n').trim()
+}
 
 export function MeetingDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -192,7 +211,8 @@ export function MeetingDetailPage() {
           .map((s) => `${meeting.speakerNames?.[s.speaker]?.trim() || s.speaker}: ${s.text}`)
           .join('\n')
       : meeting.transcript
-  const exportContent = tab === 'transcript' ? transcriptExport : docContent
+  const exportContent =
+    tab === 'transcript' ? transcriptExport : tab === 'summary' ? buildSummaryMarkdown(meeting) : docContent
 
   return (
     <AppShell hideTopBar>
@@ -267,7 +287,7 @@ export function MeetingDetailPage() {
         ))}
       </nav>
 
-      {tab !== 'action_items' && tab !== 'summary' && exportContent && (
+      {tab !== 'action_items' && exportContent && (
         <div className="-mb-2 flex justify-end">
           <ExportBar content={exportContent} filename={`${meeting.title}-${tab}`} />
         </div>
@@ -278,7 +298,9 @@ export function MeetingDetailPage() {
           hasSummary ? (
             <div>
               {meeting.summary && (
-                <p className="m-0 text-[15px] leading-6 font-medium text-fg">{meeting.summary}</p>
+                <p className="m-0 text-[15px] leading-6 font-medium text-fg">
+                  {resolveSpeakerNames(meeting.summary, meeting.speakerNames ?? {})}
+                </p>
               )}
               <SummarySections
                 sections={meeting.summarySections}

@@ -14,3 +14,18 @@ export function speakerColor(code: string, order: string[]): string {
   const i = order.indexOf(code)
   return SPEAKER_COLORS[(i < 0 ? 0 : i) % SPEAKER_COLORS.length]
 }
+
+/**
+ * resolveSpeakerNames 把文字中「獨立出現」的講者代號（如 B）換成使用者設定的顯示名，
+ * 讓 AI 摘要內文跟著改名連動。只替換有自訂名的代號，且以 \b 邊界避免動到 AI/PRD 等英文詞。
+ */
+export function resolveSpeakerNames(text: string, speakerNames: Record<string, string>): string {
+  if (!text) return text
+  let out = text
+  for (const [code, name] of Object.entries(speakerNames)) {
+    const display = name?.trim()
+    if (!display || display === code) continue
+    out = out.replace(new RegExp(`\\b${code}\\b`, 'g'), display)
+  }
+  return out
+}

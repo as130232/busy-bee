@@ -1,5 +1,5 @@
 import type { MeetingDetail } from '../services/api/client'
-import { speakerColor } from './speakerColor'
+import { resolveSpeakerNames, speakerColor } from './speakerColor'
 
 type Section = MeetingDetail['summarySections'][number]
 type Point = Section['items'][number]
@@ -61,18 +61,22 @@ function PointRow({
   speakerNames: Record<string, string>
   speakerOrder: string[]
 }) {
+  // 內文/標題裡的講者代號（如 B）也換成顯示名，與徽章一致跟著改名連動。
+  const heading = resolveSpeakerNames(point.heading ?? '', speakerNames)
+  const text = resolveSpeakerNames(point.text, speakerNames)
+
   if (!point.heading) {
     return (
       <div className="flex gap-2 text-sm leading-6 text-fg">
         <span className="select-none text-muted">•</span>
-        <span>{point.text}</span>
+        <span>{text}</span>
       </div>
     )
   }
   return (
     <div className="rounded-lg border border-border/60 bg-surface/60 px-3 py-2">
       <div className="flex items-start justify-between gap-2">
-        <span className="text-sm font-semibold text-fg">{point.heading}</span>
+        <span className="text-sm font-semibold text-fg">{heading}</span>
         {point.speaker && (
           <span
             className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${speakerColor(point.speaker, speakerOrder)}`}
@@ -81,7 +85,7 @@ function PointRow({
           </span>
         )}
       </div>
-      {point.text && <p className="m-0 mt-0.5 text-sm leading-6 text-muted">{point.text}</p>}
+      {text && <p className="m-0 mt-0.5 text-sm leading-6 text-muted">{text}</p>}
     </div>
   )
 }
