@@ -117,7 +117,7 @@ paths:
                   example: audio/webm
                 scenario:
                   type: string
-                  enum: [meeting, casual, interview]
+                  enum: [meeting, casual, interview, idea]
                   default: meeting
                   description: 紀錄情境（會議/閒聊/面試）；決定 AI 產出的結構化摘要區塊模板。省略或無效值回退 meeting。
       responses:
@@ -171,7 +171,7 @@ paths:
                 title: { type: string }
                 scenario:
                   type: string
-                  enum: [meeting, casual, interview]
+                  enum: [meeting, casual, interview, idea]
                   default: meeting
                   description: 紀錄情境（會議/閒聊/面試）；省略或無效值回退 meeting。
                 scheduledAt: { type: string, format: date-time }
@@ -796,6 +796,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Envelope"
+    delete:
+      tags: [meetings]
+      summary: 刪除單筆待辦
+      operationId: deleteActionItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 已刪除
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 待辦不存在或非本人所有（errCode 40401）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
 
 components:
   securitySchemes:
@@ -843,7 +867,7 @@ components:
           enum: [scheduled, pending, transcribing, analyzing, completed, failed]
         scenario:
           type: string
-          enum: [meeting, casual, interview]
+          enum: [meeting, casual, interview, idea]
           description: "紀錄情境（會議/閒聊/面試）"
         summary: { type: string, description: "一句話摘要（TL;DR），未處理則不出現" }
         durationSeconds: { type: integer }

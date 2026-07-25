@@ -300,7 +300,8 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /** 刪除單筆待辦 */
+        delete: operations["deleteActionItem"];
         options?: never;
         head?: never;
         /** 更新待辦（帶 description 改內容，帶 done 改完成狀態） */
@@ -343,7 +344,7 @@ export interface components {
              * @description 紀錄情境（會議/閒聊/面試）
              * @enum {string}
              */
-            scenario: "meeting" | "casual" | "interview";
+            scenario: "meeting" | "casual" | "interview" | "idea";
             /** @description 一句話摘要（TL;DR），未處理則不出現 */
             summary?: string;
             durationSeconds: number;
@@ -556,7 +557,7 @@ export interface operations {
                      * @default meeting
                      * @enum {string}
                      */
-                    scenario?: "meeting" | "casual" | "interview";
+                    scenario?: "meeting" | "casual" | "interview" | "idea";
                 };
             };
         };
@@ -609,7 +610,7 @@ export interface operations {
                      * @default meeting
                      * @enum {string}
                      */
-                    scenario?: "meeting" | "casual" | "interview";
+                    scenario?: "meeting" | "casual" | "interview" | "idea";
                     /** Format: date-time */
                     scheduledAt: string;
                     /** @default 15 */
@@ -1250,6 +1251,38 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    deleteActionItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已刪除 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 待辦不存在或非本人所有（errCode 40401） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
         };
     };
     updateActionItem: {
