@@ -121,7 +121,7 @@ func main() {
 		sender := webpush.New(cfg.Push.VAPIDPublicKey, cfg.Push.VAPIDPrivateKey, cfg.Push.SubscriberEmail)
 		reminderUC = appmeeting.NewReminderUC(meetingRepo, pushRepo, sender, actionItemRepo)
 		go worker.RunReminderSweep(sweepCtx, reminderUC, time.Minute)
-		pushHandler = pushhandler.NewHandler(apppush.NewSubscribeUC(pushRepo), cfg.Push.VAPIDPublicKey)
+		pushHandler = pushhandler.NewHandler(apppush.NewSubscribeUC(pushRepo), apppush.NewTestUC(pushRepo, sender), cfg.Push.VAPIDPublicKey)
 	} else {
 		slog.Warn("push reminders disabled: VAPID keys not configured")
 	}
@@ -154,6 +154,7 @@ func main() {
 			Toggle:        appactionitem.NewToggleUC(actionItemRepo),
 			Add:           appactionitem.NewAddUC(meetingRepo, actionItemRepo),
 			Edit:          appactionitem.NewEditUC(actionItemRepo),
+			Delete:        appactionitem.NewDeleteUC(actionItemRepo),
 		}),
 		PushHandler:     pushHandler,
 		InternalHandler: internalHandler,

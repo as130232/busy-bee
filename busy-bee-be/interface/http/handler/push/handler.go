@@ -13,11 +13,12 @@ import (
 
 type Handler struct {
 	uc             *apppush.SubscribeUC
+	test           *apppush.TestUC
 	vapidPublicKey string
 }
 
-func NewHandler(uc *apppush.SubscribeUC, vapidPublicKey string) *Handler {
-	return &Handler{uc: uc, vapidPublicKey: vapidPublicKey}
+func NewHandler(uc *apppush.SubscribeUC, test *apppush.TestUC, vapidPublicKey string) *Handler {
+	return &Handler{uc: uc, test: test, vapidPublicKey: vapidPublicKey}
 }
 
 // VAPIDPublicKey GET /api/v1/push/vapid-public-key — 前端訂閱所需的公鑰。
@@ -68,4 +69,19 @@ func (h *Handler) Unsubscribe(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"subscribed": false})
+}
+
+// Test POST /api/v1/push/test — 對當前用戶所有訂閱立即送一則測試推播（debug / demo：驗證顯示層，免等排程）。
+func (h *Handler) Test(c *gin.Context) {
+	userID, ok := domainuser.IDFrom(c.Request.Context())
+	if !ok {
+		response.Fail(c, apperr.New(errcode.Unauthorized))
+		return
+	}
+	delivered, err := h.test.SendTest(c.Request.Context(), userID)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.OK(c, gin.H{"delivered": delivered})
 }

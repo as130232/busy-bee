@@ -99,12 +99,14 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 			authed.POST("/meetings/:id/action-items", deps.ActionItemHandler.Add)
 			authed.GET("/action-items", deps.ActionItemHandler.ListPending)
 			authed.PATCH("/action-items/:id", deps.ActionItemHandler.Update)
+			authed.DELETE("/action-items/:id", deps.ActionItemHandler.Delete)
 		}
 
 		if deps.PushHandler != nil {
 			authed.GET("/push/vapid-public-key", deps.PushHandler.VAPIDPublicKey)
 			authed.POST("/push/subscriptions", deps.PushHandler.Subscribe)
 			authed.DELETE("/push/subscriptions", deps.PushHandler.Unsubscribe)
+			authed.POST("/push/test", deps.PushHandler.Test) // debug / demo：立即送測試推播驗證顯示層
 		}
 	}
 

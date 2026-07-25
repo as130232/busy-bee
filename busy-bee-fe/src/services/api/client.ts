@@ -62,6 +62,7 @@ export const scenarioLabels: Record<Scenario, string> = {
   meeting: '會議',
   casual: '閒聊',
   interview: '面試',
+  idea: '想法',
 }
 
 export interface CreateMeetingResult {
@@ -182,6 +183,11 @@ export function toggleActionItem(
     },
     idToken,
   )
+}
+
+/** 刪除單筆待辦 */
+export function deleteActionItem(idToken: string, id: string): Promise<unknown> {
+  return request<unknown>(`/api/v1/action-items/${id}`, { method: 'DELETE' }, idToken)
 }
 
 /** 修改待辦內容 */
@@ -314,4 +320,9 @@ export function unsubscribePush(idToken: string, endpoint: string): Promise<unkn
     { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint }) },
     idToken,
   )
+}
+
+/** debug / demo：對自己所有訂閱立即送測試推播，驗證顯示層（免等排程） */
+export function sendTestPush(idToken: string): Promise<{ delivered: number }> {
+  return request<{ delivered: number }>('/api/v1/push/test', { method: 'POST' }, idToken)
 }

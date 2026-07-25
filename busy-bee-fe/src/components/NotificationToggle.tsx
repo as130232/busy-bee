@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { getVapidPublicKey, subscribePush, unsubscribePush } from '../services/api/client'
+import { getVapidPublicKey, sendTestPush, subscribePush, unsubscribePush } from '../services/api/client'
 import { getIdToken } from '../services/token'
 
 function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
@@ -21,6 +21,7 @@ type State = 'unsupported' | 'off' | 'on' | 'busy' | 'denied'
 /** 會議提醒通知開關（Web Push 訂閱管理）。 */
 export function NotificationToggle() {
   const [state, setState] = useState<State>('busy')
+  const [testMsg, setTestMsg] = useState('')
 
   useEffect(() => {
     void (async () => {
@@ -87,6 +88,18 @@ export function NotificationToggle() {
     }
   }, [])
 
+  // debug / demo：立即送測試推播，驗證顯示層是否正常（免等排程）。
+  const test = useCallback(async () => {
+    setTestMsg('傳送中…')
+    try {
+      const { delivered } = await sendTestPush(await getIdToken())
+      setTestMsg(delivered > 0 ? `已送出（${delivered} 個裝置），留意通知` : '沒有可送達的訂閱')
+    } catch (e) {
+      console.error('[push] 測試推播失敗', e)
+      setTestMsg('傳送失敗，見 console')
+    }
+  }, [])
+
   if (state === 'unsupported') {
     return isIOS && !isStandalone ? (
       <p className="m-0 text-xs text-muted">iOS 需先「加入主畫面」才能開啟會議提醒通知（iOS 16.4+）。</p>
@@ -97,16 +110,30 @@ export function NotificationToggle() {
   }
 
   return (
-    <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
-      <input
-        type="checkbox"
-        className="peer sr-only"
-        checked={state === 'on'}
-        disabled={state === 'busy'}
-        onChange={(e) => void (e.target.checked ? enable() : disable())}
-      />
-      <span className="relative h-6 w-10 shrink-0 rounded-full bg-border transition after:absolute after:top-0.5 after:left-0.5 after:size-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:bg-accent peer-checked:after:translate-x-4 peer-disabled:opacity-50" />
-      會議提醒通知
-    </label>
+    <div className="flex flex-col gap-2">
+      <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
+        <input
+          type="checkbox"
+          className="peer sr-only"
+          checked={state === 'on'}
+          disabled={state === 'busy'}
+          onChange={(e) => void (e.target.checked ? enable() : disable())}
+        />
+        <span className="relative h-6 w-10 shrink-0 rounded-full bg-border transition after:absolute after:top-0.5 after:left-0.5 after:size-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:bg-accent peer-checked:after:translate-x-4 peer-disabled:opacity-50" />
+        會議提醒通知
+      </label>
+      {state === 'on' && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void test()}
+            className="rounded-md border border-border px-2 py-1 text-xs text-muted active:opacity-70"
+          >
+            發送測試通知
+          </button>
+          {testMsg && <span className="text-xs text-muted">{testMsg}</span>}
+        </div>
+      )}
+    </div>
   )
 }
