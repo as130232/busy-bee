@@ -6,11 +6,12 @@ import { Loader } from '../components/Loader'
 import { useAuth } from '../hooks/useAuth'
 import { scenarioLabels } from '../services/api/client'
 
-// 三色情境 chips：對齊錄音頁情境色（會議琥珀 / 閒聊天藍 / 面試翠綠）。
+// 四情境 chips：配色對齊錄音頁情境色（會議琥珀 / 閒聊天藍 / 面試翠綠 / 想法紫）。
 const chips = [
   { label: scenarioLabels.meeting, tone: 'bg-accent/10 text-accent' },
   { label: scenarioLabels.casual, tone: 'bg-sky-500/10 text-sky-500' },
   { label: scenarioLabels.interview, tone: 'bg-emerald-500/10 text-emerald-500' },
+  { label: scenarioLabels.idea, tone: 'bg-violet-500/10 text-violet-500' },
 ]
 
 export function LoginPage() {
@@ -68,7 +69,7 @@ export function LoginPage() {
 
       {/* 三色情境 chips */}
       <div
-        className="animate-fade-in-up flex items-center gap-2"
+        className="animate-fade-in-up flex flex-wrap items-center justify-center gap-2"
         style={{ animationDelay: '0.24s' }}
       >
         {chips.map((c) => (

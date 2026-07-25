@@ -16,15 +16,15 @@ export default defineConfig({
       devOptions: { enabled: true, type: 'module' }, // 本地可測推播
       manifest: {
         name: 'Busy Bee',
-        short_name: 'BusyBee',
+        short_name: 'Busy Bee',
         description: '開會錄音 → AI 生成 PRD / Tech Spec',
         theme_color: '#0e0e11',
         background_color: '#0e0e11',
         display: 'standalone',
         start_url: '/',
         icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ],
       },
     }),
