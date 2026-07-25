@@ -5,7 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
+	"net/url"
 
 	wp "github.com/SherClockHolmes/webpush-go"
 
@@ -43,6 +46,15 @@ func (s *Sender) Send(ctx context.Context, sub domainpush.Subscription, msg doma
 		return fmt.Errorf("webpush send: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// 診斷用：記錄每次送出的狀態碼、推播服務 host 與回應內文（推播服務常在 body 說明拒絕原因，
+	// 例如 VAPID 金鑰雜湊不符）。內文只截前 300 bytes；host 非機密（不含 user token）。
+	host := sub.Endpoint
+	if u, perr := url.Parse(sub.Endpoint); perr == nil {
+		host = u.Host
+	}
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 300))
+	slog.InfoContext(ctx, "webpush.result", "status", resp.StatusCode, "host", host, "body", string(body))
 
 	return classifyStatus(resp.StatusCode, sub.Endpoint)
 }
