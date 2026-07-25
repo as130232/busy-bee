@@ -12,6 +12,23 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteActionItem = `-- name: DeleteActionItem :execrows
+DELETE FROM action_items WHERE id = $1 AND user_id = $2
+`
+
+type DeleteActionItemParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) DeleteActionItem(ctx context.Context, arg DeleteActionItemParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteActionItem, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteActionItemsForMeeting = `-- name: DeleteActionItemsForMeeting :exec
 DELETE FROM action_items WHERE meeting_id = $1 AND source = 'llm'
 `

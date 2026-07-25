@@ -26,6 +26,7 @@ type fakeItemRepo struct {
 
 	updateErr error
 	editDesc  string
+	deleteErr error
 }
 
 func (f *fakeItemRepo) Insert(context.Context, uuid.UUID, uuid.UUID, domainactionitem.Extracted, int) (domainactionitem.ActionItem, error) {
@@ -43,6 +44,11 @@ func (f *fakeItemRepo) UpdateDescription(_ context.Context, id, userID uuid.UUID
 		return domainactionitem.ActionItem{}, f.updateErr
 	}
 	return f.returnItem, nil
+}
+
+func (f *fakeItemRepo) Delete(_ context.Context, id, userID uuid.UUID) error {
+	f.gotID, f.gotUserID = id, userID
+	return f.deleteErr
 }
 func (f *fakeItemRepo) DeleteForMeeting(context.Context, uuid.UUID) error { return nil }
 func (f *fakeItemRepo) ListByMeeting(context.Context, uuid.UUID) ([]domainactionitem.ActionItem, error) {

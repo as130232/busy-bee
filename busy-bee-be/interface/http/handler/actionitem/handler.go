@@ -19,6 +19,7 @@ type HandlerUCs struct {
 	Toggle        *appactionitem.ToggleUC
 	Add           *appactionitem.AddUC
 	Edit          *appactionitem.EditUC
+	Delete        *appactionitem.DeleteUC
 }
 
 type Handler struct {
@@ -94,6 +95,26 @@ func (h *Handler) Add(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"actionItem": toActionItemResponse(item)})
+}
+
+// Delete DELETE /api/v1/action-items/:id — 刪除單筆待辦（owner-only）。
+func (h *Handler) Delete(c *gin.Context) {
+	userID, ok := domainuser.IDFrom(c.Request.Context())
+	if !ok {
+		response.Fail(c, apperr.New(errcode.Unauthorized))
+		return
+	}
+	itemID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "id"))
+		return
+	}
+
+	if err := h.uc.Delete.Execute(c.Request.Context(), userID, itemID); err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.OK(c, gin.H{})
 }
 
 // Update PATCH /api/v1/action-items/:id — 部分更新：帶 description 改內容，帶 done 改完成狀態。

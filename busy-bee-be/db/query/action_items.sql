@@ -44,3 +44,6 @@ LIMIT 50;
 
 -- name: MarkActionItemReminded :exec
 UPDATE action_items SET reminded_at = now(), updated_at = now() WHERE id = $1;
+
+-- name: DeleteActionItem :execrows
+DELETE FROM action_items WHERE id = $1 AND user_id = $2;

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarPlus, Check, Pencil } from 'lucide-react'
+import { CalendarPlus, Check, Pencil, Trash2 } from 'lucide-react'
 
 import type { ActionItem, PendingActionItem } from '../services/api/client'
 import { addToCalendar } from '../services/ics'
@@ -20,6 +20,7 @@ export function ActionItemList({
   items,
   onToggle,
   onEdit,
+  onRemove,
   showMeeting = false,
   speakerNames = {},
   speakerOrder = [],
@@ -27,6 +28,7 @@ export function ActionItemList({
   items: Item[]
   onToggle: (id: string, done: boolean) => void
   onEdit?: (id: string, description: string) => Promise<void> | void
+  onRemove?: (id: string) => void
   showMeeting?: boolean
   speakerNames?: Record<string, string>
   speakerOrder?: string[]
@@ -44,6 +46,7 @@ export function ActionItemList({
           index={i}
           onToggle={onToggle}
           onEdit={onEdit}
+          onRemove={onRemove}
           showMeeting={showMeeting}
           speakerNames={speakerNames}
           speakerOrder={speakerOrder}
@@ -59,6 +62,7 @@ function ActionItemRow({
   index,
   onToggle,
   onEdit,
+  onRemove,
   showMeeting,
   speakerNames,
   speakerOrder,
@@ -67,6 +71,7 @@ function ActionItemRow({
   index: number
   onToggle: (id: string, done: boolean) => void
   onEdit?: (id: string, description: string) => Promise<void> | void
+  onRemove?: (id: string) => void
   showMeeting: boolean
   speakerNames: Record<string, string>
   speakerOrder: string[]
@@ -182,16 +187,28 @@ function ActionItemRow({
               </div>
             )}
           </div>
-          {item.dueAt && !item.done && (
-            <button
-              type="button"
-              aria-label="加入行事曆"
-              onClick={() => void addToCalendar(item)}
-              className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-surface-hover hover:text-accent"
-            >
-              <CalendarPlus className="size-4" />
-            </button>
-          )}
+          <div className="flex shrink-0 items-center gap-0.5">
+            {item.dueAt && !item.done && (
+              <button
+                type="button"
+                aria-label="加入行事曆"
+                onClick={() => void addToCalendar(item)}
+                className="flex size-8 items-center justify-center rounded-md text-muted transition hover:bg-surface-hover hover:text-accent"
+              >
+                <CalendarPlus className="size-4" />
+              </button>
+            )}
+            {onRemove && (
+              <button
+                type="button"
+                aria-label="移除待辦"
+                onClick={() => onRemove(item.id)}
+                className="flex size-8 items-center justify-center rounded-md text-muted transition hover:bg-surface-hover hover:text-red-500"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            )}
+          </div>
         </div>
       )}
     </li>

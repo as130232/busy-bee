@@ -80,6 +80,8 @@ type Repository interface {
 	SetDone(ctx context.Context, id, userID uuid.UUID, done bool) (ActionItem, error)
 	// UpdateDescription 修改待辦內容；查無列（非本人或不存在）回傳 ErrNotFound。
 	UpdateDescription(ctx context.Context, id, userID uuid.UUID, description string) (ActionItem, error)
+	// Delete 刪除單筆待辦；查無列（非本人或不存在）回傳 ErrNotFound。
+	Delete(ctx context.Context, id, userID uuid.UUID) error
 }
 
 // ReminderRepository 到期行動項提醒的存取 port（掃描式，比對 meeting.ReminderRepository）。

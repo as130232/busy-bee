@@ -154,6 +154,18 @@ func (r *ActionItemRepo) SetDone(ctx context.Context, id, userID uuid.UUID, done
 	return toDomainActionItem(row), nil
 }
 
+// Delete 刪除單筆待辦（owner-only）；影響 0 列（非本人或不存在）回傳 ErrNotFound。
+func (r *ActionItemRepo) Delete(ctx context.Context, id, userID uuid.UUID) error {
+	rows, err := r.q.DeleteActionItem(ctx, sqlcgen.DeleteActionItemParams{ID: id, UserID: userID})
+	if err != nil {
+		return fmt.Errorf("db.DeleteActionItem: %w", err)
+	}
+	if rows == 0 {
+		return domainactionitem.ErrNotFound
+	}
+	return nil
+}
+
 // UpdateDescription 修改待辦內容（owner-only：以 user_id 過濾）。
 func (r *ActionItemRepo) UpdateDescription(ctx context.Context, id, userID uuid.UUID, description string) (domainactionitem.ActionItem, error) {
 	row, err := r.q.UpdateActionItemDescription(ctx, sqlcgen.UpdateActionItemDescriptionParams{

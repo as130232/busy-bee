@@ -390,6 +390,10 @@ func (f *fakeActionItemRepo) UpdateDescription(_ context.Context, _, _ uuid.UUID
 	return domainactionitem.ActionItem{}, nil
 }
 
+func (f *fakeActionItemRepo) Delete(_ context.Context, _, _ uuid.UUID) error {
+	return nil
+}
+
 func (f *fakeActionItemRepo) DeleteForMeeting(_ context.Context, _ uuid.UUID) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
