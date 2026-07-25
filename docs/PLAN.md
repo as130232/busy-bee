@@ -13,11 +13,12 @@ Phase 15（RAG 語意搜尋：pgvector + Gemini embedding）已 merge（`805659b
 Phase 14.3（錄音/上傳邊角情境）程式已具備，僅待裝置端人工驗收。
 Phase 13 已 merge main（F-ACTION / F-EXPORT / 深連結 / 視覺重設計 / Tab 導覽 / 行動裝置修正，人工驗收通過）。
 Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁）程式完成，待人工驗收。
-推播通知顯示問題排查中（用戶端顯示層，改在 iPhone PWA 實機驗證）。
-排程會議提醒（F-REMIND）demo 觸發改採**內建計時器**（`RunReminderSweep` 每分鐘；VAPID 已設即啟用）：零外部觸發、維持 scale-to-zero，限 instance 存活時觸發（demo 足夠）；production 精準/可靠方案（Cloud Tasks / 免費外部 cron）列 ARCHITECTURE 備註。
-線上 Cloud Run 已設 VAPID_PUBLIC_KEY / VAPID_SUBSCRIBER_EMAIL（env）+ VAPID_PRIVATE_KEY（Secret）。
-新增 debug 工具加速實機驗證：`POST /api/v1/push/test`（JWT，對自己訂閱即送）+ NotificationToggle「發送測試通知」鈕 + `sw.ts` `[push-debug]` log。
-（Phase 11 已 merge main 並部署 production；剩 iPhone 實機驗證顯示。）
+✅ **iPhone 推播打通（2026-07-25 實機驗收）**：測試推播與排程會議提醒皆收到（Apple 回 `201`）。
+根因是 **VAPID JWT `sub` 雙重 `mailto:` 前綴**（sender 自行加一次、webpush-go 內部又加一次 → `mailto:mailto:...`）；Chrome/Firefox 容忍但 Apple 嚴格檢查回 `403 BadJwtToken`，故僅 iOS 全數失敗。已修（傳原始 email，函式庫補前綴）+ 回歸測試。
+連帶修正：`403/404/410` 一律視為訂閱失效並清除（先前 403 當可重試 → 殭屍訂閱每分鐘重送把 Apple 打到 `429` 限流）。
+排程會議提醒（F-REMIND）demo 觸發採**內建計時器**（`RunReminderSweep` 每分鐘；VAPID 已設即啟用）：零外部觸發、維持 scale-to-zero，限 instance 存活時觸發（demo 足夠）；production 精準/可靠方案（Cloud Tasks / 免費外部 cron）列 ARCHITECTURE 備註。
+線上 Cloud Run 已設 VAPID_PUBLIC_KEY / VAPID_SUBSCRIBER_EMAIL（env）+ VAPID_PRIVATE_KEY（Secret，已驗證與公鑰配對）。
+debug 工具（保留）：`POST /api/v1/push/test`（JWT，對自己訂閱即送）+ NotificationToggle「發送測試通知」鈕 + `sw.ts` `[push-debug]` log。
 
 ---
 
@@ -370,6 +371,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
+| 2026-07-25 | **iPhone 推播打通（實機驗收）**：測試推播 + 排程會議提醒皆收到（Apple 201）。根因＝VAPID JWT sub 雙重 mailto 前綴 → Apple 403 BadJwtToken（Chrome/FF 容忍、僅 iOS 失敗）；改傳原始 email + 回歸測試。連帶：403/404/410 一律清除失效訂閱（解殭屍訂閱洪水/429）。移除診斷 log | `0825a80, 6620e75` |
 | 2026-07-25 | 通知修正（demo / 免費 / scale-to-zero）：確認 F-REMIND 前後端已完備，決策 demo 觸發用**內建計時器**（無外部 Scheduler、零額外費用）；線上 VAPID 三變數到位；新增 debug 工具 `POST /api/v1/push/test`（`application/push/test.go` + push handler + 路由）、NotificationToggle 測試鈕、`sw.ts` push-debug log，加速 iPhone 實機顯示驗證。後端 vet/test 綠、前端 build 綠 | `main` |
 | 2026-07-17 | Phase 1 全部完成（1.1–1.6：骨架、apperr、config、server、response、compose）；TDD 全程；分支 feat/phase-1-backend-skeleton | `8cec0df..9fd11b5` |
 | 2026-07-17 | Phase 2 全部完成（2.1–2.6：migrations、sqlc、WithTx、auth 白名單、/users/sync、openapi）；分支 feat/phase-2-db-auth | `0d560c1..ee6a642` |
