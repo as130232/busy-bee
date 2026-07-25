@@ -12,7 +12,9 @@ function ScenarioTag({ scenario }: { scenario: Meeting['scenario'] }) {
       ? 'bg-sky-500/10 text-sky-500'
       : scenario === 'interview'
         ? 'bg-emerald-500/10 text-emerald-500'
-        : 'bg-accent/10 text-accent'
+        : scenario === 'idea'
+          ? 'bg-violet-500/10 text-violet-500'
+          : 'bg-accent/10 text-accent'
   return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
 }
 

@@ -27,6 +27,7 @@ import { resolveSpeakerNames, speakerColor } from '../components/speakerColor'
 import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
 import {
   addMeetingActionItem,
+  deleteActionItem,
   deleteMeeting,
   editActionItem,
   editMeetingSegment,
@@ -57,7 +58,7 @@ const tabLabels: Record<Tab, string> = {
 }
 
 // 核心頁籤一律顯示；PRD / Tech Spec 已改為選用，僅在對應 artifact 存在時才出現。
-const coreTabs: Tab[] = ['summary', 'action_items', 'transcript']
+const coreTabs: Tab[] = ['summary', 'transcript', 'action_items']
 const optionalDocTabs = ['prd', 'tech_spec'] as const satisfies readonly Tab[]
 
 // buildSummaryMarkdown 把 AI 摘要（TL;DR + 各區塊）組成 Markdown 供匯出；講者代號一併換成顯示名。
@@ -162,6 +163,16 @@ export function MeetingDetailPage() {
   const editItem = async (itemId: string, description: string) => {
     const { actionItem } = await editActionItem(await getIdToken(), itemId, description)
     setActionItems((prev) => prev.map((it) => (it.id === itemId ? actionItem : it)))
+  }
+
+  // 移除待辦：樂觀移除，失敗則重載還原。
+  const removeItem = async (itemId: string) => {
+    setActionItems((prev) => prev.filter((it) => it.id !== itemId))
+    try {
+      await deleteActionItem(await getIdToken(), itemId)
+    } catch {
+      void load()
+    }
   }
 
   if (error) {
@@ -308,6 +319,7 @@ export function MeetingDetailPage() {
                 className={meeting.summary ? 'mt-3' : ''}
                 speakerNames={meeting.speakerNames ?? {}}
                 speakerOrder={speakerOrder}
+                aiDividerBeforeType={meeting.scenario === 'idea' ? 'expansion' : undefined}
               />
             </div>
           ) : (
@@ -328,6 +340,7 @@ export function MeetingDetailPage() {
                 items={actionItems}
                 onToggle={toggleItem}
                 onEdit={editItem}
+                onRemove={removeItem}
                 speakerNames={meeting.speakerNames ?? {}}
                 speakerOrder={speakerOrder}
               />

@@ -48,6 +48,18 @@
   --animate-breathe: breathe 4s ease-in-out infinite;
   --animate-sonar: sonar 2.8s ease-out infinite;
   --animate-loader-dot: loader-dot 1.4s ease-in-out infinite;
+  --animate-aurora: aurora 18s ease-in-out infinite;
+
+  /* 登入頁背景光暈緩慢飄移 */
+  @keyframes aurora {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(6%, -4%, 0) scale(1.12);
+    }
+  }
 
   @keyframes loader-dot {
     0%,

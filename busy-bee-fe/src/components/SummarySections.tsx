@@ -1,3 +1,6 @@
+import { Fragment } from 'react'
+import { Sparkles } from 'lucide-react'
+
 import type { MeetingDetail } from '../services/api/client'
 import { resolveSpeakerNames, speakerColor } from './speakerColor'
 
@@ -8,6 +11,7 @@ type Point = Section['items'][number]
  * 依情境產生的結構化摘要區塊通用渲染器（一套邏輯服務所有情境）。
  * 每個重點看資料決定樣式：有 heading → 卡片（標題＋說明＋講者徽章）；否則 → 純條列。
  * bare=true 時去掉每區塊的外框，供 hero 摘要卡內共用。
+ * aiDividerBeforeType：在指定 type 的區塊前插一條「AI 延伸」分隔（想法情境用，區隔忠實摘要與 AI 生成）。
  */
 export function SummarySections({
   sections,
@@ -15,6 +19,7 @@ export function SummarySections({
   className = '',
   speakerNames = {},
   speakerOrder = [],
+  aiDividerBeforeType,
 }: {
   sections: Section[]
   bare?: boolean
@@ -22,6 +27,7 @@ export function SummarySections({
   // speakerNames 講者代號→顯示名；speakerOrder 決定徽章配色，與逐字稿一致。
   speakerNames?: Record<string, string>
   speakerOrder?: string[]
+  aiDividerBeforeType?: string
 }) {
   // 只顯示有內容的區塊，避免空區塊佔版面。
   const visible = sections.filter((s) => s.items.length > 0)
@@ -30,22 +36,29 @@ export function SummarySections({
   return (
     <div className={`space-y-3 ${className}`.trim()}>
       {visible.map((s, i) => (
-        <section
-          key={`${s.type}-${i}`}
-          className={bare ? '' : 'rounded-xl border border-border bg-surface px-4 py-3'}
-        >
-          <h3 className="m-0 mb-1.5 text-sm font-semibold text-fg">{s.title}</h3>
-          <div className="space-y-1.5">
-            {s.items.map((it, j) => (
-              <PointRow
-                key={j}
-                point={it}
-                speakerNames={speakerNames}
-                speakerOrder={speakerOrder}
-              />
-            ))}
-          </div>
-        </section>
+        <Fragment key={`${s.type}-${i}`}>
+          {aiDividerBeforeType && s.type === aiDividerBeforeType && (
+            <div className="flex items-center gap-2 pt-1 text-xs font-medium text-violet-500">
+              <span className="h-px flex-1 bg-border" />
+              <Sparkles className="size-3.5" />
+              以下為 AI 延伸
+              <span className="h-px flex-1 bg-border" />
+            </div>
+          )}
+          <section className={bare ? '' : 'rounded-xl border border-border bg-surface px-4 py-3'}>
+            <h3 className="m-0 mb-1.5 text-sm font-semibold text-fg">{s.title}</h3>
+            <div className="space-y-1.5">
+              {s.items.map((it, j) => (
+                <PointRow
+                  key={j}
+                  point={it}
+                  speakerNames={speakerNames}
+                  speakerOrder={speakerOrder}
+                />
+              ))}
+            </div>
+          </section>
+        </Fragment>
       ))}
     </div>
   )
