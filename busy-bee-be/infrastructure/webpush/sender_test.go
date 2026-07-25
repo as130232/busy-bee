@@ -3,10 +3,23 @@ package webpush
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	domainpush "github.com/as130232/busy-bee/busy-bee-be/domain/push"
 )
+
+// webpush-go 會自動為 subscriber 補 "mailto:"；若我們自己再補一次，sub claim 會變成
+// "mailto:mailto:..."，Apple 回 403 BadJwtToken。此測試守住「不得自行加 mailto:」。
+func TestNewSubscriberNotDoublePrefixed(t *testing.T) {
+	s := New("pub", "priv", "as130232@gmail.com")
+	if strings.HasPrefix(s.subscriber, "mailto:") {
+		t.Fatalf("subscriber 不可含 mailto: 前綴（webpush-go 會自動補），got %q", s.subscriber)
+	}
+	if s.subscriber != "as130232@gmail.com" {
+		t.Fatalf("subscriber = %q, want raw email", s.subscriber)
+	}
+}
 
 func TestClassifyStatus(t *testing.T) {
 	const endpoint = "https://push.example/ep-1"

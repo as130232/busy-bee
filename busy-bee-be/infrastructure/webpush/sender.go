@@ -18,13 +18,16 @@ import (
 type Sender struct {
 	publicKey  string
 	privateKey string
-	subscriber string // mailto:，推播服務要求的聯絡方式
+	// subscriber 為原始 email（或 https URL）。webpush-go 內部會自動補 "mailto:" 前綴，
+	// 故此處「絕對不可」自行加 mailto:，否則 JWT sub claim 變成 "mailto:mailto:..."，
+	// Chrome/Firefox 容忍但 Apple 嚴格檢查會回 403 BadJwtToken（iOS 推播全數失敗）。
+	subscriber string
 }
 
 var _ domainpush.Sender = (*Sender)(nil)
 
 func New(publicKey, privateKey, subscriberEmail string) *Sender {
-	return &Sender{publicKey: publicKey, privateKey: privateKey, subscriber: "mailto:" + subscriberEmail}
+	return &Sender{publicKey: publicKey, privateKey: privateKey, subscriber: subscriberEmail}
 }
 
 func (s *Sender) Send(ctx context.Context, sub domainpush.Subscription, msg domainpush.Message) error {
