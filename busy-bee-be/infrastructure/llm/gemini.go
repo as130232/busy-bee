@@ -31,6 +31,7 @@ var scenarioPrompts = map[domainmeeting.Scenario]string{
 	domainmeeting.ScenarioMeeting:   "prompts/summary_meeting.md",
 	domainmeeting.ScenarioCasual:    "prompts/summary_casual.md",
 	domainmeeting.ScenarioInterview: "prompts/summary_interview.md",
+	domainmeeting.ScenarioIdea:      "prompts/summary_idea.md",
 }
 
 func buildPrompt(templatePath, transcript string) (string, error) {

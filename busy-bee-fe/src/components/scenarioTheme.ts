@@ -65,4 +65,16 @@ export const scenarioThemes: Record<Scenario, ScenarioTheme> = {
     toggleActive: 'bg-emerald-400 text-zinc-900',
     highlightRing: 'ring-emerald-400',
   },
+  idea: {
+    ring: 'border-violet-400/40',
+    glow: 'bg-violet-400/25',
+    tint: 'bg-violet-500/15',
+    button: 'from-violet-400 to-violet-500 shadow-violet-400/60',
+    buttonHover: 'group-hover:shadow-violet-400/80',
+    dotBright: 'bg-violet-300 shadow-violet-300',
+    dotSoft: 'bg-violet-400/70',
+    dotFaint: 'bg-violet-300/60',
+    toggleActive: 'bg-violet-400 text-zinc-900',
+    highlightRing: 'ring-violet-400',
+  },
 }

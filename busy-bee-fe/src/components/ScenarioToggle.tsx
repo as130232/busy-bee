@@ -1,7 +1,7 @@
 import { scenarioLabels, type Scenario } from '../services/api/client'
 import { scenarioThemes } from './scenarioTheme'
 
-const order: Scenario[] = ['meeting', 'casual', 'interview']
+const order: Scenario[] = ['meeting', 'casual', 'interview', 'idea']
 
 /** 情境分段切換（會議 / 閒聊）；行動優先，滿版可點區塊。 */
 export function ScenarioToggle({
@@ -17,7 +17,7 @@ export function ScenarioToggle({
     <div
       role="radiogroup"
       aria-label="紀錄情境"
-      className="inline-flex rounded-full border border-border bg-surface p-1 text-base"
+      className="inline-flex rounded-full border border-border bg-surface p-1 text-sm"
     >
       {order.map((s) => {
         const active = s === value
@@ -29,7 +29,7 @@ export function ScenarioToggle({
             aria-checked={active}
             disabled={disabled}
             onClick={() => onChange(s)}
-            className={`min-w-24 rounded-full px-6 py-2.5 font-semibold transition-colors disabled:opacity-50 ${
+            className={`min-w-0 rounded-full px-4 py-2 font-semibold transition-colors disabled:opacity-50 ${
               active ? `${scenarioThemes[s].toggleActive} shadow-sm` : 'text-muted'
             }`}
           >
