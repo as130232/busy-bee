@@ -19,6 +19,7 @@ import (
 // processFakeRepo 模擬 repo 狀態流轉，記錄呼叫軌跡。
 type processFakeRepo struct {
 	meeting       domainmeeting.Meeting
+	getForUserErr error // 非 nil 時 GetForUser 回此錯誤（模擬非本人 / 不存在）
 	transitions   []string
 	savedText     string
 	savedSegments []domainmeeting.TranscriptSegment
@@ -33,6 +34,9 @@ func (f *processFakeRepo) Create(_ context.Context, m domainmeeting.Meeting) (do
 	return m, nil
 }
 func (f *processFakeRepo) GetForUser(_ context.Context, _, _ uuid.UUID) (domainmeeting.Meeting, error) {
+	if f.getForUserErr != nil {
+		return domainmeeting.Meeting{}, f.getForUserErr
+	}
 	return f.meeting, nil
 }
 func (f *processFakeRepo) Get(_ context.Context, _ uuid.UUID) (domainmeeting.Meeting, error) {
@@ -305,9 +309,10 @@ func TestMarkFailed_EmitsFailedEvent(t *testing.T) {
 // --- Phase 9：analyzing 階段 fakes 與測試 ---
 
 type fakeArtifactRepo struct {
-	mu       sync.Mutex
-	existing []domainartifact.Artifact
-	saved    map[domainartifact.Type]string
+	mu         sync.Mutex
+	existing   []domainartifact.Artifact
+	saved      map[domainartifact.Type]string
+	listCalled bool
 }
 
 func (f *fakeArtifactRepo) Upsert(_ context.Context, meetingID uuid.UUID, t domainartifact.Type, content string) (domainartifact.Artifact, error) {
@@ -321,6 +326,9 @@ func (f *fakeArtifactRepo) Upsert(_ context.Context, meetingID uuid.UUID, t doma
 }
 
 func (f *fakeArtifactRepo) ListByMeeting(_ context.Context, _ uuid.UUID) ([]domainartifact.Artifact, error) {
+	f.mu.Lock()
+	f.listCalled = true
+	f.mu.Unlock()
 	return f.existing, nil
 }
 
