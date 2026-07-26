@@ -157,7 +157,7 @@ func (uc *ProcessUC) transcribeStage(ctx context.Context, m domainmeeting.Meetin
 		if strings.TrimSpace(transcript) == "" {
 			return m, fmt.Errorf("process transcribe: empty transcript (STT 未轉出內容，檢查音檔或供應商語言設定)")
 		}
-		if m, err = uc.repo.SaveTranscript(ctx, m.ID, transcript, result.Segments, result.DurationSeconds); err != nil {
+		if m, err = uc.repo.SaveTranscript(ctx, m.ID, m.UserID, transcript, result.Segments, result.DurationSeconds); err != nil {
 			return m, fmt.Errorf("process save transcript: %w", err)
 		}
 		slog.InfoContext(ctx, "meeting.process.transcript_saved",
@@ -210,7 +210,7 @@ func (uc *ProcessUC) generateSummarySections(ctx context.Context, m domainmeetin
 	if len(sections) == 0 {
 		return nil // 無區塊可存；不覆寫成空（空稿已於 STT 階段擋下）
 	}
-	if _, err := uc.repo.SaveSummarySections(ctx, m.ID, sections); err != nil {
+	if _, err := uc.repo.SaveSummarySections(ctx, m.ID, m.UserID, sections); err != nil {
 		return fmt.Errorf("process save summary sections: %w", err)
 	}
 	slog.InfoContext(ctx, "meeting.process.summary_sections_saved",

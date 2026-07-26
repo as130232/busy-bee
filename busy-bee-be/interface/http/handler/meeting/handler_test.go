@@ -34,13 +34,13 @@ func (f *fakeRepo) UpdateStatus(_ context.Context, id uuid.UUID, _, to domainmee
 func (f *fakeRepo) Get(_ context.Context, id uuid.UUID) (domainmeeting.Meeting, error) {
 	return domainmeeting.Meeting{ID: id}, nil
 }
-func (f *fakeRepo) SaveTranscript(_ context.Context, id uuid.UUID, _ string, _ []domainmeeting.TranscriptSegment, _ int) (domainmeeting.Meeting, error) {
+func (f *fakeRepo) SaveTranscript(_ context.Context, id, _ uuid.UUID, _ string, _ []domainmeeting.TranscriptSegment, _ int) (domainmeeting.Meeting, error) {
 	return domainmeeting.Meeting{ID: id}, nil
 }
-func (f *fakeRepo) SaveSummary(_ context.Context, id uuid.UUID, summary string) (domainmeeting.Meeting, error) {
+func (f *fakeRepo) SaveSummary(_ context.Context, id, _ uuid.UUID, summary string) (domainmeeting.Meeting, error) {
 	return domainmeeting.Meeting{ID: id, Summary: summary}, nil
 }
-func (f *fakeRepo) SaveSummarySections(_ context.Context, id uuid.UUID, sections []domainmeeting.SummarySection) (domainmeeting.Meeting, error) {
+func (f *fakeRepo) SaveSummarySections(_ context.Context, id, _ uuid.UUID, sections []domainmeeting.SummarySection) (domainmeeting.Meeting, error) {
 	return domainmeeting.Meeting{ID: id, SummarySections: sections}, nil
 }
 func (f *fakeRepo) SetCompleted(_ context.Context, id uuid.UUID) (domainmeeting.Meeting, error) {

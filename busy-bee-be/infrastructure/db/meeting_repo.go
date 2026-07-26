@@ -94,39 +94,40 @@ func (r *MeetingRepo) Get(ctx context.Context, id uuid.UUID) (domainmeeting.Meet
 	return toDomainMeeting(ctx, row), nil
 }
 
-func (r *MeetingRepo) SaveTranscript(ctx context.Context, id uuid.UUID, transcript string, segments []domainmeeting.TranscriptSegment, durationSeconds int) (domainmeeting.Meeting, error) {
+func (r *MeetingRepo) SaveTranscript(ctx context.Context, id, userID uuid.UUID, transcript string, segments []domainmeeting.TranscriptSegment, durationSeconds int) (domainmeeting.Meeting, error) {
 	segJSON, err := marshalJSONB(segments, "[]")
 	if err != nil {
 		return domainmeeting.Meeting{}, fmt.Errorf("db.SaveMeetingTranscript marshal segments: %w", err)
 	}
 	row, err := r.q.SaveMeetingTranscript(ctx, sqlcgen.SaveMeetingTranscriptParams{
 		ID:                 id,
+		UserID:             userID,
 		Transcript:         transcript,
 		TranscriptSegments: segJSON,
 		DurationSeconds:    int32(durationSeconds),
 	})
 	if err != nil {
-		return domainmeeting.Meeting{}, fmt.Errorf("db.SaveMeetingTranscript: %w", err)
+		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.SaveMeetingTranscript")
 	}
 	return toDomainMeeting(ctx, row), nil
 }
 
-func (r *MeetingRepo) SaveSummary(ctx context.Context, id uuid.UUID, summary string) (domainmeeting.Meeting, error) {
-	row, err := r.q.UpdateMeetingSummary(ctx, sqlcgen.UpdateMeetingSummaryParams{ID: id, Summary: summary})
+func (r *MeetingRepo) SaveSummary(ctx context.Context, id, userID uuid.UUID, summary string) (domainmeeting.Meeting, error) {
+	row, err := r.q.UpdateMeetingSummary(ctx, sqlcgen.UpdateMeetingSummaryParams{ID: id, UserID: userID, Summary: summary})
 	if err != nil {
-		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingSummary: %w", err)
+		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.UpdateMeetingSummary")
 	}
 	return toDomainMeeting(ctx, row), nil
 }
 
-func (r *MeetingRepo) SaveSummarySections(ctx context.Context, id uuid.UUID, sections []domainmeeting.SummarySection) (domainmeeting.Meeting, error) {
+func (r *MeetingRepo) SaveSummarySections(ctx context.Context, id, userID uuid.UUID, sections []domainmeeting.SummarySection) (domainmeeting.Meeting, error) {
 	secJSON, err := marshalJSONB(sections, "[]")
 	if err != nil {
 		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingSummarySections marshal: %w", err)
 	}
-	row, err := r.q.UpdateMeetingSummarySections(ctx, sqlcgen.UpdateMeetingSummarySectionsParams{ID: id, SummarySections: secJSON})
+	row, err := r.q.UpdateMeetingSummarySections(ctx, sqlcgen.UpdateMeetingSummarySectionsParams{ID: id, UserID: userID, SummarySections: secJSON})
 	if err != nil {
-		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingSummarySections: %w", err)
+		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.UpdateMeetingSummarySections")
 	}
 	return toDomainMeeting(ctx, row), nil
 }

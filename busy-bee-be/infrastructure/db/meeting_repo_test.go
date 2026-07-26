@@ -115,7 +115,7 @@ func TestMeetingRepo_ListForUser_SearchAndOwnerFilter(t *testing.T) {
 	ctx := context.Background()
 
 	m1, _ := repo.Create(ctx, domainmeeting.Meeting{UserID: u.ID, Title: "架構評審會議", Status: domainmeeting.StatusCompleted})
-	repo.SaveTranscript(ctx, m1.ID, "今天討論了 pgvector 的導入", nil, 60)
+	repo.SaveTranscript(ctx, m1.ID, u.ID, "今天討論了 pgvector 的導入", nil, 60)
 	repo.Create(ctx, domainmeeting.Meeting{UserID: u.ID, Title: "每週例會", Status: domainmeeting.StatusPending})
 	repo.Create(ctx, domainmeeting.Meeting{UserID: other.ID, Title: "別人的架構會議", Status: domainmeeting.StatusPending})
 
@@ -247,7 +247,7 @@ func TestMeetingRepo_SaveTranscriptSegmentsRoundTrip(t *testing.T) {
 		{Speaker: "A", Text: "我們先討論架構", StartMs: 0, EndMs: 1500},
 		{Speaker: "B", Text: "用 Clean Architecture", StartMs: 1500, EndMs: 3200},
 	}
-	if _, err := repo.SaveTranscript(ctx, m.ID, "A: 我們先討論架構\nB: 用 Clean Architecture", segs, 3); err != nil {
+	if _, err := repo.SaveTranscript(ctx, m.ID, u.ID, "A: 我們先討論架構\nB: 用 Clean Architecture", segs, 3); err != nil {
 		t.Fatalf("SaveTranscript() error = %v", err)
 	}
 

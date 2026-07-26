@@ -13,12 +13,14 @@ WHERE id = $1 AND status = sqlc.arg(from_status)
 RETURNING *;
 
 -- name: GetMeeting :one
+-- 系統層 lookup（worker 處理管線 / 語意索引回填）：以可信 meetingID 取件，
+-- 是 worker 得知 owner 的入口，故無 user_id 條件。所有面向使用者的查詢一律用 GetMeetingForUser。
 SELECT * FROM meetings WHERE id = $1;
 
 -- name: SaveMeetingTranscript :one
 UPDATE meetings
 SET transcript = $2, transcript_segments = $3, duration_seconds = $4, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND user_id = $5
 RETURNING *;
 
 -- name: UpdateMeetingSpeakerNames :one
@@ -30,13 +32,13 @@ RETURNING *;
 -- name: UpdateMeetingSummary :one
 UPDATE meetings
 SET summary = $2, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND user_id = $3
 RETURNING *;
 
 -- name: UpdateMeetingSummarySections :one
 UPDATE meetings
 SET summary_sections = $2, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND user_id = $3
 RETURNING *;
 
 -- name: UpdateMeetingTranscriptSegments :one

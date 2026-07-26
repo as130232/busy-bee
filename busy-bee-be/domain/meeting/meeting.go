@@ -144,11 +144,12 @@ type Repository interface {
 	Get(ctx context.Context, id uuid.UUID) (Meeting, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, from, to Status) (Meeting, error)
 	// SaveTranscript 儲存攤平純文字、分講者片段與時長；不支援 diarization 時 segments 傳 nil。
-	SaveTranscript(ctx context.Context, id uuid.UUID, transcript string, segments []TranscriptSegment, durationSeconds int) (Meeting, error)
-	// SaveSummary 儲存會議一句話摘要（分析階段產生）。
-	SaveSummary(ctx context.Context, id uuid.UUID, summary string) (Meeting, error)
-	// SaveSummarySections 儲存依情境產生的結構化摘要區塊（分析階段產生）。
-	SaveSummarySections(ctx context.Context, id uuid.UUID, sections []SummarySection) (Meeting, error)
+	// 以 (id, userID) 落庫，owner 條件由 DB 保證（safe-by-construction，防未來誤用越權寫入）。
+	SaveTranscript(ctx context.Context, id, userID uuid.UUID, transcript string, segments []TranscriptSegment, durationSeconds int) (Meeting, error)
+	// SaveSummary 儲存會議一句話摘要（分析階段產生）；以 (id, userID) 落庫。
+	SaveSummary(ctx context.Context, id, userID uuid.UUID, summary string) (Meeting, error)
+	// SaveSummarySections 儲存依情境產生的結構化摘要區塊（分析階段產生）；以 (id, userID) 落庫。
+	SaveSummarySections(ctx context.Context, id, userID uuid.UUID, sections []SummarySection) (Meeting, error)
 	// SetCompleted analyzing → completed，並記錄 processed_at。
 	SetCompleted(ctx context.Context, id uuid.UUID) (Meeting, error)
 	// SetFailed 處理中任一狀態 → failed，記錄 error_message。

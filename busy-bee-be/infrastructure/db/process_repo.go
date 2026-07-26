@@ -41,7 +41,7 @@ func (r *ProcessRepo) SaveExtraction(
 		artifacts := &ArtifactRepo{q: q}
 
 		if summary != "" {
-			if _, err := meetings.SaveSummary(ctx, meetingID, summary); err != nil {
+			if _, err := meetings.SaveSummary(ctx, meetingID, userID, summary); err != nil {
 				return fmt.Errorf("db.SaveExtraction summary: %w", err)
 			}
 		}

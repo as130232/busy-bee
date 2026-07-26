@@ -41,15 +41,17 @@ func TestProcessRepo_SaveExtraction_RollsBackOnInsertFailure(t *testing.T) {
 		t.Fatalf("seed items = %d, want 2", len(got))
 	}
 
-	// 第二次：userID 不存在 → Insert 觸發 FK 違反 → 應整批 rollback
+	// 第二次：summary 留空以跳過 SaveSummary，讓流程走到「先 delete 再 insert」；
+	// DeleteForMeeting 以 meeting_id 刪除（會清掉既有 2 筆），Insert 帶不存在的 userID 觸發 FK 違反。
+	// 若無交易，會留下空清單；正確行為是整批 rollback、2 筆還原。
 	badUser := uuid.New()
-	err = proc.SaveExtraction(ctx, m.ID, badUser, "S2-changed",
+	err = proc.SaveExtraction(ctx, m.ID, badUser, "",
 		[]domainactionitem.Extracted{{Description: "C"}}, markerActionItems, `["C"]`)
 	if err == nil {
 		t.Fatal("expected SaveExtraction to fail on FK violation")
 	}
 
-	// rollback 驗證：行動項仍為原本 2 筆（delete 已回滾）
+	// rollback 驗證：行動項仍為原本 2 筆（delete 已回滾，未留下瞬間空清單）
 	after, err := items.ListByMeeting(ctx, m.ID)
 	if err != nil {
 		t.Fatalf("list after rollback: %v", err)
@@ -58,13 +60,13 @@ func TestProcessRepo_SaveExtraction_RollsBackOnInsertFailure(t *testing.T) {
 		t.Errorf("action_items after failed tx = %d, want 2 (delete must roll back)", len(after))
 	}
 
-	// rollback 驗證：摘要仍為 S1（SaveSummary 已回滾）
+	// 摘要仍為 S1（本次未動到）
 	got, err := meetings.Get(ctx, m.ID)
 	if err != nil {
 		t.Fatalf("get meeting: %v", err)
 	}
 	if got.Summary != "S1" {
-		t.Errorf("summary after failed tx = %q, want S1 (SaveSummary must roll back)", got.Summary)
+		t.Errorf("summary = %q, want S1", got.Summary)
 	}
 }
 

@@ -132,6 +132,8 @@ const getMeeting = `-- name: GetMeeting :one
 SELECT id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names, summary, scenario, summary_sections FROM meetings WHERE id = $1
 `
 
+// 系統層 lookup（worker 處理管線 / 語意索引回填）：以可信 meetingID 取件，
+// 是 worker 得知 owner 的入口，故無 user_id 條件。所有面向使用者的查詢一律用 GetMeetingForUser。
 func (q *Queries) GetMeeting(ctx context.Context, id uuid.UUID) (Meeting, error) {
 	row := q.db.QueryRow(ctx, getMeeting, id)
 	var i Meeting
@@ -380,7 +382,7 @@ func (q *Queries) RenameMeeting(ctx context.Context, arg RenameMeetingParams) (M
 const saveMeetingTranscript = `-- name: SaveMeetingTranscript :one
 UPDATE meetings
 SET transcript = $2, transcript_segments = $3, duration_seconds = $4, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND user_id = $5
 RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names, summary, scenario, summary_sections
 `
 
@@ -389,6 +391,7 @@ type SaveMeetingTranscriptParams struct {
 	Transcript         string
 	TranscriptSegments []byte
 	DurationSeconds    int32
+	UserID             uuid.UUID
 }
 
 func (q *Queries) SaveMeetingTranscript(ctx context.Context, arg SaveMeetingTranscriptParams) (Meeting, error) {
@@ -397,6 +400,7 @@ func (q *Queries) SaveMeetingTranscript(ctx context.Context, arg SaveMeetingTran
 		arg.Transcript,
 		arg.TranscriptSegments,
 		arg.DurationSeconds,
+		arg.UserID,
 	)
 	var i Meeting
 	err := row.Scan(
@@ -627,17 +631,18 @@ func (q *Queries) UpdateMeetingStatus(ctx context.Context, arg UpdateMeetingStat
 const updateMeetingSummary = `-- name: UpdateMeetingSummary :one
 UPDATE meetings
 SET summary = $2, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND user_id = $3
 RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names, summary, scenario, summary_sections
 `
 
 type UpdateMeetingSummaryParams struct {
 	ID      uuid.UUID
 	Summary string
+	UserID  uuid.UUID
 }
 
 func (q *Queries) UpdateMeetingSummary(ctx context.Context, arg UpdateMeetingSummaryParams) (Meeting, error) {
-	row := q.db.QueryRow(ctx, updateMeetingSummary, arg.ID, arg.Summary)
+	row := q.db.QueryRow(ctx, updateMeetingSummary, arg.ID, arg.Summary, arg.UserID)
 	var i Meeting
 	err := row.Scan(
 		&i.ID,
@@ -666,17 +671,18 @@ func (q *Queries) UpdateMeetingSummary(ctx context.Context, arg UpdateMeetingSum
 const updateMeetingSummarySections = `-- name: UpdateMeetingSummarySections :one
 UPDATE meetings
 SET summary_sections = $2, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND user_id = $3
 RETURNING id, user_id, title, audio_gcs_path, status, transcript, duration_seconds, error_message, scheduled_at, remind_before_min, processed_at, created_at, updated_at, reminded_at, transcript_segments, speaker_names, summary, scenario, summary_sections
 `
 
 type UpdateMeetingSummarySectionsParams struct {
 	ID              uuid.UUID
 	SummarySections []byte
+	UserID          uuid.UUID
 }
 
 func (q *Queries) UpdateMeetingSummarySections(ctx context.Context, arg UpdateMeetingSummarySectionsParams) (Meeting, error) {
-	row := q.db.QueryRow(ctx, updateMeetingSummarySections, arg.ID, arg.SummarySections)
+	row := q.db.QueryRow(ctx, updateMeetingSummarySections, arg.ID, arg.SummarySections, arg.UserID)
 	var i Meeting
 	err := row.Scan(
 		&i.ID,

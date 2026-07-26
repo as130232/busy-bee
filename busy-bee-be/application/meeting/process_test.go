@@ -50,19 +50,19 @@ func (f *processFakeRepo) UpdateStatus(_ context.Context, _ uuid.UUID, from, to 
 	f.meeting.Status = to
 	return f.meeting, nil
 }
-func (f *processFakeRepo) SaveTranscript(_ context.Context, _ uuid.UUID, text string, segments []domainmeeting.TranscriptSegment, duration int) (domainmeeting.Meeting, error) {
+func (f *processFakeRepo) SaveTranscript(_ context.Context, _, _ uuid.UUID, text string, segments []domainmeeting.TranscriptSegment, duration int) (domainmeeting.Meeting, error) {
 	f.savedText, f.savedSegments, f.savedDuration = text, segments, duration
 	f.meeting.Transcript = text
 	f.meeting.TranscriptSegments = segments
 	f.meeting.DurationSeconds = duration
 	return f.meeting, nil
 }
-func (f *processFakeRepo) SaveSummary(_ context.Context, _ uuid.UUID, summary string) (domainmeeting.Meeting, error) {
+func (f *processFakeRepo) SaveSummary(_ context.Context, _, _ uuid.UUID, summary string) (domainmeeting.Meeting, error) {
 	f.savedSummary = summary
 	f.meeting.Summary = summary
 	return f.meeting, nil
 }
-func (f *processFakeRepo) SaveSummarySections(_ context.Context, _ uuid.UUID, sections []domainmeeting.SummarySection) (domainmeeting.Meeting, error) {
+func (f *processFakeRepo) SaveSummarySections(_ context.Context, _, _ uuid.UUID, sections []domainmeeting.SummarySection) (domainmeeting.Meeting, error) {
 	f.savedSections = sections
 	f.meeting.SummarySections = sections
 	return f.meeting, nil
