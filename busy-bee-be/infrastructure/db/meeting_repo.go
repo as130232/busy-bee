@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,6 +14,17 @@ import (
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/db/sqlcgen"
 )
+
+// unmarshalJSONB 解析 meetings 的 JSONB 欄位。空值跳過；解析失敗記錯而非靜默回空——
+// 這些欄位理應為本服務自產的合法 JSON，失敗代表 DB 資料異常，需可觀測以便排查。
+func unmarshalJSONB(ctx context.Context, meetingID uuid.UUID, field string, data []byte, dst any) {
+	if len(data) == 0 {
+		return
+	}
+	if err := json.Unmarshal(data, dst); err != nil {
+		slog.ErrorContext(ctx, "db.meeting.jsonb_unmarshal", "meeting_id", meetingID, "field", field, "err", err)
+	}
+}
 
 // mapNoRows 將 pgx.ErrNoRows 轉成指定的 domain sentinel（如 ErrNotFound / ErrStatusConflict），
 // 其餘錯誤以 op 名稱包裝。收斂 repository 內重複的 ErrNoRows 判斷樣板。
@@ -51,7 +63,7 @@ func (r *MeetingRepo) Create(ctx context.Context, m domainmeeting.Meeting) (doma
 	if err != nil {
 		return domainmeeting.Meeting{}, fmt.Errorf("db.CreateMeeting: %w", err)
 	}
-	return toDomainMeeting(row), nil
+	return toDomainMeeting(ctx, row), nil
 }
 
 func (r *MeetingRepo) GetForUser(ctx context.Context, id, userID uuid.UUID) (domainmeeting.Meeting, error) {
@@ -59,7 +71,7 @@ func (r *MeetingRepo) GetForUser(ctx context.Context, id, userID uuid.UUID) (dom
 	if err != nil {
 		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.GetMeetingForUser")
 	}
-	return toDomainMeeting(row), nil
+	return toDomainMeeting(ctx, row), nil
 }
 
 func (r *MeetingRepo) UpdateStatus(ctx context.Context, id uuid.UUID, from, to domainmeeting.Status) (domainmeeting.Meeting, error) {
@@ -71,7 +83,7 @@ func (r *MeetingRepo) UpdateStatus(ctx context.Context, id uuid.UUID, from, to d
 	if err != nil {
 		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrStatusConflict, "db.UpdateMeetingStatus")
 	}
-	return toDomainMeeting(row), nil
+	return toDomainMeeting(ctx, row), nil
 }
 
 func (r *MeetingRepo) Get(ctx context.Context, id uuid.UUID) (domainmeeting.Meeting, error) {
@@ -79,7 +91,7 @@ func (r *MeetingRepo) Get(ctx context.Context, id uuid.UUID) (domainmeeting.Meet
 	if err != nil {
 		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.GetMeeting")
 	}
-	return toDomainMeeting(row), nil
+	return toDomainMeeting(ctx, row), nil
 }
 
 func (r *MeetingRepo) SaveTranscript(ctx context.Context, id uuid.UUID, transcript string, segments []domainmeeting.TranscriptSegment, durationSeconds int) (domainmeeting.Meeting, error) {
@@ -96,7 +108,7 @@ func (r *MeetingRepo) SaveTranscript(ctx context.Context, id uuid.UUID, transcri
 	if err != nil {
 		return domainmeeting.Meeting{}, fmt.Errorf("db.SaveMeetingTranscript: %w", err)
 	}
-	return toDomainMeeting(row), nil
+	return toDomainMeeting(ctx, row), nil
 }
 
 func (r *MeetingRepo) SaveSummary(ctx context.Context, id uuid.UUID, summary string) (domainmeeting.Meeting, error) {
@@ -104,7 +116,7 @@ func (r *MeetingRepo) SaveSummary(ctx context.Context, id uuid.UUID, summary str
 	if err != nil {
 		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingSummary: %w", err)
 	}
-	return toDomainMeeting(row), nil
+	return toDomainMeeting(ctx, row), nil
 }
 
 func (r *MeetingRepo) SaveSummarySections(ctx context.Context, id uuid.UUID, sections []domainmeeting.SummarySection) (domainmeeting.Meeting, error) {
@@ -116,7 +128,7 @@ func (r *MeetingRepo) SaveSummarySections(ctx context.Context, id uuid.UUID, sec
 	if err != nil {
 		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingSummarySections: %w", err)
 	}
-	return toDomainMeeting(row), nil
+	return toDomainMeeting(ctx, row), nil
 }
 
 func (r *MeetingRepo) UpdateTranscriptSegments(ctx context.Context, id, userID uuid.UUID, segments []domainmeeting.TranscriptSegment, transcript string) (domainmeeting.Meeting, error) {
@@ -133,7 +145,7 @@ func (r *MeetingRepo) UpdateTranscriptSegments(ctx context.Context, id, userID u
 	if err != nil {
 		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.UpdateMeetingTranscriptSegments")
 	}
-	return toDomainMeeting(row), nil
+	return toDomainMeeting(ctx, row), nil
 }
 
 func (r *MeetingRepo) UpdateSpeakerNames(ctx context.Context, id, userID uuid.UUID, names map[string]string) (domainmeeting.Meeting, error) {
@@ -149,7 +161,7 @@ func (r *MeetingRepo) UpdateSpeakerNames(ctx context.Context, id, userID uuid.UU
 	if err != nil {
 		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.UpdateMeetingSpeakerNames")
 	}
-	return toDomainMeeting(row), nil
+	return toDomainMeeting(ctx, row), nil
 }
 
 func (r *MeetingRepo) SetCompleted(ctx context.Context, id uuid.UUID) (domainmeeting.Meeting, error) {
@@ -157,7 +169,7 @@ func (r *MeetingRepo) SetCompleted(ctx context.Context, id uuid.UUID) (domainmee
 	if err != nil {
 		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrStatusConflict, "db.SetMeetingCompleted")
 	}
-	return toDomainMeeting(row), nil
+	return toDomainMeeting(ctx, row), nil
 }
 
 func (r *MeetingRepo) SetFailed(ctx context.Context, id uuid.UUID, errorMessage string) (domainmeeting.Meeting, error) {
@@ -165,7 +177,7 @@ func (r *MeetingRepo) SetFailed(ctx context.Context, id uuid.UUID, errorMessage 
 	if err != nil {
 		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrStatusConflict, "db.SetMeetingFailed")
 	}
-	return toDomainMeeting(row), nil
+	return toDomainMeeting(ctx, row), nil
 }
 
 func (r *MeetingRepo) ListForUser(ctx context.Context, userID uuid.UUID, search string) ([]domainmeeting.Meeting, error) {
@@ -178,7 +190,7 @@ func (r *MeetingRepo) ListForUser(ctx context.Context, userID uuid.UUID, search 
 	}
 	out := make([]domainmeeting.Meeting, len(rows))
 	for i, row := range rows {
-		out[i] = toDomainMeeting(row)
+		out[i] = toDomainMeeting(ctx, row)
 	}
 	return out, nil
 }
@@ -191,19 +203,13 @@ func (r *MeetingRepo) ListUnfinishedIDs(ctx context.Context) ([]uuid.UUID, error
 	return ids, nil
 }
 
-func toDomainMeeting(row sqlcgen.Meeting) domainmeeting.Meeting {
+func toDomainMeeting(ctx context.Context, row sqlcgen.Meeting) domainmeeting.Meeting {
 	var segments []domainmeeting.TranscriptSegment
-	if len(row.TranscriptSegments) > 0 {
-		_ = json.Unmarshal(row.TranscriptSegments, &segments)
-	}
+	unmarshalJSONB(ctx, row.ID, "transcriptSegments", row.TranscriptSegments, &segments)
 	var speakerNames map[string]string
-	if len(row.SpeakerNames) > 0 {
-		_ = json.Unmarshal(row.SpeakerNames, &speakerNames)
-	}
+	unmarshalJSONB(ctx, row.ID, "speakerNames", row.SpeakerNames, &speakerNames)
 	var sections []domainmeeting.SummarySection
-	if len(row.SummarySections) > 0 {
-		_ = json.Unmarshal(row.SummarySections, &sections)
-	}
+	unmarshalJSONB(ctx, row.ID, "summarySections", row.SummarySections, &sections)
 	return domainmeeting.Meeting{
 		ID:                 row.ID,
 		UserID:             row.UserID,
@@ -251,7 +257,7 @@ func (r *MeetingRepo) CreateScheduled(ctx context.Context, userID uuid.UUID, p d
 	if err != nil {
 		return domainmeeting.Meeting{}, fmt.Errorf("db.CreateScheduledMeeting: %w", err)
 	}
-	return toDomainMeeting(row), nil
+	return toDomainMeeting(ctx, row), nil
 }
 
 func (r *MeetingRepo) UpdateSchedule(ctx context.Context, id, userID uuid.UUID, p domainmeeting.ScheduleParams) (domainmeeting.Meeting, error) {
@@ -266,7 +272,7 @@ func (r *MeetingRepo) UpdateSchedule(ctx context.Context, id, userID uuid.UUID, 
 	if err != nil {
 		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.UpdateMeetingSchedule")
 	}
-	return toDomainMeeting(row), nil
+	return toDomainMeeting(ctx, row), nil
 }
 
 func (r *MeetingRepo) ListDueReminders(ctx context.Context) ([]domainmeeting.Meeting, error) {
@@ -276,7 +282,7 @@ func (r *MeetingRepo) ListDueReminders(ctx context.Context) ([]domainmeeting.Mee
 	}
 	out := make([]domainmeeting.Meeting, len(rows))
 	for i, row := range rows {
-		out[i] = toDomainMeeting(row)
+		out[i] = toDomainMeeting(ctx, row)
 	}
 	return out, nil
 }
@@ -293,7 +299,7 @@ func (r *MeetingRepo) Rename(ctx context.Context, id, userID uuid.UUID, title st
 	if err != nil {
 		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.RenameMeeting")
 	}
-	return toDomainMeeting(row), nil
+	return toDomainMeeting(ctx, row), nil
 }
 
 // Delete 刪除會議並回傳其音檔路徑（供上層清理 GCS）；不存在或非本人回 ErrNotFound。
