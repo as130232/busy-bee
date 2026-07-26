@@ -113,6 +113,9 @@ Clean Architecture（對齊 sport-hub），依賴方向由外往內：interface 
 - 單元測試與目標檔同目錄，命名 `<file>_test.go`
 - domain / application 層測試一律用 mock port interface，禁止連真實 DB / 外部 API
 - 不得 commit `t.Skip` 或被註解掉的測試
+- **整合測試**（需真實 DB / GCS ADC / ffmpeg）一律加檔頭 build tag `//go:build integration`，勿用 `t.Skip` 做環境判斷
+- 預設 `go test ./...` **只跑單元測試、不含整合測試**；整合測試需 `go test -tags integration ./...` 並先備妥環境（`docker compose up -d`、GCS 憑證、ffmpeg）
+- AI agent 預設只會自動跑單元測試；整合測試因依賴外部環境，需人工確認環境後以 `-tags integration` 執行
 
 ---
 
@@ -121,7 +124,8 @@ Clean Architecture（對齊 sport-hub），依賴方向由外往內：interface 
 ```bash
 docker compose up -d      # 本地 PostgreSQL
 go run ./cmd/server       # busy-bee-be/：啟動 HTTP + worker
-go test ./...             # 測試
+go test ./...             # 單元測試（快、無外部依賴）
+go test -tags integration ./...  # 含整合測試（需 DB / GCS ADC / ffmpeg）
 sqlc generate             # SQL 變更後重新產生
 npm run dev               # busy-bee-fe/：前端開發
 ```
