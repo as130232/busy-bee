@@ -44,8 +44,14 @@ jobs:
           DB_URL: postgres://busybee:busybee@localhost:5432/busybee?sslmode=disable
       - name: Vet
         run: go vet ./...
-      - name: Test
+      - name: Test (unit)
         run: go test ./...
+        env:
+          TEST_DB_URL: postgres://busybee:busybee@localhost:5432/busybee?sslmode=disable
+      # 整合測試（//go:build integration）：CI 具備 postgres + ffmpeg，故跑 db 與 stt；
+      # gcs 需 GCS ADC，CI test job 無憑證，改於本地以 -tags integration 執行。
+      - name: Test (integration — db + stt)
+        run: go test -tags integration ./infrastructure/db/... ./infrastructure/stt/...
         env:
           TEST_DB_URL: postgres://busybee:busybee@localhost:5432/busybee?sslmode=disable
 
