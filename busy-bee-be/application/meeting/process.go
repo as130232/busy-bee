@@ -114,46 +114,14 @@ func (uc *ProcessUC) Execute(ctx context.Context, meetingID uuid.UUID) error {
 		slog.InfoContext(ctx, "meeting.process.transcribing", "meeting_id", m.ID)
 	}
 
-	// STT 階段：已有 transcript 則跳過（冪等，不重複扣費）
 	if m.Status == domainmeeting.StatusTranscribing {
-		if m.Transcript == "" {
-			audio, size, err := uc.storage.Download(ctx, m.AudioGCSPath)
-			if err != nil {
-				return fmt.Errorf("process download audio: %w", err)
-			}
-			result, err := uc.stt.Transcribe(ctx, audio, size, path.Base(m.AudioGCSPath))
-			audio.Close()
-			if err != nil {
-				return fmt.Errorf("process transcribe: %w", err)
-			}
-			// 有分講者片段時，攤平成帶講者前綴的文字（供 LLM 分析與搜尋沿用）；否則用原始純文字。
-			transcript := result.Text
-			if len(result.Segments) > 0 {
-				transcript = domainmeeting.FlattenSegments(result.Segments)
-			}
-			// 空結果保護：STT 轉不出任何文字時視為失敗（可重試），避免靜默完成並用空稿生成垃圾產物。
-			if strings.TrimSpace(transcript) == "" {
-				return fmt.Errorf("process transcribe: empty transcript (STT 未轉出內容，檢查音檔或供應商語言設定)")
-			}
-			if m, err = uc.repo.SaveTranscript(ctx, m.ID, transcript, result.Segments, result.DurationSeconds); err != nil {
-				return fmt.Errorf("process save transcript: %w", err)
-			}
-			slog.InfoContext(ctx, "meeting.process.transcript_saved",
-				"meeting_id", m.ID, "duration_seconds", result.DurationSeconds,
-				"segments", len(result.Segments), "speakers", countSpeakers(result.Segments))
-		}
-		if m, err = uc.repo.UpdateStatus(ctx, m.ID, domainmeeting.StatusTranscribing, domainmeeting.StatusAnalyzing); err != nil {
-			return fmt.Errorf("process to analyzing: %w", err)
-		}
-		uc.notify(ctx, m)
-	}
-
-	// analyzing 階段：依情境產生結構化摘要區塊 + 抽取行動項（各自冪等，不重複扣費）。
-	if m.Status == domainmeeting.StatusAnalyzing {
-		if err := uc.generateSummarySections(ctx, m); err != nil {
+		if m, err = uc.transcribeStage(ctx, m); err != nil {
 			return err
 		}
-		if err := uc.extractActionItems(ctx, m); err != nil {
+	}
+
+	if m.Status == domainmeeting.StatusAnalyzing {
+		if err := uc.analyzeStage(ctx, m); err != nil {
 			return err
 		}
 	}
@@ -171,6 +139,62 @@ func (uc *ProcessUC) Execute(ctx context.Context, meetingID uuid.UUID) error {
 		}
 	}
 	return nil
+}
+
+// transcribeStage STT 階段：已有 transcript 則跳過轉錄（冪等，不重複扣費），最後轉狀態到 analyzing。
+func (uc *ProcessUC) transcribeStage(ctx context.Context, m domainmeeting.Meeting) (domainmeeting.Meeting, error) {
+	if m.Transcript == "" {
+		result, err := uc.transcribe(ctx, m)
+		if err != nil {
+			return m, err
+		}
+		// 有分講者片段時，攤平成帶講者前綴的文字（供 LLM 分析與搜尋沿用）；否則用原始純文字。
+		transcript := result.Text
+		if len(result.Segments) > 0 {
+			transcript = domainmeeting.FlattenSegments(result.Segments)
+		}
+		// 空結果保護：STT 轉不出任何文字時視為失敗（可重試），避免靜默完成並用空稿生成垃圾產物。
+		if strings.TrimSpace(transcript) == "" {
+			return m, fmt.Errorf("process transcribe: empty transcript (STT 未轉出內容，檢查音檔或供應商語言設定)")
+		}
+		if m, err = uc.repo.SaveTranscript(ctx, m.ID, transcript, result.Segments, result.DurationSeconds); err != nil {
+			return m, fmt.Errorf("process save transcript: %w", err)
+		}
+		slog.InfoContext(ctx, "meeting.process.transcript_saved",
+			"meeting_id", m.ID, "duration_seconds", result.DurationSeconds,
+			"segments", len(result.Segments), "speakers", countSpeakers(result.Segments))
+	}
+
+	m, err := uc.repo.UpdateStatus(ctx, m.ID, domainmeeting.StatusTranscribing, domainmeeting.StatusAnalyzing)
+	if err != nil {
+		return m, fmt.Errorf("process to analyzing: %w", err)
+	}
+	uc.notify(ctx, m)
+	return m, nil
+}
+
+// transcribe 下載音檔並呼叫 STT。audio reader 在本函式結束時關閉（defer 作用域限縮於此，
+// Transcribe panic 時仍會關閉，避免 GCS reader 洩漏）。
+func (uc *ProcessUC) transcribe(ctx context.Context, m domainmeeting.Meeting) (domainmeeting.TranscribeResult, error) {
+	audio, size, err := uc.storage.Download(ctx, m.AudioGCSPath)
+	if err != nil {
+		return domainmeeting.TranscribeResult{}, fmt.Errorf("process download audio: %w", err)
+	}
+	defer audio.Close()
+
+	result, err := uc.stt.Transcribe(ctx, audio, size, path.Base(m.AudioGCSPath))
+	if err != nil {
+		return domainmeeting.TranscribeResult{}, fmt.Errorf("process transcribe: %w", err)
+	}
+	return result, nil
+}
+
+// analyzeStage analyzing 階段：依情境產生結構化摘要區塊 + 抽取行動項（各自冪等，不重複扣費）。
+func (uc *ProcessUC) analyzeStage(ctx context.Context, m domainmeeting.Meeting) error {
+	if err := uc.generateSummarySections(ctx, m); err != nil {
+		return err
+	}
+	return uc.extractActionItems(ctx, m)
 }
 
 // generateSummarySections 依情境（會議/閒聊）產生結構化摘要區塊並落庫。
