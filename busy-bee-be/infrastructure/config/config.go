@@ -65,6 +65,9 @@ type AuthConfig struct {
 type ServerConfig struct {
 	Env  string // local / qa / prod
 	Port string
+	// AllowedOrigins WebSocket 允許的來源白名單（coder/websocket OriginPatterns 格式，如 "app.example.com"、"*.example.com"）；
+	// 空 = 不檢查來源（相容既有行為）。
+	AllowedOrigins []string
 }
 
 type LogConfig struct {
@@ -95,8 +98,9 @@ func Load() (*Config, error) {
 
 	return &Config{
 		Server: ServerConfig{
-			Env:  appEnv,
-			Port: lookup("HTTP_PORT", "8080"),
+			Env:            appEnv,
+			Port:           lookup("HTTP_PORT", "8080"),
+			AllowedOrigins: splitCSV(lookup("FRONTEND_ORIGINS", "")),
 		},
 		Log: LogConfig{
 			Level: lookup("LOG_LEVEL", "info"),

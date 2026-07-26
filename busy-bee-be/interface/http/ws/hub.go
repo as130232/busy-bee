@@ -25,6 +25,26 @@ const (
 	sendBuffer   = 16
 )
 
+// WS 推播訊息型別（前端協定的單一真相來源；取代手拼 gin.H）。
+type statusMessage struct {
+	Type         string `json:"type"`
+	MeetingID    string `json:"meetingId"`
+	Status       string `json:"status"`
+	ErrorMessage string `json:"errorMessage"`
+}
+
+type simpleMessage struct {
+	Type string `json:"type"`
+}
+
+const (
+	msgTypeMeetingStatus = "meetingStatus"
+	msgTypeAuthOk        = "authOk"
+)
+
+// authOkPayload 認證通過後推送的固定訊息（預先序列化，marshal 不會失敗）。
+var authOkPayload, _ = json.Marshal(simpleMessage{Type: msgTypeAuthOk})
+
 type client struct {
 	userID uuid.UUID
 	send   chan []byte
@@ -53,11 +73,11 @@ func (h *Hub) Close() {
 // NotifyStatus 實作 domain/meeting.StatusNotifier：推給該 user 的所有連線。
 // send buffer 滿（慢連線）直接丟棄該則——前端重連後會補拉最新狀態。
 func (h *Hub) NotifyStatus(ctx context.Context, e domainmeeting.StatusEvent) {
-	payload, err := json.Marshal(gin.H{
-		"type":         "meetingStatus",
-		"meetingId":    e.MeetingID.String(),
-		"status":       string(e.Status),
-		"errorMessage": e.ErrorMessage,
+	payload, err := json.Marshal(statusMessage{
+		Type:         msgTypeMeetingStatus,
+		MeetingID:    e.MeetingID.String(),
+		Status:       string(e.Status),
+		ErrorMessage: e.ErrorMessage,
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "ws.notify.marshal", "err", err)
@@ -100,16 +120,22 @@ type authMessage struct {
 
 // Handler GET /api/v1/ws — 不掛 Auth middleware（瀏覽器 WS 帶不了 header），
 // 改由第一則訊息驗證。未用 cookie 認證，跨源連線無 ambient credentials 風險。
-func (h *Hub) Handler(verifier domainuser.TokenVerifier, userRepo domainuser.Repository, allowedEmails []string) gin.HandlerFunc {
+// allowedOrigins 非空時啟用 Origin 白名單（defense-in-depth）；空則維持相容不檢查來源。
+func (h *Hub) Handler(verifier domainuser.TokenVerifier, userRepo domainuser.Repository, allowedEmails, allowedOrigins []string) gin.HandlerFunc {
 	allowed := make(map[string]struct{}, len(allowedEmails))
 	for _, e := range allowedEmails {
 		allowed[strings.ToLower(strings.TrimSpace(e))] = struct{}{}
 	}
 
+	acceptOpts := &websocket.AcceptOptions{}
+	if len(allowedOrigins) > 0 {
+		acceptOpts.OriginPatterns = allowedOrigins // 白名單來源；同源一律放行
+	} else {
+		acceptOpts.InsecureSkipVerify = true // 未設定白名單：認證靠 token 非 cookie，無 ambient credential
+	}
+
 	return func(c *gin.Context) {
-		conn, err := websocket.Accept(c.Writer, c.Request, &websocket.AcceptOptions{
-			InsecureSkipVerify: true, // 見上：認證靠 token，非 cookie
-		})
+		conn, err := websocket.Accept(c.Writer, c.Request, acceptOpts)
 		if err != nil {
 			return
 		}
@@ -128,7 +154,7 @@ func (h *Hub) Handler(verifier domainuser.TokenVerifier, userRepo domainuser.Rep
 		h.register(cl)
 		defer h.unregister(cl)
 
-		if err := h.write(ctx, conn, []byte(`{"type":"authOk"}`)); err != nil {
+		if err := h.write(ctx, conn, authOkPayload); err != nil {
 			return
 		}
 

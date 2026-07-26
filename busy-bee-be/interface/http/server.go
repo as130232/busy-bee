@@ -113,7 +113,7 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 
 	// WS 不掛 Auth middleware（瀏覽器帶不了 header），第一則訊息驗證（ADR-002）
 	if deps.Hub != nil {
-		e.GET("/api/v1/ws", deps.Hub.Handler(deps.Verifier, deps.UserRepo, cfg.Auth.AllowedEmails))
+		e.GET("/api/v1/ws", deps.Hub.Handler(deps.Verifier, deps.UserRepo, cfg.Auth.AllowedEmails, cfg.Server.AllowedOrigins))
 	}
 
 	return e

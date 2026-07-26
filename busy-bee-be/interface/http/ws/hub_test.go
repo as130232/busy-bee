@@ -44,7 +44,7 @@ func setupWS(t *testing.T, verifier domainuser.TokenVerifier, repo domainuser.Re
 	hub := NewHub()
 
 	e := gin.New()
-	e.GET("/ws", hub.Handler(verifier, repo, allowed))
+	e.GET("/ws", hub.Handler(verifier, repo, allowed, nil)) // 預設不檢查 Origin
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
 	t.Cleanup(hub.Close)
@@ -166,6 +166,30 @@ func TestWS_DoesNotReceiveOthersEvents(t *testing.T) {
 
 	if msg, err := readMsg(t, conn, 500*time.Millisecond); err == nil {
 		t.Errorf("received other user's event: %v", msg)
+	}
+}
+
+// 設定 Origin 白名單時，來源不符的握手應被拒（defense-in-depth）。
+func TestWS_DisallowedOriginRejected(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	hub := NewHub()
+	t.Cleanup(hub.Close)
+	v := fakeVerifier{identity: domainuser.Identity{UID: "fb-1", Email: "a@x.com"}}
+
+	e := gin.New()
+	e.GET("/ws", hub.Handler(v, &fakeUserRepo{}, []string{"a@x.com"}, []string{"good.example.com"}))
+	srv := httptest.NewServer(e)
+	t.Cleanup(srv.Close)
+	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	conn, _, err := websocket.Dial(ctx, url, &websocket.DialOptions{
+		HTTPHeader: map[string][]string{"Origin": {"https://evil.example.com"}},
+	})
+	if err == nil {
+		conn.CloseNow()
+		t.Fatal("handshake with disallowed Origin should be rejected")
 	}
 }
 
