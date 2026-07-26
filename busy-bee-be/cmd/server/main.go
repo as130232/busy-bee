@@ -98,7 +98,7 @@ func main() {
 	sttClient := stt.NewDeepgram(cfg.Deepgram.APIKey, cfg.Deepgram.Model, cfg.Deepgram.Language, cfg.Deepgram.Keywords)
 	processUC := appmeeting.NewProcessUC(appmeeting.ProcessDeps{
 		Meetings: meetingRepo, Storage: audioStorage, STT: sttClient,
-		Artifacts: artifactRepo, LLM: llmClient, Summarizer: llmClient, Notifier: hub,
+		Artifacts: artifactRepo, Summarizer: llmClient, Notifier: hub,
 		Extractor: llmClient, Saver: db.NewProcessRepo(pool),
 		Indexer: indexUC,
 	})

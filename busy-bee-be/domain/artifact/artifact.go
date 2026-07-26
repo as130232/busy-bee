@@ -31,9 +31,3 @@ type Repository interface {
 	Upsert(ctx context.Context, meetingID uuid.UUID, t Type, content string) (Artifact, error)
 	ListByMeeting(ctx context.Context, meetingID uuid.UUID) ([]Artifact, error)
 }
-
-// LLMClient 文件生成 port（Gemini 實作在 infrastructure/llm）。
-type LLMClient interface {
-	GeneratePRD(ctx context.Context, transcript string) (string, error)
-	GenerateTechSpec(ctx context.Context, transcript string) (string, error)
-}

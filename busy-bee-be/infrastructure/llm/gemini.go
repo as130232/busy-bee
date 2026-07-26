@@ -1,4 +1,4 @@
-// Package llm 以 Gemini 實作 domain/artifact.LLMClient。
+// Package llm 以 Gemini 實作 domain/meeting.Summarizer 與 domain/actionitem.Extractor。
 // Prompt 模板在 prompts/（embedded），調整模板不需動 client 邏輯。
 package llm
 
@@ -13,18 +13,13 @@ import (
 	"google.golang.org/genai"
 
 	domainactionitem "github.com/as130232/busy-bee/busy-bee-be/domain/actionitem"
-	domainartifact "github.com/as130232/busy-bee/busy-bee-be/domain/artifact"
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 )
 
 //go:embed prompts/*.md
 var promptFS embed.FS
 
-const (
-	promptPRD         = "prompts/prd.md"
-	promptTechSpec    = "prompts/tech_spec.md"
-	promptActionItems = "prompts/action_items.md"
-)
+const promptActionItems = "prompts/action_items.md"
 
 // scenarioPrompts 每個情境對應的結構化摘要 prompt 模板。
 var scenarioPrompts = map[domainmeeting.Scenario]string{
@@ -48,7 +43,6 @@ type GeminiClient struct {
 }
 
 var (
-	_ domainartifact.LLMClient   = (*GeminiClient)(nil)
 	_ domainactionitem.Extractor = (*GeminiClient)(nil)
 	_ domainmeeting.Summarizer   = (*GeminiClient)(nil)
 )
@@ -62,14 +56,6 @@ func NewGemini(ctx context.Context, apiKey, model string) (*GeminiClient, error)
 		return nil, fmt.Errorf("llm.NewGemini: %w", err)
 	}
 	return &GeminiClient{client: client, model: model}, nil
-}
-
-func (c *GeminiClient) GeneratePRD(ctx context.Context, transcript string) (string, error) {
-	return c.generate(ctx, promptPRD, transcript)
-}
-
-func (c *GeminiClient) GenerateTechSpec(ctx context.Context, transcript string) (string, error) {
-	return c.generate(ctx, promptTechSpec, transcript)
 }
 
 // Extract 於同一次呼叫產出一句話摘要與行動項。prompt 要求輸出 JSON 物件

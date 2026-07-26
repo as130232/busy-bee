@@ -324,22 +324,6 @@ func (f *fakeArtifactRepo) ListByMeeting(_ context.Context, _ uuid.UUID) ([]doma
 	return f.existing, nil
 }
 
-type fakeLLM struct {
-	prdCalls  int
-	specCalls int
-	err       error
-}
-
-func (f *fakeLLM) GeneratePRD(_ context.Context, transcript string) (string, error) {
-	f.prdCalls++
-	return "# PRD from: " + transcript[:min(10, len(transcript))], f.err
-}
-
-func (f *fakeLLM) GenerateTechSpec(_ context.Context, _ string) (string, error) {
-	f.specCalls++
-	return "# Tech Spec", f.err
-}
-
 // fakeSummarizer 記錄呼叫次數與收到的情境，回傳預設區塊。
 type fakeSummarizer struct {
 	sections    []domainmeeting.SummarySection
@@ -362,7 +346,7 @@ func defaultSections() []domainmeeting.SummarySection {
 func newTestProcessUC(repo *processFakeRepo, st *processFakeStorage, stt *fakeSTT, n *fakeNotifier) *ProcessUC {
 	return NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: st, STT: stt,
-		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: n,
+		Artifacts: &fakeArtifactRepo{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: n,
 		Extractor: &fakeExtractor{}, Saver: &fakeSaver{},
 	})
 }
@@ -452,7 +436,7 @@ func TestProcess_ExtractsActionItems(t *testing.T) {
 	ext := &fakeExtractor{items: []domainactionitem.Extracted{{Description: "做 A"}, {Description: "做 B"}}}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
+		Artifacts: &fakeArtifactRepo{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
 		Extractor: ext, Saver: saver,
 	})
 
@@ -485,7 +469,7 @@ func TestProcess_ActionItemsIdempotentWhenMarkerExists(t *testing.T) {
 	ext := &fakeExtractor{}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: arts, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
+		Artifacts: arts, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
 		Extractor: ext, Saver: saver,
 	})
 
@@ -506,7 +490,7 @@ func TestProcess_ActionItemsEmptyStillMarks(t *testing.T) {
 	ext := &fakeExtractor{items: nil} // 會議無行動項
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
+		Artifacts: &fakeArtifactRepo{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
 		Extractor: ext, Saver: saver,
 	})
 
@@ -529,7 +513,7 @@ func TestProcess_ActionItemExtractErrorPropagates(t *testing.T) {
 	ext := &fakeExtractor{err: errors.New("gemini 500")}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
+		Artifacts: &fakeArtifactRepo{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
 		Extractor: ext, Saver: &fakeSaver{},
 	})
 
@@ -542,16 +526,15 @@ func TestProcess_ActionItemExtractErrorPropagates(t *testing.T) {
 }
 
 func TestProcess_AnalyzingGeneratesSummarySections(t *testing.T) {
-	// analyzing 階段依情境產生結構化摘要區塊（不再自動產 PRD/Tech Spec）。
+	// analyzing 階段依情境產生結構化摘要區塊。
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusAnalyzing, "閒聊逐字稿在此")}
 	repo.meeting.Scenario = domainmeeting.ScenarioCasual
-	llm := &fakeLLM{}
 	sum := &fakeSummarizer{sections: []domainmeeting.SummarySection{
 		{Type: "key_points", Title: "重點摘要", Items: []domainmeeting.SummaryPoint{{Text: "聊到旅遊"}}},
 	}}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: &fakeArtifactRepo{}, LLM: llm, Summarizer: sum, Notifier: &fakeNotifier{},
+		Artifacts: &fakeArtifactRepo{}, Summarizer: sum, Notifier: &fakeNotifier{},
 		Extractor: &fakeExtractor{}, Saver: &fakeSaver{},
 	})
 
@@ -567,9 +550,6 @@ func TestProcess_AnalyzingGeneratesSummarySections(t *testing.T) {
 	if len(repo.savedSections) != 1 || repo.savedSections[0].Type != "key_points" {
 		t.Errorf("saved sections = %v, want the casual section", repo.savedSections)
 	}
-	if llm.prdCalls != 0 || llm.specCalls != 0 {
-		t.Errorf("PRD/Tech Spec 不應自動產生, got prd=%d spec=%d", llm.prdCalls, llm.specCalls)
-	}
 	if !repo.completedCall {
 		t.Error("should complete after generation")
 	}
@@ -582,7 +562,7 @@ func TestProcess_SummarySectionsIdempotentWhenExists(t *testing.T) {
 	sum := &fakeSummarizer{sections: defaultSections()}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: sum, Notifier: &fakeNotifier{},
+		Artifacts: &fakeArtifactRepo{}, Summarizer: sum, Notifier: &fakeNotifier{},
 		Extractor: &fakeExtractor{}, Saver: &fakeSaver{},
 	})
 
@@ -599,7 +579,7 @@ func TestProcess_SummarizerErrorPropagatesWithoutCompletion(t *testing.T) {
 	sum := &fakeSummarizer{err: errors.New("gemini 429")}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: sum, Notifier: &fakeNotifier{},
+		Artifacts: &fakeArtifactRepo{}, Summarizer: sum, Notifier: &fakeNotifier{},
 		Extractor: &fakeExtractor{}, Saver: &fakeSaver{},
 	})
 

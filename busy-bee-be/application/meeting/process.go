@@ -50,7 +50,6 @@ type ProcessDeps struct {
 	Storage    domainmeeting.AudioStorage
 	STT        domainmeeting.STTClient
 	Artifacts  domainartifact.Repository
-	LLM        domainartifact.LLMClient
 	Summarizer domainmeeting.Summarizer
 	Notifier   domainmeeting.StatusNotifier
 	Extractor  domainactionitem.Extractor
@@ -63,7 +62,6 @@ type ProcessUC struct {
 	storage    domainmeeting.AudioStorage
 	stt        domainmeeting.STTClient
 	artifacts  domainartifact.Repository
-	llm        domainartifact.LLMClient
 	summarizer domainmeeting.Summarizer
 	notifier   domainmeeting.StatusNotifier
 	extractor  domainactionitem.Extractor
@@ -74,7 +72,7 @@ type ProcessUC struct {
 func NewProcessUC(d ProcessDeps) *ProcessUC {
 	return &ProcessUC{
 		repo: d.Meetings, storage: d.Storage, stt: d.STT,
-		artifacts: d.Artifacts, llm: d.LLM, summarizer: d.Summarizer, notifier: d.Notifier,
+		artifacts: d.Artifacts, summarizer: d.Summarizer, notifier: d.Notifier,
 		extractor: d.Extractor, saver: d.Saver,
 		indexer: d.Indexer,
 	}
@@ -151,7 +149,6 @@ func (uc *ProcessUC) Execute(ctx context.Context, meetingID uuid.UUID) error {
 	}
 
 	// analyzing 階段：依情境產生結構化摘要區塊 + 抽取行動項（各自冪等，不重複扣費）。
-	// PRD / Tech Spec 已改為選用、不再自動產生（generateArtifacts 保留供日後 on-demand 觸發）。
 	if m.Status == domainmeeting.StatusAnalyzing {
 		if err := uc.generateSummarySections(ctx, m); err != nil {
 			return err
@@ -194,41 +191,6 @@ func (uc *ProcessUC) generateSummarySections(ctx context.Context, m domainmeetin
 	}
 	slog.InfoContext(ctx, "meeting.process.summary_sections_saved",
 		"meeting_id", m.ID, "scenario", m.Scenario, "sections", len(sections))
-	return nil
-}
-
-// generateArtifacts 產生 PRD 與 Tech Spec（缺哪份補哪份，冪等）。
-// 已不在預設管線自動觸發；保留供日後 on-demand（進階）產生使用。
-func (uc *ProcessUC) generateArtifacts(ctx context.Context, m domainmeeting.Meeting) error {
-	existing, err := uc.artifacts.ListByMeeting(ctx, m.ID)
-	if err != nil {
-		return fmt.Errorf("process list artifacts: %w", err)
-	}
-	has := make(map[domainartifact.Type]bool, len(existing))
-	for _, a := range existing {
-		has[a.Type] = true
-	}
-
-	generators := []struct {
-		t   domainartifact.Type
-		gen func(context.Context, string) (string, error)
-	}{
-		{domainartifact.TypePRD, uc.llm.GeneratePRD},
-		{domainartifact.TypeTechSpec, uc.llm.GenerateTechSpec},
-	}
-	for _, g := range generators {
-		if has[g.t] {
-			continue
-		}
-		content, err := g.gen(ctx, m.Transcript)
-		if err != nil {
-			return fmt.Errorf("process generate %s: %w", g.t, err)
-		}
-		if _, err := uc.artifacts.Upsert(ctx, m.ID, g.t, content); err != nil {
-			return fmt.Errorf("process save %s: %w", g.t, err)
-		}
-		slog.InfoContext(ctx, "meeting.process.artifact_saved", "meeting_id", m.ID, "type", g.t)
-	}
 	return nil
 }
 
