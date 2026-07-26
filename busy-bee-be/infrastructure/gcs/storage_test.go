@@ -1,3 +1,6 @@
+//go:build integration
+
+// 需要 GCS ADC 憑證的整合測試：以 `go test -tags integration ./infrastructure/gcs/...` 執行。
 package gcs
 
 import (
@@ -5,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"testing"
 	"time"
 
@@ -19,15 +21,12 @@ const (
 
 func testStorage(t *testing.T) *Storage {
 	t.Helper()
-	if os.Getenv("CI") != "" {
-		t.Skip("skip GCS integration test in CI (no ADC)")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	s, err := New(ctx, testBucket, testSigner)
 	if err != nil {
-		t.Skipf("GCS unavailable (no ADC?): %v", err)
+		t.Fatalf("integration test requires GCS ADC: %v", err)
 	}
 	t.Cleanup(func() { s.Close() })
 	return s

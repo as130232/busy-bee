@@ -2,11 +2,9 @@ package db
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	domainactionitem "github.com/as130232/busy-bee/busy-bee-be/domain/actionitem"
@@ -146,10 +144,7 @@ func (r *ActionItemRepo) SetDone(ctx context.Context, id, userID uuid.UUID, done
 		Done:   done,
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domainactionitem.ActionItem{}, domainactionitem.ErrNotFound
-		}
-		return domainactionitem.ActionItem{}, fmt.Errorf("db.SetActionItemDone: %w", err)
+		return domainactionitem.ActionItem{}, mapNoRows(err, domainactionitem.ErrNotFound, "db.SetActionItemDone")
 	}
 	return toDomainActionItem(row), nil
 }
@@ -174,10 +169,7 @@ func (r *ActionItemRepo) UpdateDescription(ctx context.Context, id, userID uuid.
 		Description: description,
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domainactionitem.ActionItem{}, domainactionitem.ErrNotFound
-		}
-		return domainactionitem.ActionItem{}, fmt.Errorf("db.UpdateActionItemDescription: %w", err)
+		return domainactionitem.ActionItem{}, mapNoRows(err, domainactionitem.ErrNotFound, "db.UpdateActionItemDescription")
 	}
 	return toDomainActionItem(row), nil
 }

@@ -363,8 +363,27 @@ func newTestProcessUC(repo *processFakeRepo, st *processFakeStorage, stt *fakeST
 	return NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: st, STT: stt,
 		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: n,
-		ActionItems: &fakeActionItemRepo{}, Extractor: &fakeExtractor{},
+		Extractor: &fakeExtractor{}, Saver: &fakeSaver{},
 	})
+}
+
+// fakeSaver 記錄 SaveExtraction 的呼叫與參數（取代原本分開的 delete/insert/marker 落庫）。
+type fakeSaver struct {
+	mu         sync.Mutex
+	called     bool
+	summary    string
+	items      []domainactionitem.Extracted
+	markerType domainartifact.Type
+	markerJSON string
+	err        error
+}
+
+func (f *fakeSaver) SaveExtraction(_ context.Context, _, _ uuid.UUID, summary string, items []domainactionitem.Extracted, markerType domainartifact.Type, markerJSON string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.called = true
+	f.summary, f.items, f.markerType, f.markerJSON = summary, items, markerType, markerJSON
+	return f.err
 }
 
 // --- Phase 13：行動項抽取 fakes 與測試 ---
@@ -429,13 +448,12 @@ const artifactTypeActionItemsTest = domainartifact.Type("action_items")
 
 func TestProcess_ExtractsActionItems(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusAnalyzing, "逐字稿內容")}
-	arts := &fakeArtifactRepo{}
-	items := &fakeActionItemRepo{}
+	saver := &fakeSaver{}
 	ext := &fakeExtractor{items: []domainactionitem.Extracted{{Description: "做 A"}, {Description: "做 B"}}}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: arts, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
-		ActionItems: items, Extractor: ext,
+		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
+		Extractor: ext, Saver: saver,
 	})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
@@ -444,14 +462,14 @@ func TestProcess_ExtractsActionItems(t *testing.T) {
 	if ext.called != 1 {
 		t.Errorf("extractor called %d times, want 1", ext.called)
 	}
-	if !items.deleteCalled {
-		t.Error("DeleteForMeeting should be called before insert (avoid dup on retry)")
+	if !saver.called {
+		t.Error("SaveExtraction should be called (atomic delete+insert+marker)")
 	}
-	if len(items.inserted) != 2 {
-		t.Errorf("inserted %d items, want 2", len(items.inserted))
+	if len(saver.items) != 2 {
+		t.Errorf("saved %d items, want 2", len(saver.items))
 	}
-	if arts.saved[artifactTypeActionItemsTest] == "" {
-		t.Error("action_items marker not saved to artifacts")
+	if saver.markerType != artifactTypeActionItemsTest || saver.markerJSON == "" {
+		t.Errorf("marker = (%q, %q), want action_items marker with JSON", saver.markerType, saver.markerJSON)
 	}
 	if !repo.completedCall {
 		t.Error("pipeline should complete")
@@ -463,12 +481,12 @@ func TestProcess_ActionItemsIdempotentWhenMarkerExists(t *testing.T) {
 	arts := &fakeArtifactRepo{existing: []domainartifact.Artifact{
 		{Type: domainartifact.TypePRD}, {Type: domainartifact.TypeTechSpec}, {Type: artifactTypeActionItemsTest},
 	}}
-	items := &fakeActionItemRepo{}
+	saver := &fakeSaver{}
 	ext := &fakeExtractor{}
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
 		Artifacts: arts, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
-		ActionItems: items, Extractor: ext,
+		Extractor: ext, Saver: saver,
 	})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
@@ -477,26 +495,28 @@ func TestProcess_ActionItemsIdempotentWhenMarkerExists(t *testing.T) {
 	if ext.called != 0 {
 		t.Errorf("extractor called %d times, want 0 (already extracted)", ext.called)
 	}
+	if saver.called {
+		t.Error("SaveExtraction should not be called when marker already exists")
+	}
 }
 
 func TestProcess_ActionItemsEmptyStillMarks(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusAnalyzing, "t")}
-	arts := &fakeArtifactRepo{}
-	items := &fakeActionItemRepo{}
+	saver := &fakeSaver{}
 	ext := &fakeExtractor{items: nil} // 會議無行動項
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
-		Artifacts: arts, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
-		ActionItems: items, Extractor: ext,
+		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
+		Extractor: ext, Saver: saver,
 	})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if len(items.inserted) != 0 {
-		t.Errorf("inserted %d items, want 0", len(items.inserted))
+	if len(saver.items) != 0 {
+		t.Errorf("saved %d items, want 0", len(saver.items))
 	}
-	if arts.saved[artifactTypeActionItemsTest] == "" {
+	if !saver.called || saver.markerJSON == "" {
 		t.Error("marker should still be saved even with no items (avoid re-extraction on retry)")
 	}
 	if !repo.completedCall {
@@ -510,7 +530,7 @@ func TestProcess_ActionItemExtractErrorPropagates(t *testing.T) {
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
 		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: &fakeSummarizer{sections: defaultSections()}, Notifier: &fakeNotifier{},
-		ActionItems: &fakeActionItemRepo{}, Extractor: ext,
+		Extractor: ext, Saver: &fakeSaver{},
 	})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err == nil {
@@ -532,7 +552,7 @@ func TestProcess_AnalyzingGeneratesSummarySections(t *testing.T) {
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
 		Artifacts: &fakeArtifactRepo{}, LLM: llm, Summarizer: sum, Notifier: &fakeNotifier{},
-		ActionItems: &fakeActionItemRepo{}, Extractor: &fakeExtractor{},
+		Extractor: &fakeExtractor{}, Saver: &fakeSaver{},
 	})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
@@ -563,7 +583,7 @@ func TestProcess_SummarySectionsIdempotentWhenExists(t *testing.T) {
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
 		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: sum, Notifier: &fakeNotifier{},
-		ActionItems: &fakeActionItemRepo{}, Extractor: &fakeExtractor{},
+		Extractor: &fakeExtractor{}, Saver: &fakeSaver{},
 	})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
@@ -580,7 +600,7 @@ func TestProcess_SummarizerErrorPropagatesWithoutCompletion(t *testing.T) {
 	uc := NewProcessUC(ProcessDeps{
 		Meetings: repo, Storage: &processFakeStorage{}, STT: &fakeSTT{},
 		Artifacts: &fakeArtifactRepo{}, LLM: &fakeLLM{}, Summarizer: sum, Notifier: &fakeNotifier{},
-		ActionItems: &fakeActionItemRepo{}, Extractor: &fakeExtractor{},
+		Extractor: &fakeExtractor{}, Saver: &fakeSaver{},
 	})
 
 	if err := uc.Execute(context.Background(), repo.meeting.ID); err == nil {

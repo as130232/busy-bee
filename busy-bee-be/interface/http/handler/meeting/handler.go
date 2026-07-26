@@ -32,6 +32,9 @@ type HandlerUCs struct {
 	Search         *appsearch.SearchUC // 選填；nil 時 List 維持純字面
 }
 
+// maxSearchLen 搜尋字串長度上界（rune）；超過即截斷，防止超長輸入打進 ILIKE / 向量嵌入。
+const maxSearchLen = 256
+
 type Handler struct {
 	uc HandlerUCs
 }
@@ -118,6 +121,11 @@ func (h *Handler) List(c *gin.Context) {
 	}
 
 	query := strings.TrimSpace(c.Query("search"))
+	// 上界保護：截斷過長查詢字串，避免超長輸入打進 ILIKE / 向量嵌入（成本與濫用防護）。
+	// 以 rune 為單位截斷，避免切斷多位元組（中文）字元。
+	if r := []rune(query); len(r) > maxSearchLen {
+		query = string(r[:maxSearchLen])
+	}
 	// search 非空且已注入 SearchUC → 走 hybrid（字面 + 語意）；否則維持純字面列表
 	if query == "" || h.uc.Search == nil {
 		list, err := h.uc.List.Execute(c.Request.Context(), userID, query)

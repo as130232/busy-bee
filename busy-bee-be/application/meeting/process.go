@@ -35,41 +35,47 @@ type MeetingIndexer interface {
 	Execute(ctx context.Context, meetingID uuid.UUID) error
 }
 
+// ExtractionSaver 於單一 transaction 內原子落庫抽取階段產物（摘要 + 行動項 + 冪等標記）。
+// 由 infrastructure/db.ProcessRepo 實作；確保中途失敗整批 rollback、不留部分/空狀態。
+type ExtractionSaver interface {
+	SaveExtraction(ctx context.Context, meetingID, userID uuid.UUID, summary string, items []domainactionitem.Extracted, markerType domainartifact.Type, markerJSON string) error
+}
+
 // ProcessUC 會議處理管線：pending → transcribing（STT）→ analyzing → completed。
 // 各階段冪等（ADR-009）：已有產物的階段直接跳過，retry 不重複呼叫外部 API。
 // 失敗時回傳錯誤交由 Asynq retry；標記 failed 是 worker 在最後一次重試後的決定（MarkFailed）。
 // ProcessDeps ProcessUC 的依賴（皆為 domain ports）。
 type ProcessDeps struct {
-	Meetings    domainmeeting.Repository
-	Storage     domainmeeting.AudioStorage
-	STT         domainmeeting.STTClient
-	Artifacts   domainartifact.Repository
-	LLM         domainartifact.LLMClient
-	Summarizer  domainmeeting.Summarizer
-	Notifier    domainmeeting.StatusNotifier
-	ActionItems domainactionitem.Repository
-	Extractor   domainactionitem.Extractor
-	Indexer     MeetingIndexer // 選填；nil 時跳過語意索引
+	Meetings   domainmeeting.Repository
+	Storage    domainmeeting.AudioStorage
+	STT        domainmeeting.STTClient
+	Artifacts  domainartifact.Repository
+	LLM        domainartifact.LLMClient
+	Summarizer domainmeeting.Summarizer
+	Notifier   domainmeeting.StatusNotifier
+	Extractor  domainactionitem.Extractor
+	Saver      ExtractionSaver
+	Indexer    MeetingIndexer // 選填；nil 時跳過語意索引
 }
 
 type ProcessUC struct {
-	repo        domainmeeting.Repository
-	storage     domainmeeting.AudioStorage
-	stt         domainmeeting.STTClient
-	artifacts   domainartifact.Repository
-	llm         domainartifact.LLMClient
-	summarizer  domainmeeting.Summarizer
-	notifier    domainmeeting.StatusNotifier
-	actionItems domainactionitem.Repository
-	extractor   domainactionitem.Extractor
-	indexer     MeetingIndexer
+	repo       domainmeeting.Repository
+	storage    domainmeeting.AudioStorage
+	stt        domainmeeting.STTClient
+	artifacts  domainartifact.Repository
+	llm        domainartifact.LLMClient
+	summarizer domainmeeting.Summarizer
+	notifier   domainmeeting.StatusNotifier
+	extractor  domainactionitem.Extractor
+	saver      ExtractionSaver
+	indexer    MeetingIndexer
 }
 
 func NewProcessUC(d ProcessDeps) *ProcessUC {
 	return &ProcessUC{
 		repo: d.Meetings, storage: d.Storage, stt: d.STT,
 		artifacts: d.Artifacts, llm: d.LLM, summarizer: d.Summarizer, notifier: d.Notifier,
-		actionItems: d.ActionItems, extractor: d.Extractor,
+		extractor: d.Extractor, saver: d.Saver,
 		indexer: d.Indexer,
 	}
 }
@@ -228,7 +234,8 @@ func (uc *ProcessUC) generateArtifacts(ctx context.Context, m domainmeeting.Meet
 
 // extractActionItems 從逐字稿抽取行動項並落庫。
 // 冪等：artifacts 表已有 action_items 標記則跳過（不重複呼叫 LLM）。
-// 順序為 delete → insert → 寫標記；中途失敗交由 retry 重抽（極端情況多付一次 LLM，但不產生重複列）。
+// 摘要 + 清空重寫行動項 + 寫標記交由 Saver 於單一 transaction 完成（原子性，見 ExtractionSaver）；
+// 中途失敗整批 rollback，retry 重抽（極端情況多付一次 LLM，但不產生重複列或瞬間空清單）。
 func (uc *ProcessUC) extractActionItems(ctx context.Context, m domainmeeting.Meeting) error {
 	existing, err := uc.artifacts.ListByMeeting(ctx, m.ID)
 	if err != nil {
@@ -248,27 +255,12 @@ func (uc *ProcessUC) extractActionItems(ctx context.Context, m domainmeeting.Mee
 	}
 	items := result.Items
 
-	if summary := strings.TrimSpace(result.Summary); summary != "" {
-		if _, err := uc.repo.SaveSummary(ctx, m.ID, summary); err != nil {
-			return fmt.Errorf("process save summary: %w", err)
-		}
-	}
-
-	if err := uc.actionItems.DeleteForMeeting(ctx, m.ID); err != nil {
-		return fmt.Errorf("process clear action items: %w", err)
-	}
-	for i, it := range items {
-		if _, err := uc.actionItems.Insert(ctx, m.ID, m.UserID, it, i); err != nil {
-			return fmt.Errorf("process insert action item: %w", err)
-		}
-	}
-
 	raw, err := json.Marshal(items)
 	if err != nil {
 		return fmt.Errorf("process marshal action items: %w", err)
 	}
-	if _, err := uc.artifacts.Upsert(ctx, m.ID, artifactTypeActionItems, string(raw)); err != nil {
-		return fmt.Errorf("process mark action items extracted: %w", err)
+	if err := uc.saver.SaveExtraction(ctx, m.ID, m.UserID, strings.TrimSpace(result.Summary), items, artifactTypeActionItems, string(raw)); err != nil {
+		return fmt.Errorf("process save extraction: %w", err)
 	}
 	slog.InfoContext(ctx, "meeting.process.extracted", "meeting_id", m.ID,
 		"action_items", len(items), "has_summary", result.Summary != "")

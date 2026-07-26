@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -32,6 +33,7 @@ type task struct {
 type Memory struct {
 	tasks       chan task
 	retryDelays []time.Duration
+	taskTimeout time.Duration // 單一任務逾時上界；<=0 表示不設限
 
 	mu       sync.Mutex
 	inFlight map[uuid.UUID]struct{} // 排隊中或執行中（含等待 retry）
@@ -43,10 +45,13 @@ type Memory struct {
 
 var _ domainmeeting.TaskQueue = (*Memory)(nil)
 
-func NewMemory(buffer int, retryDelays []time.Duration) *Memory {
+// NewMemory 建立 in-process 佇列。taskTimeout 為單一任務的執行上界（<=0 不設限），
+// 避免外部 API（STT/LLM）卡死無限期佔用有限的 worker 名額。
+func NewMemory(buffer int, taskTimeout time.Duration, retryDelays []time.Duration) *Memory {
 	return &Memory{
 		tasks:       make(chan task, buffer),
 		retryDelays: retryDelays,
+		taskTimeout: taskTimeout,
 		inFlight:    make(map[uuid.UUID]struct{}),
 		stop:        make(chan struct{}),
 	}
@@ -91,7 +96,7 @@ func (m *Memory) Start(ctx context.Context, workers int, handler Handler, onFail
 }
 
 func (m *Memory) run(ctx context.Context, t task, handler Handler, onFail OnFail) {
-	err := handler(ctx, t.meetingID)
+	err := m.invoke(ctx, t, handler)
 	if err == nil {
 		m.release(t.meetingID)
 		return
@@ -124,6 +129,28 @@ func (m *Memory) run(ctx context.Context, t task, handler Handler, onFail OnFail
 			}
 		}
 	}()
+}
+
+// invoke 執行 handler，套用單任務逾時並攔截 panic。
+// panic 轉成一般 error 交由 retry/onFail 機制處理，避免單一任務讓整個 process 崩潰
+// （單 instance 設計下，未攔截的 panic 等於全面 outage）。
+func (m *Memory) invoke(ctx context.Context, t task, handler Handler) (err error) {
+	if m.taskTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, m.taskTimeout)
+		defer cancel()
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			slog.ErrorContext(ctx, "queue.memory.panic",
+				"meeting_id", t.meetingID, "attempt", t.attempt+1,
+				"panic", r, "stack", string(debug.Stack()))
+			err = fmt.Errorf("queue.Memory: handler panic: %v", r)
+		}
+	}()
+
+	return handler(ctx, t.meetingID)
 }
 
 func (m *Memory) release(id uuid.UUID) {

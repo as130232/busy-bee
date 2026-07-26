@@ -6,11 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	wp "github.com/SherClockHolmes/webpush-go"
 
 	domainpush "github.com/as130232/busy-bee/busy-bee-be/domain/push"
 )
+
+// sendTimeout 單則推播的 HTTP 逾時上界。提醒掃描不經 worker 佇列（無 per-task deadline），
+// 若推播服務 hang 住會拖垮整輪掃描，故在此設 per-call 上界。
+const sendTimeout = 15 * time.Second
 
 type Sender struct {
 	publicKey  string
@@ -19,12 +24,18 @@ type Sender struct {
 	// 故此處「絕對不可」自行加 mailto:，否則 JWT sub claim 變成 "mailto:mailto:..."，
 	// Chrome/Firefox 容忍但 Apple 嚴格檢查會回 403 BadJwtToken（iOS 推播全數失敗）。
 	subscriber string
+	httpClient *http.Client
 }
 
 var _ domainpush.Sender = (*Sender)(nil)
 
 func New(publicKey, privateKey, subscriberEmail string) *Sender {
-	return &Sender{publicKey: publicKey, privateKey: privateKey, subscriber: subscriberEmail}
+	return &Sender{
+		publicKey:  publicKey,
+		privateKey: privateKey,
+		subscriber: subscriberEmail,
+		httpClient: &http.Client{Timeout: sendTimeout},
+	}
 }
 
 func (s *Sender) Send(ctx context.Context, sub domainpush.Subscription, msg domainpush.Message) error {
@@ -37,6 +48,7 @@ func (s *Sender) Send(ctx context.Context, sub domainpush.Subscription, msg doma
 		Endpoint: sub.Endpoint,
 		Keys:     wp.Keys{P256dh: sub.P256dh, Auth: sub.Auth},
 	}, &wp.Options{
+		HTTPClient:      s.httpClient,
 		VAPIDPublicKey:  s.publicKey,
 		VAPIDPrivateKey: s.privateKey,
 		Subscriber:      s.subscriber,

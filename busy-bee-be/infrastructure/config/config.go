@@ -6,18 +6,25 @@ import (
 	"bufio"
 	"os"
 	"strings"
+	"time"
 )
 
 type Config struct {
-	Server ServerConfig
-	Log    LogConfig
-	DB     DBConfig
-	Auth   AuthConfig
+	Server   ServerConfig
+	Log      LogConfig
+	DB       DBConfig
+	Auth     AuthConfig
 	GCS      GCSConfig
 	Groq     GroqConfig
 	Gemini   GeminiConfig
 	Deepgram DeepgramConfig
 	Push     PushConfig
+	Worker   WorkerConfig
+}
+
+type WorkerConfig struct {
+	// TaskTimeout 單一會議處理任務的執行上界，防止外部 API 卡死佔用 worker 名額。
+	TaskTimeout time.Duration
 }
 
 type GroqConfig struct {
@@ -125,7 +132,19 @@ func Load() (*Config, error) {
 			SubscriberEmail: lookup("VAPID_SUBSCRIBER_EMAIL", ""),
 			SweepSecret:     lookup("REMINDER_SWEEP_SECRET", ""),
 		},
+		Worker: WorkerConfig{
+			TaskTimeout: parseDuration(lookup("WORKER_TASK_TIMEOUT", "15m"), 15*time.Minute),
+		},
 	}, nil
+}
+
+// parseDuration 解析 Go duration 字串（如 "15m"），無效時回退 def。
+func parseDuration(s string, def time.Duration) time.Duration {
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return def
+	}
+	return d
 }
 
 func splitCSV(s string) []string {

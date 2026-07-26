@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -19,7 +20,7 @@ func TestMemory_EnqueueAndConsume(t *testing.T) {
 	var got uuid.UUID
 	var mu sync.Mutex
 
-	q := NewMemory(4, testRetryDelays)
+	q := NewMemory(4, 0, testRetryDelays)
 	done := make(chan struct{})
 	q.Start(context.Background(), 1, func(_ context.Context, id uuid.UUID) error {
 		mu.Lock()
@@ -53,7 +54,7 @@ func TestMemory_DedupWhileInFlight(t *testing.T) {
 	var calls atomic.Int32
 	block := make(chan struct{})
 
-	q := NewMemory(4, testRetryDelays)
+	q := NewMemory(4, 0, testRetryDelays)
 	q.Start(context.Background(), 1, func(_ context.Context, _ uuid.UUID) error {
 		calls.Add(1)
 		<-block // 卡住模擬處理中
@@ -77,7 +78,7 @@ func TestMemory_DedupWhileInFlight(t *testing.T) {
 
 func TestMemory_ReEnqueueAfterCompletionWorks(t *testing.T) {
 	var calls atomic.Int32
-	q := NewMemory(4, testRetryDelays)
+	q := NewMemory(4, 0, testRetryDelays)
 	q.Start(context.Background(), 1, func(_ context.Context, _ uuid.UUID) error {
 		calls.Add(1)
 		return nil
@@ -100,7 +101,7 @@ func TestMemory_RetriesThenMarksFailed(t *testing.T) {
 	failed := make(chan struct{})
 	boom := errors.New("stt down")
 
-	q := NewMemory(4, testRetryDelays)
+	q := NewMemory(4, 0, testRetryDelays)
 	q.Start(context.Background(), 1, func(_ context.Context, _ uuid.UUID) error {
 		attempts.Add(1)
 		return boom
@@ -131,7 +132,7 @@ func TestMemory_StopDrainsCurrentTask(t *testing.T) {
 	started := make(chan struct{})
 	finished := atomic.Bool{}
 
-	q := NewMemory(4, testRetryDelays)
+	q := NewMemory(4, 0, testRetryDelays)
 	q.Start(context.Background(), 1, func(_ context.Context, _ uuid.UUID) error {
 		close(started)
 		time.Sleep(100 * time.Millisecond)
@@ -147,6 +148,79 @@ func TestMemory_StopDrainsCurrentTask(t *testing.T) {
 		t.Error("Stop() should wait for in-flight task to finish")
 	}
 }
+
+// handler panic 不得讓 process 崩潰：轉成可重試錯誤，耗盡重試後走 onFail。
+func TestMemory_HandlerPanicRecoveredAndRetried(t *testing.T) {
+	var attempts atomic.Int32
+	var failedErr error
+	failed := make(chan struct{})
+
+	q := NewMemory(4, 0, testRetryDelays)
+	q.Start(context.Background(), 1, func(_ context.Context, _ uuid.UUID) error {
+		attempts.Add(1)
+		panic("boom in handler")
+	}, func(_ context.Context, _ uuid.UUID, err error) {
+		failedErr = err
+		close(failed)
+	})
+	t.Cleanup(func() { q.Stop(time.Second) })
+
+	q.EnqueueProcessMeeting(context.Background(), uuid.New())
+
+	select {
+	case <-failed:
+	case <-time.After(3 * time.Second):
+		t.Fatal("onFail not called after panics")
+	}
+	if got := attempts.Load(); got != int32(1+len(testRetryDelays)) {
+		t.Errorf("attempts = %d, want %d", got, 1+len(testRetryDelays))
+	}
+	if failedErr == nil || !strings.Contains(failedErr.Error(), "panic") {
+		t.Errorf("failedErr = %v, want panic error", failedErr)
+	}
+}
+
+// 超過 taskTimeout 的任務應被 ctx 取消，且 worker 名額釋放後能繼續處理新任務。
+func TestMemory_TaskTimeoutCancelsAndFreesWorker(t *testing.T) {
+	var timedOutErr error
+	failed := make(chan struct{})
+	ok := make(chan struct{})
+
+	q := NewMemory(4, 30*time.Millisecond, testRetryDelays)
+	q.Start(context.Background(), 1, func(ctx context.Context, id uuid.UUID) error {
+		if id == blockingID {
+			<-ctx.Done() // 卡到逾時
+			return ctx.Err()
+		}
+		close(ok)
+		return nil
+	}, func(_ context.Context, _ uuid.UUID, err error) {
+		timedOutErr = err
+		close(failed)
+	})
+	t.Cleanup(func() { q.Stop(time.Second) })
+
+	q.EnqueueProcessMeeting(context.Background(), blockingID)
+
+	select {
+	case <-failed:
+	case <-time.After(3 * time.Second):
+		t.Fatal("blocking task not timed out")
+	}
+	if !errors.Is(timedOutErr, context.DeadlineExceeded) {
+		t.Errorf("timedOutErr = %v, want context.DeadlineExceeded", timedOutErr)
+	}
+
+	// worker 名額已釋放：新任務可被處理
+	q.EnqueueProcessMeeting(context.Background(), uuid.New())
+	select {
+	case <-ok:
+	case <-time.After(2 * time.Second):
+		t.Fatal("worker not freed after timeout")
+	}
+}
+
+var blockingID = uuid.New()
 
 func waitCond(t *testing.T, cond func() bool) {
 	t.Helper()

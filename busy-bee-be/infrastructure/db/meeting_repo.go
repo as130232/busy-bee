@@ -14,6 +14,15 @@ import (
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/db/sqlcgen"
 )
 
+// mapNoRows 將 pgx.ErrNoRows 轉成指定的 domain sentinel（如 ErrNotFound / ErrStatusConflict），
+// 其餘錯誤以 op 名稱包裝。收斂 repository 內重複的 ErrNoRows 判斷樣板。
+func mapNoRows(err error, sentinel error, op string) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return sentinel
+	}
+	return fmt.Errorf("%s: %w", op, err)
+}
+
 // MeetingRepo 以 sqlc 實作 domain/meeting.Repository。
 type MeetingRepo struct {
 	q *sqlcgen.Queries
@@ -48,10 +57,7 @@ func (r *MeetingRepo) Create(ctx context.Context, m domainmeeting.Meeting) (doma
 func (r *MeetingRepo) GetForUser(ctx context.Context, id, userID uuid.UUID) (domainmeeting.Meeting, error) {
 	row, err := r.q.GetMeetingForUser(ctx, sqlcgen.GetMeetingForUserParams{ID: id, UserID: userID})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domainmeeting.Meeting{}, domainmeeting.ErrNotFound
-		}
-		return domainmeeting.Meeting{}, fmt.Errorf("db.GetMeetingForUser: %w", err)
+		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.GetMeetingForUser")
 	}
 	return toDomainMeeting(row), nil
 }
@@ -63,10 +69,7 @@ func (r *MeetingRepo) UpdateStatus(ctx context.Context, id uuid.UUID, from, to d
 		FromStatus: string(from),
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domainmeeting.Meeting{}, domainmeeting.ErrStatusConflict
-		}
-		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingStatus: %w", err)
+		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrStatusConflict, "db.UpdateMeetingStatus")
 	}
 	return toDomainMeeting(row), nil
 }
@@ -74,10 +77,7 @@ func (r *MeetingRepo) UpdateStatus(ctx context.Context, id uuid.UUID, from, to d
 func (r *MeetingRepo) Get(ctx context.Context, id uuid.UUID) (domainmeeting.Meeting, error) {
 	row, err := r.q.GetMeeting(ctx, id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domainmeeting.Meeting{}, domainmeeting.ErrNotFound
-		}
-		return domainmeeting.Meeting{}, fmt.Errorf("db.GetMeeting: %w", err)
+		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.GetMeeting")
 	}
 	return toDomainMeeting(row), nil
 }
@@ -131,10 +131,7 @@ func (r *MeetingRepo) UpdateTranscriptSegments(ctx context.Context, id, userID u
 		TranscriptSegments: segJSON,
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domainmeeting.Meeting{}, domainmeeting.ErrNotFound
-		}
-		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingTranscriptSegments: %w", err)
+		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.UpdateMeetingTranscriptSegments")
 	}
 	return toDomainMeeting(row), nil
 }
@@ -150,10 +147,7 @@ func (r *MeetingRepo) UpdateSpeakerNames(ctx context.Context, id, userID uuid.UU
 		SpeakerNames: namesJSON,
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domainmeeting.Meeting{}, domainmeeting.ErrNotFound
-		}
-		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingSpeakerNames: %w", err)
+		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.UpdateMeetingSpeakerNames")
 	}
 	return toDomainMeeting(row), nil
 }
@@ -161,10 +155,7 @@ func (r *MeetingRepo) UpdateSpeakerNames(ctx context.Context, id, userID uuid.UU
 func (r *MeetingRepo) SetCompleted(ctx context.Context, id uuid.UUID) (domainmeeting.Meeting, error) {
 	row, err := r.q.SetMeetingCompleted(ctx, id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domainmeeting.Meeting{}, domainmeeting.ErrStatusConflict
-		}
-		return domainmeeting.Meeting{}, fmt.Errorf("db.SetMeetingCompleted: %w", err)
+		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrStatusConflict, "db.SetMeetingCompleted")
 	}
 	return toDomainMeeting(row), nil
 }
@@ -172,10 +163,7 @@ func (r *MeetingRepo) SetCompleted(ctx context.Context, id uuid.UUID) (domainmee
 func (r *MeetingRepo) SetFailed(ctx context.Context, id uuid.UUID, errorMessage string) (domainmeeting.Meeting, error) {
 	row, err := r.q.SetMeetingFailed(ctx, sqlcgen.SetMeetingFailedParams{ID: id, ErrorMessage: errorMessage})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domainmeeting.Meeting{}, domainmeeting.ErrStatusConflict
-		}
-		return domainmeeting.Meeting{}, fmt.Errorf("db.SetMeetingFailed: %w", err)
+		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrStatusConflict, "db.SetMeetingFailed")
 	}
 	return toDomainMeeting(row), nil
 }
@@ -276,10 +264,7 @@ func (r *MeetingRepo) UpdateSchedule(ctx context.Context, id, userID uuid.UUID, 
 		RemindBeforeMin: int32(p.RemindBeforeMin),
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domainmeeting.Meeting{}, domainmeeting.ErrNotFound
-		}
-		return domainmeeting.Meeting{}, fmt.Errorf("db.UpdateMeetingSchedule: %w", err)
+		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.UpdateMeetingSchedule")
 	}
 	return toDomainMeeting(row), nil
 }
@@ -306,10 +291,7 @@ func (r *MeetingRepo) MarkReminded(ctx context.Context, id uuid.UUID) error {
 func (r *MeetingRepo) Rename(ctx context.Context, id, userID uuid.UUID, title string) (domainmeeting.Meeting, error) {
 	row, err := r.q.RenameMeeting(ctx, sqlcgen.RenameMeetingParams{ID: id, UserID: userID, Title: title})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domainmeeting.Meeting{}, domainmeeting.ErrNotFound
-		}
-		return domainmeeting.Meeting{}, fmt.Errorf("db.RenameMeeting: %w", err)
+		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.RenameMeeting")
 	}
 	return toDomainMeeting(row), nil
 }

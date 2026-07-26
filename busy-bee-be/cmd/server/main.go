@@ -99,10 +99,10 @@ func main() {
 	processUC := appmeeting.NewProcessUC(appmeeting.ProcessDeps{
 		Meetings: meetingRepo, Storage: audioStorage, STT: sttClient,
 		Artifacts: artifactRepo, LLM: llmClient, Summarizer: llmClient, Notifier: hub,
-		ActionItems: actionItemRepo, Extractor: llmClient,
+		Extractor: llmClient, Saver: db.NewProcessRepo(pool),
 		Indexer: indexUC,
 	})
-	taskQueue := queue.NewMemory(256, queue.DefaultRetryDelays)
+	taskQueue := queue.NewMemory(256, cfg.Worker.TaskTimeout, queue.DefaultRetryDelays)
 	taskQueue.Start(ctx, 2, processUC.Execute, processUC.MarkFailed) // 外部 API bound，低併發
 
 	sweepCtx, stopSweeper := context.WithCancel(ctx)

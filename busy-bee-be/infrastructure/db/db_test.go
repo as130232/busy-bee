@@ -1,3 +1,7 @@
+//go:build integration
+
+// 需要本機 PostgreSQL 的整合測試：以 `go test -tags integration ./infrastructure/db/...` 執行
+// （先 `docker compose up -d` 起 DB，或設 TEST_DB_URL）。
 package db
 
 import (
@@ -23,7 +27,7 @@ func testPool(t *testing.T) *pgxpool.Pool {
 
 	pool, err := New(ctx, url)
 	if err != nil {
-		t.Skipf("local postgres unavailable: %v", err)
+		t.Fatalf("integration test requires postgres: %v", err)
 	}
 	t.Cleanup(pool.Close)
 	return pool

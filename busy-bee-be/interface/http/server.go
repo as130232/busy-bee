@@ -49,6 +49,7 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 	e := gin.New()
 	e.Use(
 		middleware.Recovery(),
+		middleware.SecurityHeaders(cfg.Server.Env == "prod"),
 		middleware.RequestID(),
 		middleware.RequestLogger(),
 	)
