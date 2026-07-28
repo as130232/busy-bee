@@ -23,6 +23,7 @@ import { ScheduleSheet } from '../components/ScheduleForm'
 import { Sheet } from '../components/Sheet'
 import { StatusBadge } from '../components/StatusBadge'
 import { SummarySections } from '../components/SummarySections'
+import { TagEditor } from '../components/TagEditor'
 import { resolveSpeakerNames, speakerColor } from '../components/speakerColor'
 import { useMeetingStatusSocket } from '../hooks/useMeetingStatusSocket'
 import {
@@ -219,8 +220,8 @@ export function MeetingDetailPage() {
   const transcriptExport =
     meeting.transcriptSegments.length > 0
       ? meeting.transcriptSegments
-          .map((s) => `${meeting.speakerNames?.[s.speaker]?.trim() || s.speaker}: ${s.text}`)
-          .join('\n')
+        .map((s) => `${meeting.speakerNames?.[s.speaker]?.trim() || s.speaker}: ${s.text}`)
+        .join('\n')
       : meeting.transcript
   const exportContent =
     tab === 'transcript' ? transcriptExport : tab === 'summary' ? buildSummaryMarkdown(meeting) : docContent
@@ -272,6 +273,8 @@ export function MeetingDetailPage() {
         </div>
       </div>
 
+      <TagEditor meeting={meeting} onUpdated={setMeeting} />
+
       {meeting.status === 'failed' && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3">
           <p className="m-0 text-sm text-red-500">處理失敗：{meeting.errorMessage || '未知錯誤'}</p>
@@ -288,9 +291,8 @@ export function MeetingDetailPage() {
           <button
             key={t}
             type="button"
-            className={`-mb-px h-11 flex-1 cursor-pointer border-b-2 text-sm font-medium transition ${
-              tab === t ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg'
-            }`}
+            className={`-mb-px h-11 flex-1 cursor-pointer border-b-2 text-sm font-medium transition ${tab === t ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg'
+              }`}
             onClick={() => setTab(t)}
           >
             {tabLabels[t]}
@@ -320,6 +322,7 @@ export function MeetingDetailPage() {
                 speakerNames={meeting.speakerNames ?? {}}
                 speakerOrder={speakerOrder}
                 aiDividerBeforeType={meeting.scenario === 'idea' ? 'expansion' : undefined}
+                onSeek={seekAudio}
               />
             </div>
           ) : (
@@ -371,7 +374,7 @@ export function MeetingDetailPage() {
       {confirmDelete && (
         <Sheet onClose={() => setConfirmDelete(false)}>
           <p className="m-0 text-sm">
-            確定刪除「{meeting.title}」？逐字稿、PRD、Tech Spec、待辦將一併刪除，此動作無法復原。
+            確定刪除「{meeting.title}」？摘要、逐字稿、待辦事項將一併刪除，此動作無法復原。
           </p>
           <div className="flex gap-2">
             <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmDelete(false)}>
@@ -554,9 +557,9 @@ function MarqueeTitle({ title }: { title: string }) {
   const style: CSSProperties | undefined =
     shift > 0
       ? ({
-          animation: `marquee ${Math.max(6, shift / 24)}s ease-in-out infinite alternate`,
-          '--marquee-shift': `-${shift}px`,
-        } as CSSProperties)
+        animation: `marquee ${Math.max(6, shift / 24)}s ease-in-out infinite alternate`,
+        '--marquee-shift': `-${shift}px`,
+      } as CSSProperties)
       : undefined
 
   return (
@@ -888,46 +891,46 @@ function AudioPlayer({
           onPause={() => setPlaying(false)}
           onEnded={() => setPlaying(false)}
         />
-      <button
-        type="button"
-        className="btn btn-ghost size-9 shrink-0 px-0 text-muted"
-        aria-label="倒退 10 秒"
-        onClick={() => skip(-10)}
-        disabled={!url}
-      >
-        <Rewind className="size-4" />
-      </button>
-      <button
-        type="button"
-        className="btn btn-primary size-10 shrink-0 rounded-full px-0"
-        aria-label={playing ? '暫停' : '播放'}
-        onClick={toggle}
-        disabled={!url}
-      >
-        {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
-      </button>
-      <button
-        type="button"
-        className="btn btn-ghost size-9 shrink-0 px-0 text-muted"
-        aria-label="快轉 10 秒"
-        onClick={() => skip(10)}
-        disabled={!url}
-      >
-        <FastForward className="size-4" />
-      </button>
-      <span className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted">{fmtClock(cur)}</span>
-      <input
-        type="range"
-        className="min-w-0 flex-1 accent-accent"
-        min={0}
-        max={total || 0}
-        step={0.1}
-        value={Math.min(cur, total || 0)}
-        onChange={(e) => seek(Number(e.target.value))}
-        disabled={!url}
-        aria-label="播放進度"
-      />
-      <span className="w-9 shrink-0 font-mono text-[11px] tabular-nums text-muted">{fmtClock(total)}</span>
+        <button
+          type="button"
+          className="btn btn-ghost size-9 shrink-0 px-0 text-muted"
+          aria-label="倒退 10 秒"
+          onClick={() => skip(-10)}
+          disabled={!url}
+        >
+          <Rewind className="size-4" />
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary size-10 shrink-0 rounded-full px-0"
+          aria-label={playing ? '暫停' : '播放'}
+          onClick={toggle}
+          disabled={!url}
+        >
+          {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost size-9 shrink-0 px-0 text-muted"
+          aria-label="快轉 10 秒"
+          onClick={() => skip(10)}
+          disabled={!url}
+        >
+          <FastForward className="size-4" />
+        </button>
+        <span className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted">{fmtClock(cur)}</span>
+        <input
+          type="range"
+          className="min-w-0 flex-1 accent-accent"
+          min={0}
+          max={total || 0}
+          step={0.1}
+          value={Math.min(cur, total || 0)}
+          onChange={(e) => seek(Number(e.target.value))}
+          disabled={!url}
+          aria-label="播放進度"
+        />
+        <span className="w-9 shrink-0 font-mono text-[11px] tabular-nums text-muted">{fmtClock(total)}</span>
       </div>
     </div>,
     document.body,

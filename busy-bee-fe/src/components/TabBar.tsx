@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { CalendarClock, FileText, Mic, Settings } from 'lucide-react'
+import { CalendarClock, FileText, Mic, Sparkles } from 'lucide-react'
 
+// 設定已移至右上頭像入口，底部分頁不再列「設定」（路由仍保留）。
 const tabs = [
   { to: '/', label: '錄音', Icon: Mic, end: true },
   { to: '/meetings', label: '紀錄', Icon: FileText, end: false },
+  { to: '/ask', label: '問答', Icon: Sparkles, end: false },
   { to: '/schedule', label: '行程', Icon: CalendarClock, end: false },
-  { to: '/settings', label: '設定', Icon: Settings, end: false },
 ]
 
 /** 底部分頁導覽（行動優先，含 iOS safe-area）。 */

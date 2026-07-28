@@ -86,16 +86,25 @@ type processFakeStorage struct {
 	content     string
 	downloaded  string
 	downloadErr error
+	// 匯入抓取測試用：existsFalse 讓 Exists 回 false（觸發抓取）；uploaded 記錄是否呼叫 Upload。
+	existsFalse bool
+	uploaded    bool
 }
 
 func (f *processFakeStorage) SignedUploadURL(_ context.Context, _, _ string, _ int64) (domainmeeting.UploadTarget, error) {
 	return domainmeeting.UploadTarget{}, nil
 }
+func (f *processFakeStorage) Upload(_ context.Context, _ string, _ io.Reader, _ string) error {
+	f.uploaded = true
+	return nil
+}
 func (f *processFakeStorage) SignedDownloadURL(_ context.Context, _ string) (string, error) {
 	return "https://signed-download", nil
 }
 func (f *processFakeStorage) Delete(_ context.Context, _ string) error         { return nil }
-func (f *processFakeStorage) Exists(_ context.Context, _ string) (bool, error) { return true, nil }
+func (f *processFakeStorage) Exists(_ context.Context, _ string) (bool, error) {
+	return !f.existsFalse, nil
+}
 func (f *processFakeStorage) Download(_ context.Context, path string) (io.ReadCloser, int64, error) {
 	f.downloaded = path
 	if f.downloadErr != nil {
@@ -332,18 +341,42 @@ func (f *fakeArtifactRepo) ListByMeeting(_ context.Context, _ uuid.UUID) ([]doma
 	return f.existing, nil
 }
 
-// fakeSummarizer 記錄呼叫次數與收到的情境，回傳預設區塊。
+// fakeSummarizer 記錄呼叫次數與收到的情境，回傳預設區塊（與 AI 標籤）。
 type fakeSummarizer struct {
 	sections    []domainmeeting.SummarySection
+	tags        []string
 	err         error
 	called      int
 	gotScenario domainmeeting.Scenario
 }
 
-func (f *fakeSummarizer) Summarize(_ context.Context, _ string, scenario domainmeeting.Scenario) ([]domainmeeting.SummarySection, error) {
+func (f *fakeSummarizer) Summarize(_ context.Context, _ string, scenario domainmeeting.Scenario) (domainmeeting.SummaryResult, error) {
 	f.called++
 	f.gotScenario = scenario
-	return f.sections, f.err
+	return domainmeeting.SummaryResult{Sections: f.sections, Tags: f.tags}, f.err
+}
+
+type fakeTagWriter struct{ tags []string }
+
+func (f *fakeTagWriter) UpdateTags(_ context.Context, id, _ uuid.UUID, tags []string) (domainmeeting.Meeting, error) {
+	f.tags = tags
+	return domainmeeting.Meeting{ID: id, Tags: tags}, nil
+}
+
+// AI 自動標籤：分析階段把 Summarize 回的 tags 清洗（去重/去空白）後寫入。
+func TestAnalyze_WritesAITags(t *testing.T) {
+	repo := &processFakeRepo{}
+	fs := &fakeSummarizer{sections: defaultSections(), tags: []string{"台灣美食", "台灣美食", " 網紅 ", ""}}
+	ftw := &fakeTagWriter{}
+	uc := NewProcessUC(ProcessDeps{Meetings: repo, Summarizer: fs, TagWriter: ftw})
+
+	if err := uc.generateSummarySections(context.Background(),
+		domainmeeting.Meeting{ID: uuid.New(), UserID: uuid.New()}); err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if len(ftw.tags) != 2 || ftw.tags[0] != "台灣美食" || ftw.tags[1] != "網紅" {
+		t.Errorf("auto tags = %#v, want [台灣美食 網紅]", ftw.tags)
+	}
 }
 
 // defaultSections 供未特別指定的測試使用，確保 SaveSummarySections 有被觸發。
@@ -601,4 +634,90 @@ func TestProcess_SummarizerErrorPropagatesWithoutCompletion(t *testing.T) {
 
 func (f *processFakeRepo) ListForUser(_ context.Context, _ uuid.UUID, _ string) ([]domainmeeting.Meeting, error) {
 	return []domainmeeting.Meeting{f.meeting}, nil
+}
+
+// --- 匯入抓取階段（fetchStage）測試 ---
+
+type fetchFakeFetcher struct {
+	called bool
+	title  string
+	err    error
+}
+
+func (f *fetchFakeFetcher) Fetch(_ context.Context, _ string) (domainmeeting.FetchedAudio, error) {
+	f.called = true
+	if f.err != nil {
+		return domainmeeting.FetchedAudio{}, f.err
+	}
+	return domainmeeting.FetchedAudio{
+		Reader: io.NopCloser(strings.NewReader("audio-bytes")), Size: 11,
+		ContentType: "audio/mp4", Title: f.title,
+	}, nil
+}
+
+type fetchFakeRenamer struct{ newTitle string }
+
+func (r *fetchFakeRenamer) Rename(_ context.Context, id, userID uuid.UUID, title string) (domainmeeting.Meeting, error) {
+	r.newTitle = title
+	return domainmeeting.Meeting{ID: id, UserID: userID, Title: title, Status: domainmeeting.StatusPending}, nil
+}
+
+func importMeeting(title string) domainmeeting.Meeting {
+	return domainmeeting.Meeting{
+		ID: uuid.New(), UserID: uuid.New(), Title: title,
+		Status: domainmeeting.StatusPending, SourceURL: "https://youtu.be/x",
+		AudioGCSPath: "audio/u/x.m4a",
+	}
+}
+
+func TestFetchStage_FetchesUploadsRenames(t *testing.T) {
+	st := &processFakeStorage{existsFalse: true}
+	ftr := &fetchFakeFetcher{title: "YouTube 影片標題"}
+	rnm := &fetchFakeRenamer{}
+	uc := NewProcessUC(ProcessDeps{Storage: st, Fetcher: ftr, Renamer: rnm})
+
+	out, err := uc.fetchStage(context.Background(), importMeeting(importPlaceholderTitle))
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if !ftr.called || !st.uploaded {
+		t.Errorf("expected fetch+upload; fetched=%v uploaded=%v", ftr.called, st.uploaded)
+	}
+	if out.Title != "YouTube 影片標題" {
+		t.Errorf("title = %q, want auto-renamed from source", out.Title)
+	}
+}
+
+func TestFetchStage_SkipsWhenAudioExists(t *testing.T) {
+	st := &processFakeStorage{existsFalse: false} // Exists → true（冪等：已抓過）
+	ftr := &fetchFakeFetcher{title: "x"}
+	uc := NewProcessUC(ProcessDeps{Storage: st, Fetcher: ftr, Renamer: &fetchFakeRenamer{}})
+
+	out, err := uc.fetchStage(context.Background(), importMeeting(importPlaceholderTitle))
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if ftr.called || st.uploaded {
+		t.Error("should skip fetch/upload when audio already exists (idempotent)")
+	}
+	if out.Title != importPlaceholderTitle {
+		t.Errorf("title should be unchanged, got %q", out.Title)
+	}
+}
+
+func TestFetchStage_KeepsUserTitle(t *testing.T) {
+	st := &processFakeStorage{existsFalse: true}
+	rnm := &fetchFakeRenamer{}
+	uc := NewProcessUC(ProcessDeps{Storage: st, Fetcher: &fetchFakeFetcher{title: "影片標題"}, Renamer: rnm})
+
+	out, err := uc.fetchStage(context.Background(), importMeeting("我自己取的標題"))
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if rnm.newTitle != "" {
+		t.Errorf("should not rename when user set a title, but renamed to %q", rnm.newTitle)
+	}
+	if out.Title != "我自己取的標題" {
+		t.Errorf("user title should be kept, got %q", out.Title)
+	}
 }

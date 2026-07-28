@@ -1,6 +1,6 @@
 -- name: CreateMeeting :one
-INSERT INTO meetings (user_id, title, audio_gcs_path, status, scenario, scheduled_at, remind_before_min)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO meetings (user_id, title, audio_gcs_path, status, scenario, scheduled_at, remind_before_min, source_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: GetMeetingForUser :one
@@ -101,6 +101,12 @@ RETURNING *;
 -- name: RenameMeeting :one
 UPDATE meetings
 SET title = $3, updated_at = now()
+WHERE id = $1 AND user_id = $2
+RETURNING *;
+
+-- name: UpdateMeetingTags :one
+UPDATE meetings
+SET tags = $3, updated_at = now()
 WHERE id = $1 AND user_id = $2
 RETURNING *;
 

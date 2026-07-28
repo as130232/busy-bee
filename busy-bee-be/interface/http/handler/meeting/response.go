@@ -17,6 +17,8 @@ type meetingResponse struct {
 	Title           string     `json:"title"`
 	Status          string     `json:"status"`
 	Scenario        string     `json:"scenario"`
+	Tags            []string   `json:"tags"`
+	Imported        bool       `json:"imported"`
 	Summary         string     `json:"summary,omitempty"`
 	DurationSeconds int        `json:"durationSeconds"`
 	ErrorMessage    string     `json:"errorMessage,omitempty"`
@@ -44,6 +46,8 @@ func toMeetingResponse(m domainmeeting.Meeting) meetingResponse {
 		Title:           m.Title,
 		Status:          string(m.Status),
 		Scenario:        string(m.Scenario),
+		Tags:            tagsOrEmpty(m.Tags),
+		Imported:        m.SourceURL != "",
 		Summary:         m.Summary,
 		DurationSeconds: m.DurationSeconds,
 		ErrorMessage:    m.ErrorMessage,
@@ -51,6 +55,14 @@ func toMeetingResponse(m domainmeeting.Meeting) meetingResponse {
 		RemindBeforeMin: m.RemindBeforeMin,
 		CreatedAt:       m.CreatedAt,
 	}
+}
+
+// tagsOrEmpty 確保 JSON 輸出為 [] 而非 null（前端一律當陣列處理）。
+func tagsOrEmpty(tags []string) []string {
+	if tags == nil {
+		return []string{}
+	}
+	return tags
 }
 
 func toCreateResponse(out appmeeting.CreateOutput) createResponse {

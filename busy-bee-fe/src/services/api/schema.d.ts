@@ -62,6 +62,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/meetings/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 貼連結匯入（YouTube / Podcast / 直接音檔）
+         * @description 由外部連結建立會議，音訊由後端 worker 抓取（直接音檔/Podcast 走 HTTP，YouTube 走 yt-dlp）， 接著跑既有轉錄→摘要管線。標題留空時自動用來源標題。有時長/大小上限（保護費用）。
+         */
+        post: operations["importMeeting"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/meetings/qa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 跨會議 RAG 問答（單次、無狀態）
+         * @description 依問題語意檢索本人全部會議的逐字稿片段，交由 LLM 生成帶引用的答案。 answer 為 markdown，內含 [n] 引用標註，對應 sources[].index。 無相關片段時回 noMatch=true 且不呼叫 LLM。
+         */
+        post: operations["askCrossMeetingQA"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/meetings/scheduled": {
         parameters: {
             query?: never;
@@ -148,6 +188,23 @@ export interface paths {
         head?: never;
         /** 重新命名會議（任何狀態，本人限定） */
         patch: operations["renameMeeting"];
+        trace?: never;
+    };
+    "/api/v1/meetings/{id}/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 覆寫會議手動標籤（本人限定） */
+        patch: operations["updateMeetingTags"];
         trace?: never;
     };
     "/api/v1/meetings/{id}/speakers": {
@@ -345,6 +402,10 @@ export interface components {
              * @enum {string}
              */
             scenario: "meeting" | "casual" | "interview" | "idea";
+            /** @description 使用者自訂標籤（手動分類/篩選） */
+            tags: string[];
+            /** @description true 表示由貼連結匯入（非錄音/上傳） */
+            imported: boolean;
             /** @description 一句話摘要（TL;DR），未處理則不出現 */
             summary?: string;
             durationSeconds: number;
@@ -378,6 +439,8 @@ export interface components {
             heading?: string;
             /** @description 講者代號（如 A/B/C）；有值才顯示徽章 */
             speaker?: string;
+            /** @description 該重點主要依據的音檔毫秒位置；有值前端顯示可點的時間戳跳轉音檔 */
+            startMs?: number;
         };
         SummarySection: {
             /** @description 區塊機器識別（如 decisions/topics/todos） */
@@ -592,6 +655,113 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    importMeeting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description 影片/音訊連結（http/https）
+                     * @example https://youtu.be/dQw4w9WgXcQ
+                     */
+                    url: string;
+                    /** @description 選填；留空自動用來源標題 */
+                    title?: string;
+                    /**
+                     * @default meeting
+                     * @enum {string}
+                     */
+                    scenario?: "meeting" | "casual" | "interview" | "idea";
+                };
+            };
+        };
+        responses: {
+            /** @description 已建立（status = pending，worker 開始抓取） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            meeting: components["schemas"]["Meeting"];
+                        };
+                    };
+                };
+            };
+            /** @description url 空白或格式錯誤（errCode 40001） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    askCrossMeetingQA: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description 自然語言問題（過長會以 rune 截斷至 500）。
+                     * @example 上週產品會議決定了什麼？
+                     */
+                    question: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 問答結果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            /** @description markdown 答案，含 [n] 引用標註 */
+                            answer: string;
+                            /** @description true 表示無相關內容（此時未呼叫 LLM） */
+                            noMatch: boolean;
+                            sources: {
+                                /** @description 引用編號，對應答案中的 [n] */
+                                index: number;
+                                /** Format: uuid */
+                                meetingId: string;
+                                title: string;
+                                /** @description 命中片段內容 */
+                                snippet: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            /** @description question 空白或格式錯誤（errCode 40001） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
         };
     };
     createScheduledMeeting: {
@@ -865,6 +1035,49 @@ export interface operations {
                     };
                 };
             };
+            /** @description 不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    updateMeetingTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description 覆寫後的標籤清單（後端去空白/去重，上限 20） */
+                    tags: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            meeting: components["schemas"]["MeetingDetail"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
             /** @description 不存在或非本人 */
             404: {
                 headers: {

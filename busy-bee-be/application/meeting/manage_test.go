@@ -17,6 +17,7 @@ type fakeManageRepo struct {
 	deletedID           uuid.UUID
 	deletePath          string // Delete 回傳的音檔路徑
 	updatedSpeakerNames map[string]string
+	updatedTags         []string
 	err                 error
 }
 
@@ -55,6 +56,14 @@ func (f *fakeManageRepo) UpdateSpeakerNames(_ context.Context, id, userID uuid.U
 	}
 	f.updatedSpeakerNames = names
 	return domainmeeting.Meeting{ID: id, UserID: userID, SpeakerNames: names}, nil
+}
+
+func (f *fakeManageRepo) UpdateTags(_ context.Context, id, userID uuid.UUID, tags []string) (domainmeeting.Meeting, error) {
+	if f.err != nil {
+		return domainmeeting.Meeting{}, f.err
+	}
+	f.updatedTags = tags
+	return domainmeeting.Meeting{ID: id, UserID: userID, Tags: tags}, nil
 }
 
 func TestManage_RenameTrimsTitle(t *testing.T) {
@@ -154,5 +163,33 @@ func TestManage_UpdateSpeakerNamesNotFoundMapped(t *testing.T) {
 	var ae *apperr.Error
 	if !errors.As(err, &ae) || ae.Code != errcode.NotFound {
 		t.Fatalf("err = %v, want NotFound (不存在或非本人)", err)
+	}
+}
+
+func TestSetTags_NormalizesTrimDedupCap(t *testing.T) {
+	repo := &fakeManageRepo{}
+	uc := NewManageUC(repo, fakeDeleter{})
+	_, err := uc.SetTags(context.Background(), uuid.New(), uuid.New(),
+		[]string{" 養生 ", "養生", "", "  ", "產品"}) // 去空白後「養生」重複、空白丟棄
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if len(repo.updatedTags) != 2 || repo.updatedTags[0] != "養生" || repo.updatedTags[1] != "產品" {
+		t.Errorf("normalized tags = %#v, want [養生 產品]", repo.updatedTags)
+	}
+}
+
+func TestSetTags_CapsCount(t *testing.T) {
+	repo := &fakeManageRepo{}
+	uc := NewManageUC(repo, fakeDeleter{})
+	many := make([]string, 0, 30)
+	for i := 0; i < 30; i++ {
+		many = append(many, "t"+string(rune('a'+i)))
+	}
+	if _, err := uc.SetTags(context.Background(), uuid.New(), uuid.New(), many); err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if len(repo.updatedTags) != maxTags {
+		t.Errorf("tag count = %d, want capped at %d", len(repo.updatedTags), maxTags)
 	}
 }

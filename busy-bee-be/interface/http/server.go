@@ -12,6 +12,7 @@ import (
 	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
 	opshandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/ops"
 	pushhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/push"
+	qahandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/qa"
 	userhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/user"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/middleware"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/response"
@@ -33,6 +34,7 @@ type Deps struct {
 	UserHandler       *userhandler.Handler
 	MeetingHandler    *meetinghandler.Handler
 	ActionItemHandler *actionitemhandler.Handler
+	QAHandler         *qahandler.Handler
 	PushHandler       *pushhandler.Handler
 	InternalHandler   *opshandler.Handler
 	Hub               *ws.Hub
@@ -82,12 +84,14 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 		// 需要 DB 用戶身分的路由再掛 ResolveUser
 		authed := v1.Group("", middleware.ResolveUser(deps.UserRepo))
 		authed.POST("/meetings", deps.MeetingHandler.Create)
+		authed.POST("/meetings/import", deps.MeetingHandler.Import)
 		authed.GET("/meetings", deps.MeetingHandler.List)
 		authed.POST("/meetings/scheduled", deps.MeetingHandler.CreateScheduled)
 		authed.GET("/meetings/:id", deps.MeetingHandler.Get)
 		authed.GET("/meetings/:id/audio-url", deps.MeetingHandler.AudioURL)
 		authed.PATCH("/meetings/:id", deps.MeetingHandler.Rename)
 		authed.PATCH("/meetings/:id/speakers", deps.MeetingHandler.UpdateSpeakers)
+		authed.PATCH("/meetings/:id/tags", deps.MeetingHandler.UpdateTags)
 		authed.PATCH("/meetings/:id/transcript", deps.MeetingHandler.EditSegment)
 		authed.DELETE("/meetings/:id", deps.MeetingHandler.Delete)
 		authed.POST("/meetings/:id/complete-upload", deps.MeetingHandler.CompleteUpload)
@@ -101,6 +105,10 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 			authed.GET("/action-items", deps.ActionItemHandler.ListPending)
 			authed.PATCH("/action-items/:id", deps.ActionItemHandler.Update)
 			authed.DELETE("/action-items/:id", deps.ActionItemHandler.Delete)
+		}
+
+		if deps.QAHandler != nil {
+			authed.POST("/meetings/qa", deps.QAHandler.Ask)
 		}
 
 		if deps.PushHandler != nil {

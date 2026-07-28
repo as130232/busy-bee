@@ -23,10 +23,21 @@ async function request<T>(path: string, init: RequestInit, idToken?: string): Pr
   if (idToken) headers.set('Authorization', `Bearer ${idToken}`)
 
   const res = await fetch(path, { ...init, headers })
-  const body = (await res.json()) as Envelope
+
+  // 容忍空 body / 非 JSON 回應（如 proxy 502、後端崩潰）：不硬解析，改回可讀的狀態訊息，
+  // 避免掩蓋真實錯誤（例：502 空 body 會讓 res.json() 拋「Unexpected end of JSON input」）。
+  const raw = await res.text()
+  let body: Envelope
+  try {
+    body = raw ? (JSON.parse(raw) as Envelope) : ({ errCode: res.status, msg: '' } as Envelope)
+  } catch {
+    throw new ApiError(res.status, `伺服器回應異常（HTTP ${res.status}）`, res.status)
+  }
 
   if (!res.ok || body.errCode !== 0) {
-    throw new ApiError(body.errCode, friendlyMessage(body.errCode, body.msg), res.status, body.traceId)
+    const code = body.errCode ?? res.status
+    const msg = body.msg || `伺服器錯誤（HTTP ${res.status}）`
+    throw new ApiError(code, friendlyMessage(code, msg), res.status, body.traceId)
   }
   return body.data as T
 }
@@ -77,6 +88,22 @@ export function createMeeting(
 ): Promise<CreateMeetingResult> {
   return request<CreateMeetingResult>(
     '/api/v1/meetings',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+    idToken,
+  )
+}
+
+/** 貼連結匯入（YouTube / Podcast / 直接音檔）：音訊由後端抓取後跑管線；標題留空自動用來源標題 */
+export function importMeeting(
+  idToken: string,
+  input: { url: string; title?: string; scenario?: Scenario },
+): Promise<{ meeting: Meeting }> {
+  return request<{ meeting: Meeting }>(
+    '/api/v1/meetings/import',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -277,6 +304,23 @@ export function editMeetingSegment(
   )
 }
 
+/** 覆寫會議手動標籤（後端去空白/去重，上限 20），回傳最新詳情 */
+export function updateMeetingTags(
+  idToken: string,
+  meetingId: string,
+  tags: string[],
+): Promise<{ meeting: MeetingDetail }> {
+  return request<{ meeting: MeetingDetail }>(
+    `/api/v1/meetings/${meetingId}/tags`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags }),
+    },
+    idToken,
+  )
+}
+
 /** 更新講者代號→顯示名（如 {"A":"Ben"}），回傳含最新逐字稿的詳情 */
 export function updateMeetingSpeakers(
   idToken: string,
@@ -325,4 +369,32 @@ export function unsubscribePush(idToken: string, endpoint: string): Promise<unkn
 /** debug / demo：對自己所有訂閱立即送測試推播，驗證顯示層（免等排程） */
 export function sendTestPush(idToken: string): Promise<{ delivered: number }> {
   return request<{ delivered: number }>('/api/v1/push/test', { method: 'POST' }, idToken)
+}
+
+export interface QASource {
+  index: number
+  meetingId: string
+  title: string
+  snippet: string
+}
+
+export interface QAResult {
+  /** markdown 答案，內含 [n] 引用標註，對應 sources[].index */
+  answer: string
+  /** true 表示無相關內容（後端此時未呼叫 LLM） */
+  noMatch: boolean
+  sources: QASource[]
+}
+
+/** 跨會議 RAG 問答（單次、無狀態）：依問題語意檢索本人全部會議並生成帶引用的答案 */
+export function askCrossMeetingQA(idToken: string, question: string): Promise<QAResult> {
+  return request<QAResult>(
+    '/api/v1/meetings/qa',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    },
+    idToken,
+  )
 }

@@ -59,6 +59,7 @@ func (r *MeetingRepo) Create(ctx context.Context, m domainmeeting.Meeting) (doma
 		Scenario:        string(domainmeeting.ParseScenario(string(m.Scenario))),
 		ScheduledAt:     m.ScheduledAt,
 		RemindBeforeMin: int32(remind),
+		SourceUrl:       m.SourceURL,
 	})
 	if err != nil {
 		return domainmeeting.Meeting{}, fmt.Errorf("db.CreateMeeting: %w", err)
@@ -216,6 +217,8 @@ func toDomainMeeting(ctx context.Context, row sqlcgen.Meeting) domainmeeting.Mee
 		UserID:             row.UserID,
 		Title:              row.Title,
 		AudioGCSPath:       row.AudioGcsPath,
+		SourceURL:          row.SourceUrl,
+		Tags:               row.Tags,
 		Status:             domainmeeting.Status(row.Status),
 		Scenario:           domainmeeting.ParseScenario(row.Scenario),
 		Transcript:         row.Transcript,
@@ -299,6 +302,17 @@ func (r *MeetingRepo) Rename(ctx context.Context, id, userID uuid.UUID, title st
 	row, err := r.q.RenameMeeting(ctx, sqlcgen.RenameMeetingParams{ID: id, UserID: userID, Title: title})
 	if err != nil {
 		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.RenameMeeting")
+	}
+	return toDomainMeeting(ctx, row), nil
+}
+
+func (r *MeetingRepo) UpdateTags(ctx context.Context, id, userID uuid.UUID, tags []string) (domainmeeting.Meeting, error) {
+	if tags == nil {
+		tags = []string{}
+	}
+	row, err := r.q.UpdateMeetingTags(ctx, sqlcgen.UpdateMeetingTagsParams{ID: id, UserID: userID, Tags: tags})
+	if err != nil {
+		return domainmeeting.Meeting{}, mapNoRows(err, domainmeeting.ErrNotFound, "db.UpdateMeetingTags")
 	}
 	return toDomainMeeting(ctx, row), nil
 }

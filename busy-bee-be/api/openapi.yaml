@@ -155,6 +155,115 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /api/v1/meetings/import:
+    post:
+      tags: [meetings]
+      summary: 貼連結匯入（YouTube / Podcast / 直接音檔）
+      description: >
+        由外部連結建立會議，音訊由後端 worker 抓取（直接音檔/Podcast 走 HTTP，YouTube 走 yt-dlp），
+        接著跑既有轉錄→摘要管線。標題留空時自動用來源標題。有時長/大小上限（保護費用）。
+      operationId: importMeeting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  description: 影片/音訊連結（http/https）
+                  example: https://youtu.be/dQw4w9WgXcQ
+                title:
+                  type: string
+                  description: 選填；留空自動用來源標題
+                scenario:
+                  type: string
+                  enum: [meeting, casual, interview, idea]
+                  default: meeting
+      responses:
+        "200":
+          description: 已建立（status = pending，worker 開始抓取）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [meeting]
+                        properties:
+                          meeting: { $ref: "#/components/schemas/Meeting" }
+        "400":
+          description: url 空白或格式錯誤（errCode 40001）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/meetings/qa:
+    post:
+      tags: [meetings]
+      summary: 跨會議 RAG 問答（單次、無狀態）
+      description: >
+        依問題語意檢索本人全部會議的逐字稿片段，交由 LLM 生成帶引用的答案。
+        answer 為 markdown，內含 [n] 引用標註，對應 sources[].index。
+        無相關片段時回 noMatch=true 且不呼叫 LLM。
+      operationId: askCrossMeetingQA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question:
+                  type: string
+                  description: 自然語言問題（過長會以 rune 截斷至 500）。
+                  example: 上週產品會議決定了什麼？
+      responses:
+        "200":
+          description: 問答結果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [answer, noMatch, sources]
+                        properties:
+                          answer:
+                            type: string
+                            description: markdown 答案，含 [n] 引用標註
+                          noMatch:
+                            type: boolean
+                            description: true 表示無相關內容（此時未呼叫 LLM）
+                          sources:
+                            type: array
+                            items:
+                              type: object
+                              required: [index, meetingId, title, snippet]
+                              properties:
+                                index: { type: integer, description: "引用編號，對應答案中的 [n]" }
+                                meetingId: { type: string, format: uuid }
+                                title: { type: string }
+                                snippet: { type: string, description: 命中片段內容 }
+        "400":
+          description: question 空白或格式錯誤（errCode 40001）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /api/v1/meetings/scheduled:
     post:
       tags: [meetings]
@@ -396,6 +505,52 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Envelope"
+
+  /api/v1/meetings/{id}/tags:
+    patch:
+      tags: [meetings]
+      summary: 覆寫會議手動標籤（本人限定）
+      operationId: updateMeetingTags
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tags]
+              properties:
+                tags:
+                  type: array
+                  items: { type: string }
+                  description: 覆寫後的標籤清單（後端去空白/去重，上限 20）
+      responses:
+        "200":
+          description: 已更新
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [meeting]
+                        properties:
+                          meeting:
+                            $ref: "#/components/schemas/MeetingDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 不存在或非本人
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
 
   /api/v1/meetings/{id}/speakers:
     patch:
@@ -858,7 +1013,7 @@ components:
 
     Meeting:
       type: object
-      required: [id, title, status, scenario, durationSeconds, remindBeforeMin, createdAt]
+      required: [id, title, status, scenario, tags, imported, durationSeconds, remindBeforeMin, createdAt]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -869,6 +1024,11 @@ components:
           type: string
           enum: [meeting, casual, interview, idea]
           description: "紀錄情境（會議/閒聊/面試）"
+        tags:
+          type: array
+          items: { type: string }
+          description: "使用者自訂標籤（手動分類/篩選）"
+        imported: { type: boolean, description: "true 表示由貼連結匯入（非錄音/上傳）" }
         summary: { type: string, description: "一句話摘要（TL;DR），未處理則不出現" }
         durationSeconds: { type: integer }
         errorMessage: { type: string }
@@ -894,6 +1054,7 @@ components:
         text: { type: string, description: 重點內容（純條列即內容，卡片則為說明） }
         heading: { type: string, description: 卡片標題；有值才渲染成卡片 }
         speaker: { type: string, description: 講者代號（如 A/B/C）；有值才顯示徽章 }
+        startMs: { type: integer, description: 該重點主要依據的音檔毫秒位置；有值前端顯示可點的時間戳跳轉音檔 }
 
     SummarySection:
       type: object

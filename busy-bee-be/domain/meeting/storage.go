@@ -15,6 +15,8 @@ type UploadTarget struct {
 type AudioStorage interface {
 	// SignedUploadURL 產生限定 content-type 與大小上限的直傳 URL。
 	SignedUploadURL(ctx context.Context, objectPath, contentType string, maxBytes int64) (UploadTarget, error)
+	// Upload 由後端直接寫入物件（匯入來源音訊用；前端直傳走 SignedUploadURL）。
+	Upload(ctx context.Context, objectPath string, r io.Reader, contentType string) error
 	// SignedDownloadURL 產生限時的唯讀下載 URL（供前端播放音檔）。
 	SignedDownloadURL(ctx context.Context, objectPath string) (string, error)
 	// Exists 檢查物件是否已上傳。

@@ -1,8 +1,29 @@
 import { Fragment } from 'react'
-import { Sparkles } from 'lucide-react'
+import { Play, Sparkles } from 'lucide-react'
 
 import type { MeetingDetail } from '../services/api/client'
 import { resolveSpeakerNames, speakerColor } from './speakerColor'
+
+/** 秒 → m:ss（與逐字稿時間戳一致）。 */
+function fmtClock(sec: number): string {
+  const s = Math.max(0, Math.floor(sec))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+
+/** 可點時間戳：跳到音檔對應片段（onSeek 由詳情頁注入，與 mini-player 共用 audio）。 */
+function TimeChip({ startMs, onSeek }: { startMs: number; onSeek: (sec: number) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSeek(startMs / 1000)}
+      aria-label={`從 ${fmtClock(startMs / 1000)} 播放`}
+      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 font-mono text-[11px] tabular-nums text-accent transition hover:bg-accent/20"
+    >
+      <Play className="size-3" />
+      {fmtClock(startMs / 1000)}
+    </button>
+  )
+}
 
 type Section = MeetingDetail['summarySections'][number]
 type Point = Section['items'][number]
@@ -20,6 +41,7 @@ export function SummarySections({
   speakerNames = {},
   speakerOrder = [],
   aiDividerBeforeType,
+  onSeek,
 }: {
   sections: Section[]
   bare?: boolean
@@ -28,6 +50,8 @@ export function SummarySections({
   speakerNames?: Record<string, string>
   speakerOrder?: string[]
   aiDividerBeforeType?: string
+  // onSeek 有值時，帶 startMs 的重點顯示可點時間戳跳轉音檔（詳情頁注入）。
+  onSeek?: (seconds: number) => void
 }) {
   // 只顯示有內容的區塊，避免空區塊佔版面。
   const visible = sections.filter((s) => s.items.length > 0)
@@ -54,6 +78,7 @@ export function SummarySections({
                   point={it}
                   speakerNames={speakerNames}
                   speakerOrder={speakerOrder}
+                  onSeek={onSeek}
                 />
               ))}
             </div>
@@ -64,25 +89,29 @@ export function SummarySections({
   )
 }
 
-// PointRow 有 heading 渲染成卡片，否則渲染成單行條列。
+// PointRow 有 heading 渲染成卡片，否則渲染成單行條列；有 startMs + onSeek 時顯示可點時間戳。
 function PointRow({
   point,
   speakerNames,
   speakerOrder,
+  onSeek,
 }: {
   point: Point
   speakerNames: Record<string, string>
   speakerOrder: string[]
+  onSeek?: (seconds: number) => void
 }) {
   // 內文/標題裡的講者代號（如 B）也換成顯示名，與徽章一致跟著改名連動。
   const heading = resolveSpeakerNames(point.heading ?? '', speakerNames)
   const text = resolveSpeakerNames(point.text, speakerNames)
+  const canSeek = onSeek && point.startMs != null
 
   if (!point.heading) {
     return (
-      <div className="flex gap-2 text-sm leading-6 text-fg">
+      <div className="flex items-start gap-2 text-sm leading-6 text-fg">
         <span className="select-none text-muted">•</span>
-        <span>{text}</span>
+        <span className="flex-1">{text}</span>
+        {canSeek && <TimeChip startMs={point.startMs!} onSeek={onSeek} />}
       </div>
     )
   }
@@ -90,13 +119,16 @@ function PointRow({
     <div className="rounded-lg border border-border/60 bg-surface/60 px-3 py-2">
       <div className="flex items-start justify-between gap-2">
         <span className="text-sm font-semibold text-fg">{heading}</span>
-        {point.speaker && (
-          <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${speakerColor(point.speaker, speakerOrder)}`}
-          >
-            {speakerNames[point.speaker]?.trim() || point.speaker}
-          </span>
-        )}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {canSeek && <TimeChip startMs={point.startMs!} onSeek={onSeek} />}
+          {point.speaker && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${speakerColor(point.speaker, speakerOrder)}`}
+            >
+              {speakerNames[point.speaker]?.trim() || point.speaker}
+            </span>
+          )}
+        </div>
       </div>
       {text && <p className="m-0 mt-0.5 text-sm leading-6 text-muted">{text}</p>}
     </div>

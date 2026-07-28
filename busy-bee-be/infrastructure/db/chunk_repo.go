@@ -20,7 +20,10 @@ type ChunkRepo struct {
 
 func NewChunkRepo(pool *pgxpool.Pool) *ChunkRepo { return &ChunkRepo{pool: pool} }
 
-var _ search.ChunkRepository = (*ChunkRepo)(nil)
+var (
+	_ search.ChunkRepository = (*ChunkRepo)(nil)
+	_ search.QARetriever     = (*ChunkRepo)(nil)
+)
 
 // Upsert 冪等：先刪該會議舊 chunks 再批次插入（同一 tx）。
 func (r *ChunkRepo) Upsert(ctx context.Context, chunks []search.Chunk) error {
@@ -78,6 +81,33 @@ func (r *ChunkRepo) SearchSimilar(ctx context.Context, userID uuid.UUID, vec []f
 		}
 		res.MatchType = search.MatchSemantic
 		out = append(out, res)
+	}
+	return out, rows.Err()
+}
+
+// SearchSimilarForQA 回傳與 vec 最相近的 top-K 片段（不做 DISTINCT ON，允許同會議多片段），
+// JOIN meetings 帶回標題，owner 過濾。供 RAG 跨會議問答檢索。
+func (r *ChunkRepo) SearchSimilarForQA(ctx context.Context, userID uuid.UUID, vec []float32, topK int) ([]search.RetrievedChunk, error) {
+	v := pgv.NewVector(vec)
+	rows, err := r.pool.Query(ctx, `
+		SELECT c.meeting_id, m.title, c.chunk_index, c.content, 1 - (c.embedding <=> $2) AS score
+		FROM transcript_chunks c
+		JOIN meetings m ON m.id = c.meeting_id
+		WHERE c.user_id = $1
+		ORDER BY c.embedding <=> $2
+		LIMIT $3`,
+		userID, v, topK)
+	if err != nil {
+		return nil, fmt.Errorf("db.chunk searchQA: %w", err)
+	}
+	defer rows.Close()
+	var out []search.RetrievedChunk
+	for rows.Next() {
+		var rc search.RetrievedChunk
+		if err := rows.Scan(&rc.MeetingID, &rc.Title, &rc.ChunkIndex, &rc.Content, &rc.Score); err != nil {
+			return nil, fmt.Errorf("db.chunk searchQA scan: %w", err)
+		}
+		out = append(out, rc)
 	}
 	return out, rows.Err()
 }

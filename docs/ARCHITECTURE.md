@@ -250,6 +250,16 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 - **後果**：零額外依賴、立即可用；代價是無排名、大資料量下變慢。
 - **替代方案**：tsvector + pg_jieba → 否決：Cloud SQL extension 支援不確定；Meilisearch → 否決：多一個服務要管。**升級路徑**：pgvector（Cloud SQL 原生支援）+ Gemini embedding，新增 transcript_chunks 表做 RAG 語意搜尋，不動現有 schema。
 
+#### ADR-013: 跨會議 RAG 問答（F-QA）單次無狀態、複用檢索管線
+
+- **狀態**：採納（Phase 19）
+- **背景**：F-SEARCH 已建立 pgvector + Gemini embedding 的語意檢索（Phase 15）；使用者希望以自然語言對全部會議提問並得到帶來源引用的答案。
+- **決策**：**單次問答、無狀態**（不新增資料表、不存對話歷史，最省成本、貼合 scale-to-zero）。資料流：`Embedder.Embed(問題)` → `QARetriever.SearchSimilarForQA`（top-K=8、`qaMinScore=0.6`、**不做 DISTINCT ON** 允許同會議多片段、JOIN meetings 取標題、`user_id` owner 過濾）→ 濾門檻後 1-based 重編號 → `Answerer.Answer`（prompt 要求僅依來源作答、以 `[n]` 標註出處、禁杜撰）。
+- **成本護欄**：無片段通過門檻時**直接回提示、不呼叫 LLM**；問題長度 rune 截斷 500。
+- **重用/淨新增**：重用 `Embedder`/`GeminiClient.complete`/`transcript_chunks`/handler 框架；淨新增 `Answerer`/`QARetriever` port（ISP，與 `ChunkRepository` 分離）、`SearchSimilarForQA`、`QAUC`、`handler/qa`、`prompts/cross_meeting_qa.md`、前端 AskPage。
+- **引用 UX**：回應 `sources[]` 帶 `{index, meetingId, title, snippet}`，前端把答案中的 `[n]` 渲染成連往該會議的連結。
+- **替代方案**：多輪對話（chat）→ 暫緩：需存 conversation + 每次帶前文，token 成本與複雜度高；串流回應 → 暫緩：MVP 先非串流。
+
 #### ADR-007: LLM 用 Gemini 3.0-flash，以 domain interface 隔離
 
 - **狀態**：採納

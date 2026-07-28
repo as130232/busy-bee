@@ -7,6 +7,7 @@
 
 ## 當前焦點
 
+Phase 19（RAG 跨會議問答 F-QA）程式完成：使用者對本人全部會議自然語言提問，語意檢索片段 → LLM 生成帶 [n] 引用的答案（單次問答、無狀態、**無新增資料表**、無相關片段不呼叫 LLM 的成本護欄）。八成重用 Phase 15 既有 embedding/檢索/LLM 基礎設施，淨新增僅 `Answerer`/`QARetriever` port + `SearchSimilarForQA` 檢索（top-K 不收斂）+ `QAUC` + `handler/qa` + 前端 AskPage/「問答」Tab。全程 TDD、後端 build/test 全綠（27 packages）、前端 gen:api/typecheck/lint/build 綠。剩裝置端 e2e 人工驗收（19.8）+ merge/部署。
 Phase 17（紀錄情境化 F-SCENARIO：會議/閒聊模板 + 結構化摘要區塊）程式完成：後端 build/vet/test 全綠（24 packages）、前端 typecheck/lint/build 綠、本地 migration 000009 已套用、前後端本地已起。已再擴充第三情境「面試」（interview，17.8 ✅：migration 000010、面試 prompt、翠綠配色）。本 session 另含錄音頁情境配色化（會議黃/閒聊藍/面試綠，含大錄音鈕/光環/背景）、紀錄詳情頁改版（貼底 mini-player + hero 摘要 + meta 行 + 移除品牌列 + 完成狀態隱藏 + 頁籤 sticky）、品牌化載入動畫、確認彈窗改 Portal（修長頁被推到頁尾）。另對標競品 Aimture Shorts 擴充三項（同分支）：17.9 摘要卡片化（SummaryPoint heading/text/speaker＋講者徽章）、Phase 18 行動項到期日解析＋Web Push 到期提醒＋.ics 加入行事曆。全程 TDD、後端 build/vet/test 全綠、前端 typecheck/lint/build 綠、sqlc/openapi/TS client 重生成。剩裝置端 e2e 人工驗收（三情境各看對應區塊、卡片版型/講者徽章、dueISO 解析、Push 到期提醒、iOS 加入行事曆）與本地 migration 000011 套用 + merge/部署。
 Phase 16（語者辨識 diarization：Deepgram + 講者改名 + 音檔播放）已 merge（`1da9020`）並部署 production：2026-07-22 實測 `DEEPGRAM_API_KEY` 已掛 Cloud Run（secret `busy-bee-deepgram-key:1`）、migration 000007 已隨 CI 自動套用、prod serving commit `687d52f`。全數完成（16.7 ✅）。
 Phase 15（RAG 語意搜尋：pgvector + Gemini embedding）已 merge（`805659b`）並部署：migration 000006（含 `CREATE EXTENSION vector`）已隨 CI 套用、prod 已上線。僅剩 prod 裝置端 e2e 人工驗收（搜「定價」找「價格策略」）— 15.9。
@@ -364,6 +365,90 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 - 18.9 ✅ 待辦就地編輯（比照逐字稿 ✏️）：domain `UpdateDescription` port + sqlc `UpdateActionItemDescription` + repo；`EditUC`（空描述擋 400、ErrNotFound→404，TDD 3 例）；PATCH `/action-items/:id` 改為 `Update`（帶 description 改內容 / 帶 done 改狀態）；前端 `editActionItem` client + `ActionItemList` 拆 `ActionItemRow` 加 ✏️ 就地編輯。另修錄音頁可左右滑（TabLayout main 補 `overflow-x-hidden`）
 - 18.10 ✅ 待辦指派人：顯示端 assignee 經 speakerNames 解析（改名連動）並以講者色晶片呈現（修 orphaned 「B」排版）；新增待辦可指派成員（AddTodoForm select、InsertManual/AddUC/handler/openapi/client 帶 assignee，TDD 更新）；ActionItemRow 版面重排（描述＋✏️ 一行、指派晶片＋時限一行）
 - 18.8 ✅ 手動新增待辦：migration 000012（`source` llm/manual + CHECK）、`DeleteActionItemsForMeeting` 只刪 llm（保護手動項不被重跑刪除）、domain `InsertManual` port、`AddUC`（owner 驗證 + 空描述擋 400，TDD 3 例）、`POST /meetings/:id/action-items` handler/route/openapi、前端 client `addMeetingActionItem` + 待辦頁 `AddTodoForm` 輸入框。後端 build/vet/test 全綠、前端 typecheck/lint/build 綠、本地 migration 000011/000012 已套用
+
+---
+
+## Phase 19：RAG 跨會議問答（F-QA）
+> 里程碑：post-MVP | 🔄 程式完成，待裝置端驗收
+> 使用者用自然語言對本人全部會議提問，語意檢索相關片段 → LLM 生成帶 [n] 引用的答案（單次問答、無狀態、無新增資料表）。把 Phase 15 的 embedding 投資變現。八成重用既有基礎設施。
+
+- 19.1 ✅ domain：`domain/search` 加 `Answerer` port、`QARetriever` port（ISP，與 ChunkRepository 分離）、`RetrievedChunk`/`QASource`/`QAResult` 型別
+- 19.2 ✅ 檢索：`ChunkRepo.SearchSimilarForQA`（top-K 不做 DISTINCT ON、允許同會議多片段、JOIN meetings 取標題、`user_id` owner 過濾）
+- 19.3 ✅ LLM：`GeminiClient.Answer` 實作 + `prompts/cross_meeting_qa.md`（僅依來源作答、[n] 標註、禁杜撰）；複用私有 `complete()`
+- 19.4 ✅ use case：`application/search/QAUC`（embed → 檢索 → 濾門檻重編號 → 生成；**無相關片段不呼叫 LLM** 成本護欄），TDD 5 例（happy/濾門檻重編號/無結果不打 LLM/embed 錯/answerer 錯）
+- 19.5 ✅ HTTP：`handler/qa`（依職責拆分 handler/request/response/ask）、`POST /api/v1/meetings/qa`、openapi first、問題長度 rune 截斷 500；handler 測試 4 例
+- 19.6 ✅ 接線：`server.go` Deps + route、`main.go` `NewQAUC(llmClient, chunkRepo, llmClient)`
+- 19.7 ✅ 前端：`askCrossMeetingQA` client + `AskPage`（textarea + 答案 [n] 內嵌連結 + 參考來源卡）、新增「問答」Tab、路由 `/ask`、重生 TS client。後端 build/test 全綠（27 packages）、前端 gen:api/typecheck/lint/build 綠
+- 19.8 ⬜ 裝置端 e2e：對已索引會議提問→答案正確、[n] 連結可跳轉、無相關內容回提示且未打 LLM + merge/部署
+- 19.9 ✅ 前端結果持久化：AskPage 用 react-markdown + prose 渲染（標題/段落/巢狀條列/粗體）、[n] 引用可點跳轉；最近一次問答存 localStorage（切頁/重整保留）、顯示建立時間、加「重新產生」鈕
+- 19.10 ✅ 會議清單情境（列舉/時間型問題）：QAUC 除內容片段外，另把會議清單（標題/日期/摘要，取最近 40 場）餵給 LLM，並注入今日日期（UTC+8）供判讀「這週/上週」；`Answerer` 簽名加 `[]MeetingBrief`、prompt 分「會議清單」與「內容片段」兩來源；NoMatch 改為「內容與清單皆空」才成立，清單載入失敗則降級。修「這週開了什麼會議」等列舉問題答不出來。TDD 補 3 例（無片段有清單仍呼叫 LLM／皆空跳過 LLM／清單失敗降級）
+
+---
+
+## Phase 20：摘要 ↔ 音檔時間戳跳轉（F-DIARIZE 擴充）
+> 里程碑：post-MVP | 🔄 程式完成，待裝置端驗收
+> 逐字稿→音檔跳轉本已具備（SegmentRow onSeek）；本階段補「摘要重點→音檔」：摘要產生時讓 LLM 為每個依據逐字稿的重點標 startMs，前端顯示可點時間戳跳到該音檔片段。
+
+- 20.1 ✅ domain：`SummaryPoint` 加 `StartMs *int`（`startMs,omitempty`，JSONB 向後相容）；TDD 補解析測試（有/無 startMs）
+- 20.2 ✅ 餵時間戳逐字稿：`process.go` 加 `timestampedTranscript`（每行 `[t=<毫秒>] 講者: 內容`，無片段退回純文字），Summarize 改吃此版本
+- 20.3 ✅ prompt：4 個 summary_*.md 加「時間錨點」規則與範例——依據逐字稿的重點加 `startMs`（會議 decisions/topics、面試 qa_highlights/assessment、閒聊 key_points/conclusions、想法僅 idea_summary；想法的 AI 延伸區塊省略）
+- 20.4 ✅ API：openapi `SummaryPoint.startMs`、重生 TS schema
+- 20.5 ✅ 前端：`SummarySections` 加 `onSeek` + `TimeChip`（帶 startMs 的重點顯示可點 ▶ m:ss），`MeetingDetailPage` 傳入 `seekAudio`（與貼底 mini-player 共用 audio）
+- 20.6 ⬜ 裝置端 e2e：錄新會議→摘要重點出現時間戳、點擊跳到音檔正確位置 + merge/部署（註：既有會議的摘要在此改動前產生、無 startMs，需新錄音或重新分析才會有）
+
+---
+
+## Phase 21：貼連結匯入（YouTube / Podcast / 直接音檔）
+> 里程碑：post-MVP | 🔄 程式完成，待裝置端驗收
+> 貼影片/音訊連結 → 後端抓取音訊放進 GCS → 接既有轉錄→摘要→待辦→索引管線（全部重用）。對準使用者「摘要線上影片」的真實用法。
+
+- 21.1 ✅ domain：`Meeting.SourceURL`、`AudioStorage.Upload`（後端寫 GCS）、`AudioFetcher` port（`FetchedAudio`）
+- 21.2 ✅ DB：migration 000014（`meetings.source_url`）、`CreateMeeting` 帶 source_url、sqlc 重生、repo mapping；本地已套用（v14）
+- 21.3 ✅ `infrastructure/fetch`：直接音檔/Podcast 走 HTTP（副檔名/HEAD content-type 判定），YouTube/其他走 yt-dlp（先取 metadata 擋超長→抽 m4a）；成本護欄 ≤90 分鐘、≤200MB；暫存檔 Close 時清理。單元測試（URL 驗證、標題推導、路由）
+- 21.4 ✅ `infrastructure/gcs`：`Upload` 實作
+- 21.5 ✅ `application/meeting`：`ImportUC`（建 pending + SourceURL → enqueue，TDD 3 例）；`process.go` 加 `fetchStage`（STT 前，冪等：GCS 有音檔則跳過；抓取後以來源標題 best-effort 更新會議名，`TitleRenamer` ISP，TDD 3 例）
+- 21.6 ✅ HTTP：`POST /meetings/import` handler/route/openapi + `main.go` 接線（Fetcher/Renamer）
+- 21.7 ✅ Dockerfile：`apk add yt-dlp`
+- 21.8 ✅ 前端：`importMeeting` client + `ImportLinkForm`（貼 URL→匯入）置於錄音頁（上傳下方「或」分隔），重生 TS client。後端 build/vet/test 全綠（27 pkg）、前端 typecheck/lint/build 綠
+- 21.9 ⬜ 裝置端 e2e：貼 Podcast/直接音檔連結（本地免 yt-dlp）與 YouTube（需 `brew install yt-dlp`）各驗一次→標題自動帶入、轉錄摘要正常、超長被擋 + merge/部署（部署後 Cloud Run image 已含 yt-dlp）
+
+---
+
+## Phase 22：紀錄整理（情境/來源篩選 + 手動標籤，F-TAG）
+> 里程碑：post-MVP | 🔄 程式完成，待裝置端驗收
+> 紀錄變多後的分類：情境（會議/閒聊/面試/想法）與來源（錄音/匯入）用現成資料做篩選；再加使用者自訂標籤。
+
+- 22.1 ✅ DB：migration 000015（`meetings.tags text[]`）、`UpdateMeetingTags` query、sqlc 重生、repo `UpdateTags` + mapping；本地已套用（v15）
+- 22.2 ✅ domain：`Meeting.Tags`、`ManageRepository.UpdateTags`
+- 22.3 ✅ 應用層：`ManageUC.SetTags`（清洗：去空白/截長 30/去重/上限 20，TDD 2 例）
+- 22.4 ✅ HTTP：`PATCH /meetings/:id/tags` handler/route/openapi；meeting response 加 `tags` + `imported`（供前端篩選）
+- 22.5 ✅ 前端：紀錄頁篩選列（情境晶片 + 錄音/匯入 + 標籤晶片，client-side 過濾）、詳情頁 `TagEditor`（就地加/刪標籤）、列表卡顯示「匯入」徽章與標籤、`updateMeetingTags` client、重生 TS。後端 vet/test 全綠、前端 typecheck/lint/build 綠
+- 22.6 ⬜ 裝置端 e2e：加標籤→列表出現→按標籤/情境/來源篩選正確 + merge/部署
+
+---
+
+## Phase 23：分享匯入（剪貼簿 + ?import 參數 + Android 分享目標，F-IMPORT 擴充）
+> 里程碑：post-MVP | 🔄 程式完成，待裝置端驗收
+> 降低匯入摩擦。iOS Safari 不支援標準 Web Share Target，故 iOS 走「剪貼簿貼上 + ?import 參數（可配 iOS 捷徑）」，Android 順手加 share_target。全部共用既有 `importMeeting`（純前端）。
+
+- 23.1 ✅ `services/url.ts`：`extractURL`（從分享文字抽 http(s) 連結，容忍無協定）
+- 23.2 ✅ `hooks/useShareImport.ts`：讀 `?import=` 或 share_target 的 `url`/`text` → 自動匯入 → 導向紀錄頁；清 query 防重複（handled ref）
+- 23.3 ✅ `RecordPage` 掛 hook + 匯入中/失敗提示
+- 23.4 ✅ `ImportLinkForm`：「貼上剪貼簿」按鈕（使用者手勢讀 clipboard → extractURL 填入，iOS 可行）
+- 23.5 ✅ manifest `share_target`（action `/`、GET、url/text/title；Android/桌面 Chrome）
+- 23.6 ⬜ 裝置端 e2e：`?import=<url>` 開啟自動匯入、剪貼簿貼上、Android 安裝後從 YouTube 分享 + iOS 捷徑教學（可選）+ merge/部署
+
+---
+
+## Phase 24：AI 自動標籤（F-TAG 擴充）
+> 里程碑：post-MVP | 🔄 程式完成，待裝置端驗收
+> 摘要產生時 LLM 順便給 2～4 個主題標籤，自動歸類；與手動標籤共用同一 `tags` 欄位、可再編輯。
+
+- 24.1 ✅ domain：`Summarizer.Summarize` 回傳改 `SummaryResult{Sections, Tags}`
+- 24.2 ✅ LLM：4 個 summary_*.md 加最外層 `tags`（2～4 主題標籤）規則與範例；`GeminiClient.Summarize` 解析 tags
+- 24.3 ✅ 應用層：`generateSummarySections` 存 sections 後 best-effort 寫 AI 標籤（`cleanAutoTags` 去空白/去重/上限 5）；`TagWriter` ISP dep（*MeetingRepo），此時尚無手動標籤故直接覆寫。TDD 1 例（清洗）
+- 24.4 ✅ 接線：`main.go` ProcessDeps.TagWriter = meetingRepo；假 Summarizer 簽名更新。後端 build/test 全綠（前端無需改，tags 欄位既有）
+- 24.5 ⬜ 裝置端 e2e：新錄音/匯入完成後自動出現標籤、可手動增刪、按標籤篩選 + merge/部署（既有紀錄需「重新處理」才長出）
 
 ---
 

@@ -102,6 +102,22 @@ func (s *Storage) SignedDownloadURL(ctx context.Context, objectPath string) (str
 	return url, nil
 }
 
+// Upload 由後端直接寫入物件（匯入來源音訊）；設定 content-type，寫入失敗時中止物件。
+func (s *Storage) Upload(ctx context.Context, objectPath string, r io.Reader, contentType string) error {
+	w := s.client.Bucket(s.bucket).Object(objectPath).NewWriter(ctx)
+	if contentType != "" {
+		w.ContentType = contentType
+	}
+	if _, err := io.Copy(w, r); err != nil {
+		_ = w.Close()
+		return fmt.Errorf("gcs.Upload copy: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("gcs.Upload close: %w", err)
+	}
+	return nil
+}
+
 func (s *Storage) Download(ctx context.Context, objectPath string) (io.ReadCloser, int64, error) {
 	r, err := s.client.Bucket(s.bucket).Object(objectPath).NewReader(ctx)
 	if err != nil {

@@ -11,10 +11,13 @@
 - 只根據逐字稿內容整理，禁止臆測或捏造，尤其評估不得加入逐字稿未出現的推斷。
 - `heading` 精簡（≤15 字）、`text` 精簡（≤50 字）、繁體中文、與逐字稿語言一致（中文面試輸出中文）。
 - 某區塊若無對應內容，`items` 輸出空陣列 `[]`，但仍保留該區塊。
+- **時間錨點**：逐字稿每行以 `[t=<毫秒>]` 標記該段音檔起始位置。`qa_highlights` 與 `assessment` 的每個重點請加 `"startMs"`＝該重點**主要依據**的那段逐字稿的 `t` 值（整數毫秒）；`summary` 綜述可省略。
+
+另外在 JSON **最外層**（與 `sections` 同級）產生 `tags`：2～4 個主題標籤（簡短名詞，如「後端工程師」「系統設計」），概括這場面試的主題，供自動分類。
 
 輸出格式：**只輸出一個 JSON 物件**，不要有任何說明文字、不要用 markdown 程式碼區塊包裹。格式範例：
 
-{"sections": [{"type": "summary", "title": "面試摘要", "items": ["應徵後端工程師，具 5 年 Go 經驗", "溝通清楚、對系統設計有想法"]}, {"type": "qa_highlights", "title": "重點問答", "items": [{"heading": "高併發設計", "text": "以佇列削峰並說明取捨", "speaker": "B"}]}, {"type": "assessment", "title": "觀察與評估", "items": [{"heading": "強項", "text": "實戰經驗紮實"}, {"heading": "疑慮", "text": "對前端協作經驗較少"}]}, {"type": "next_steps", "title": "後續步驟", "items": ["安排與技術主管的第二輪面試"]}]}
+{"sections": [{"type": "summary", "title": "面試摘要", "items": ["應徵後端工程師，具 5 年 Go 經驗", "溝通清楚、對系統設計有想法"]}, {"type": "qa_highlights", "title": "重點問答", "items": [{"heading": "高併發設計", "text": "以佇列削峰並說明取捨", "speaker": "B", "startMs": 420000}]}, {"type": "assessment", "title": "觀察與評估", "items": [{"heading": "強項", "text": "實戰經驗紮實", "startMs": 610000}, {"heading": "疑慮", "text": "對前端協作經驗較少", "startMs": 880000}]}, {"type": "next_steps", "title": "後續步驟", "items": ["安排與技術主管的第二輪面試"]}], "tags": ["後端工程師", "系統設計"]}
 
 逐字稿：
 {{TRANSCRIPT}}

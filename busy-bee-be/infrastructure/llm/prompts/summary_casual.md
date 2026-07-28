@@ -10,10 +10,13 @@
 - 只根據逐字稿內容整理，禁止臆測或捏造。
 - 每條條列簡潔、繁體中文、與逐字稿語言一致（中文對話輸出中文）。
 - 某區塊若無對應內容，`items` 輸出空陣列 `[]`，但仍保留該區塊。
+- **時間錨點**：逐字稿每行以 `[t=<毫秒>]` 標記該段音檔起始位置。`key_points` 與 `conclusions` 的每個重點請改用**物件** `{"text": 內容, "startMs": 該重點主要依據片段的 t 值（整數毫秒）}`；`todos` 可維持字串。
+
+另外在 JSON **最外層**（與 `sections` 同級）產生 `tags`：2～4 個主題標籤（簡短名詞，如「週末旅遊」「美食」），概括這段對話的主題，供自動分類。
 
 輸出格式：**只輸出一個 JSON 物件**，不要有任何說明文字、不要用 markdown 程式碼區塊包裹。格式範例：
 
-{"sections": [{"type": "key_points", "title": "重點摘要", "items": ["聊到週末旅遊的規劃", "比較了兩個住宿選項"]}, {"type": "conclusions", "title": "結論", "items": ["決定選靠海的民宿"]}, {"type": "todos", "title": "後續待辦", "items": ["週三前訂房"]}]}
+{"sections": [{"type": "key_points", "title": "重點摘要", "items": [{"text": "聊到週末旅遊的規劃", "startMs": 15000}, {"text": "比較了兩個住宿選項", "startMs": 92000}]}, {"type": "conclusions", "title": "結論", "items": [{"text": "決定選靠海的民宿", "startMs": 168000}]}, {"type": "todos", "title": "後續待辦", "items": ["週三前訂房"]}], "tags": ["週末旅遊", "住宿選擇"]}
 
 逐字稿：
 {{TRANSCRIPT}}

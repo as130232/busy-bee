@@ -14,12 +14,15 @@ import (
 
 	domainactionitem "github.com/as130232/busy-bee/busy-bee-be/domain/actionitem"
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
+	domainsearch "github.com/as130232/busy-bee/busy-bee-be/domain/search"
 )
 
 //go:embed prompts/*.md
 var promptFS embed.FS
 
 const promptActionItems = "prompts/action_items.md"
+
+const promptCrossMeetingQA = "prompts/cross_meeting_qa.md"
 
 // scenarioPrompts 每個情境對應的結構化摘要 prompt 模板。
 var scenarioPrompts = map[domainmeeting.Scenario]string{
@@ -45,6 +48,7 @@ type GeminiClient struct {
 var (
 	_ domainactionitem.Extractor = (*GeminiClient)(nil)
 	_ domainmeeting.Summarizer   = (*GeminiClient)(nil)
+	_ domainsearch.Answerer      = (*GeminiClient)(nil)
 )
 
 func NewGemini(ctx context.Context, apiKey, model string) (*GeminiClient, error) {
@@ -96,22 +100,62 @@ func stripJSONFence(text string) string {
 
 // Summarize 依情境選 prompt，一次呼叫產出結構化摘要區塊。
 // 情境無對應模板時回退會議模板（ParseScenario 已保證有效值，此處為雙保險）。
-func (c *GeminiClient) Summarize(ctx context.Context, transcript string, scenario domainmeeting.Scenario) ([]domainmeeting.SummarySection, error) {
+func (c *GeminiClient) Summarize(ctx context.Context, transcript string, scenario domainmeeting.Scenario) (domainmeeting.SummaryResult, error) {
 	tmpl, ok := scenarioPrompts[scenario]
 	if !ok {
 		tmpl = scenarioPrompts[domainmeeting.ScenarioMeeting]
 	}
 	text, err := c.generate(ctx, tmpl, transcript)
 	if err != nil {
-		return nil, err
+		return domainmeeting.SummaryResult{}, err
 	}
 	var out struct {
 		Sections []domainmeeting.SummarySection `json:"sections"`
+		Tags     []string                       `json:"tags"`
 	}
 	if err := json.Unmarshal([]byte(stripJSONFence(text)), &out); err != nil {
-		return nil, fmt.Errorf("llm.Summarize parse: %w", err)
+		return domainmeeting.SummaryResult{}, fmt.Errorf("llm.Summarize parse: %w", err)
 	}
-	return out.Sections, nil
+	return domainmeeting.SummaryResult{Sections: out.Sections, Tags: out.Tags}, nil
+}
+
+// Answer 依問題、編號內容來源與會議清單生成帶引用的繁中答案。
+// sources 以「[n] 標題\n內容」注入 {{SOURCES}}（內容型問題，[n] 標註出處）；
+// meetings 以「- 日期｜標題：摘要」注入 {{MEETINGS}}（列舉/時間型問題）；
+// {{TODAY}}（UTC+8 今日）供模型判讀「這週/上週」；prompt 要求僅依資料作答、不杜撰。
+func (c *GeminiClient) Answer(ctx context.Context, question string, sources []domainsearch.QASource, meetings []domainsearch.MeetingBrief) (string, error) {
+	raw, err := promptFS.ReadFile(promptCrossMeetingQA)
+	if err != nil {
+		return "", fmt.Errorf("llm.Answer read %s: %w", promptCrossMeetingQA, err)
+	}
+
+	var srcB strings.Builder
+	for _, s := range sources {
+		fmt.Fprintf(&srcB, "[%d] %s\n%s\n\n", s.Index, s.Title, s.Content)
+	}
+	var metB strings.Builder
+	for _, m := range meetings {
+		fmt.Fprintf(&metB, "- %s｜%s", m.Date, m.Title)
+		if strings.TrimSpace(m.Summary) != "" {
+			fmt.Fprintf(&metB, "：%s", m.Summary)
+		}
+		metB.WriteString("\n")
+	}
+
+	today := time.Now().UTC().Add(8 * time.Hour).Format("2006-01-02")
+	prompt := strings.ReplaceAll(string(raw), "{{SOURCES}}", orNone(srcB.String()))
+	prompt = strings.ReplaceAll(prompt, "{{MEETINGS}}", orNone(metB.String()))
+	prompt = strings.ReplaceAll(prompt, "{{QUESTION}}", question)
+	prompt = strings.ReplaceAll(prompt, "{{TODAY}}", today)
+	return c.complete(ctx, promptCrossMeetingQA, prompt)
+}
+
+// orNone 空白內容以「（無）」代入，讓 prompt 讀起來完整。
+func orNone(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "（無）"
+	}
+	return strings.TrimSpace(s)
 }
 
 func (c *GeminiClient) generate(ctx context.Context, templatePath, transcript string) (string, error) {

@@ -17,6 +17,23 @@ func TestSummaryPointUnmarshalObject(t *testing.T) {
 	}
 }
 
+// 物件帶 startMs：時間錨點應解析成 *int（供前端跳轉音檔）；缺 startMs 時為 nil。
+func TestSummaryPointUnmarshalStartMs(t *testing.T) {
+	var withTime, noTime SummaryPoint
+	if err := json.Unmarshal([]byte(`{"text":"定價討論","startMs":125000}`), &withTime); err != nil {
+		t.Fatalf("unmarshal with startMs: %v", err)
+	}
+	if withTime.StartMs == nil || *withTime.StartMs != 125000 {
+		t.Errorf("startMs got %v, want 125000", withTime.StartMs)
+	}
+	if err := json.Unmarshal([]byte(`{"text":"無時間"}`), &noTime); err != nil {
+		t.Fatalf("unmarshal without startMs: %v", err)
+	}
+	if noTime.StartMs != nil {
+		t.Errorf("startMs should be nil when absent, got %v", *noTime.StartMs)
+	}
+}
+
 // 裸字串形式：LLM 偶爾回字串，應收斂成 {Text: s}，不整段失敗。
 func TestSummaryPointUnmarshalBareString(t *testing.T) {
 	var p SummaryPoint

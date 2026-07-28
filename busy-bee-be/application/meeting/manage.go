@@ -65,6 +65,43 @@ func (uc *ManageUC) UpdateSpeakerNames(ctx context.Context, userID, meetingID uu
 	return m, nil
 }
 
+// 標籤清洗上限。
+const (
+	maxTags   = 20
+	maxTagLen = 30
+)
+
+// SetTags 覆寫會議標籤（本人限定）。清洗：去空白、截長（rune）、去重、上限筆數。
+func (uc *ManageUC) SetTags(ctx context.Context, userID, meetingID uuid.UUID, tags []string) (domainmeeting.Meeting, error) {
+	clean := make([]string, 0, len(tags))
+	seen := make(map[string]bool, len(tags))
+	for _, t := range tags {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		if r := []rune(t); len(r) > maxTagLen {
+			t = string(r[:maxTagLen])
+		}
+		if seen[t] {
+			continue
+		}
+		seen[t] = true
+		clean = append(clean, t)
+		if len(clean) >= maxTags {
+			break
+		}
+	}
+	m, err := uc.repo.UpdateTags(ctx, meetingID, userID, clean)
+	if err != nil {
+		if errors.Is(err, domainmeeting.ErrNotFound) {
+			return domainmeeting.Meeting{}, apperr.New(errcode.NotFound)
+		}
+		return domainmeeting.Meeting{}, apperr.Wrap(err, errcode.Internal)
+	}
+	return m, nil
+}
+
 // Delete 刪除會議（任何狀態，本人限定）。關聯資料由 DB FK CASCADE 連帶刪除，
 // 音檔以 best-effort 清理 GCS（失敗只記 log，不影響刪除結果）。
 func (uc *ManageUC) Delete(ctx context.Context, userID, meetingID uuid.UUID) error {

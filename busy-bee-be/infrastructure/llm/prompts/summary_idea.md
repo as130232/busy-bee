@@ -12,10 +12,13 @@
 - 只有「想法摘要」需忠於逐字稿；其餘四塊是你的**專業延伸分析**，但仍須與該想法相關、務實、可執行，不要空泛套話。
 - `heading` 精簡（≤15 字）、`text` 精簡（≤50 字）、繁體中文、與逐字稿語言一致。
 - 某區塊若真的無法產出，`items` 輸出空陣列 `[]`，但仍保留該區塊。
+- **時間錨點**：逐字稿每行以 `[t=<毫秒>]` 標記該段音檔起始位置。只有 `idea_summary`（忠於逐字稿）的每個重點改用**物件** `{"text": 內容, "startMs": 該重點主要依據片段的 t 值（整數毫秒）}`；`expansion`／`pros_cons`／`risks` 是你的延伸分析、不對應某段逐字稿，**一律省略 startMs**。
+
+另外在 JSON **最外層**（與 `sections` 同級）產生 `tags`：2～4 個主題標籤（簡短名詞，如「語音筆記」「AI 產品」），概括這個想法的主題，供自動分類。
 
 輸出格式：**只輸出一個 JSON 物件**，不要有任何說明文字、不要用 markdown 程式碼區塊包裹。格式範例：
 
-{"sections": [{"type": "idea_summary", "title": "想法摘要", "items": ["做一個依情境自動切換摘要模板的錄音 App", "想法情境要能擴充與分析"]}, {"type": "expansion", "title": "延伸與擴充", "items": [{"heading": "跨想法關聯", "text": "把多則想法用標籤/向量串起來，形成靈感圖譜"}, {"heading": "協作評論", "text": "分享單則想法讓他人補充與投票"}]}, {"type": "pros_cons", "title": "優缺點", "items": [{"heading": "優點", "text": "捕捉靈感零摩擦、AI 立即回饋"}, {"heading": "缺點", "text": "生成內容品質不穩、需人工篩選"}]}, {"type": "risks", "title": "潛在問題與風險", "items": [{"heading": "幻覺風險", "text": "AI 擴充可能離題或不可行，需明確標示為建議"}, {"heading": "成本", "text": "生成型輸出 token 較多，量大時費用上升"}]}, {"type": "next_steps", "title": "建議下一步", "items": ["先用 5 則真實想法試跑，人工評估擴充品質", "確認每次生成的成本上限"]}]}
+{"sections": [{"type": "idea_summary", "title": "想法摘要", "items": [{"text": "做一個依情境自動切換摘要模板的錄音 App", "startMs": 8000}, {"text": "想法情境要能擴充與分析", "startMs": 46000}]}, {"type": "expansion", "title": "延伸與擴充", "items": [{"heading": "跨想法關聯", "text": "把多則想法用標籤/向量串起來，形成靈感圖譜"}, {"heading": "協作評論", "text": "分享單則想法讓他人補充與投票"}]}, {"type": "pros_cons", "title": "優缺點", "items": [{"heading": "優點", "text": "捕捉靈感零摩擦、AI 立即回饋"}, {"heading": "缺點", "text": "生成內容品質不穩、需人工篩選"}]}, {"type": "risks", "title": "潛在問題與風險", "items": [{"heading": "幻覺風險", "text": "AI 擴充可能離題或不可行，需明確標示為建議"}, {"heading": "成本", "text": "生成型輸出 token 較多，量大時費用上升"}]}, {"type": "next_steps", "title": "建議下一步", "items": ["先用 5 則真實想法試跑，人工評估擴充品質", "確認每次生成的成本上限"]}], "tags": ["語音筆記", "AI 產品"]}
 
 逐字稿：
 {{TRANSCRIPT}}

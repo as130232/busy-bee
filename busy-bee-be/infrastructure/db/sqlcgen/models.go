@@ -55,6 +55,8 @@ type Meeting struct {
 	Summary            string
 	Scenario           string
 	SummarySections    []byte
+	SourceUrl          string
+	Tags               []string
 }
 
 type PushSubscription struct {

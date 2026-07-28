@@ -78,10 +78,24 @@ export function MeetingList({ meetings, emptyText }: { meetings: Meeting[]; empt
                 <span className="shrink-0">
                   <ScenarioTag scenario={m.scenario} />
                 </span>
+                {m.imported && (
+                  <span className="shrink-0 rounded bg-muted/15 px-1.5 py-0.5 text-xs font-medium text-muted">
+                    匯入
+                  </span>
+                )}
                 <span className="min-w-0 truncate text-sm font-medium">{m.title}</span>
               </span>
               {m.summary && <span className="mt-0.5 block truncate text-xs text-muted">{m.summary}</span>}
               <Subtitle m={m} />
+              {(m.tags ?? []).length > 0 && (
+                <span className="mt-1 flex flex-wrap gap-1">
+                  {(m.tags ?? []).map((t) => (
+                    <span key={t} className="rounded-full border border-border px-1.5 py-0.5 text-[11px] text-muted">
+                      #{t}
+                    </span>
+                  ))}
+                </span>
+              )}
               {m.matchSnippet && (
                 <span className="mt-1 block truncate text-xs italic text-muted">…{m.matchSnippet}…</span>
               )}

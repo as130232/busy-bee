@@ -11,6 +11,7 @@ import (
 // HandlerUCs Handler 依賴的 use cases。
 type HandlerUCs struct {
 	Create         *appmeeting.CreateUC
+	Import         *appmeeting.ImportUC
 	CompleteUpload *appmeeting.CompleteUploadUC
 	ListArtifacts  *appmeeting.ListArtifactsUC
 	List           *appmeeting.ListUC

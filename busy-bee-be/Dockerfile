@@ -18,9 +18,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH \
 
 # --- runtime stage ---
 # alpine（非 distroless）因為 worker 需要 ffmpeg 做音訊壓縮（Phase 6 起）
+# yt-dlp：貼連結匯入從 YouTube 等站台抽音訊（Phase 21）
 FROM alpine:3.22
 
-RUN apk add --no-cache ca-certificates tzdata ffmpeg \
+RUN apk add --no-cache ca-certificates tzdata ffmpeg yt-dlp \
  && addgroup -S app && adduser -S app -G app
 
 COPY --from=build /out/server /usr/local/bin/server

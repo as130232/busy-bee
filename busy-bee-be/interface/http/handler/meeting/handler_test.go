@@ -55,6 +55,7 @@ type fakeStorage struct{}
 func (f *fakeStorage) SignedUploadURL(_ context.Context, _, _ string, _ int64) (domainmeeting.UploadTarget, error) {
 	return domainmeeting.UploadTarget{URL: "https://signed", Headers: map[string]string{"Content-Type": "audio/webm"}}, nil
 }
+func (f *fakeStorage) Upload(_ context.Context, _ string, _ io.Reader, _ string) error { return nil }
 func (f *fakeStorage) SignedDownloadURL(_ context.Context, _ string) (string, error) {
 	return "https://signed-download", nil
 }
@@ -267,6 +268,10 @@ func (f *fakeRepo) Delete(_ context.Context, _, _ uuid.UUID) (string, error) { r
 
 func (f *fakeRepo) UpdateSpeakerNames(_ context.Context, id, userID uuid.UUID, names map[string]string) (domainmeeting.Meeting, error) {
 	return domainmeeting.Meeting{ID: id, UserID: userID, SpeakerNames: names}, nil
+}
+
+func (f *fakeRepo) UpdateTags(_ context.Context, id, userID uuid.UUID, tags []string) (domainmeeting.Meeting, error) {
+	return domainmeeting.Meeting{ID: id, UserID: userID, Tags: tags}, nil
 }
 
 func TestRename_ReturnsUpdatedTitle(t *testing.T) {

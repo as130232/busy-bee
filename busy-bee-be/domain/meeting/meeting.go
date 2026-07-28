@@ -73,10 +73,12 @@ func ParseScenario(s string) Scenario {
 
 // SummaryPoint 區塊內的一個重點。Text 為必填內容（純條列時即內容，卡片時為說明）；
 // Heading 有值時渲染成卡片標題，Speaker 有值時顯示講者徽章（多為 meeting 情境）。
+// StartMs 有值時為該重點主要依據的逐字稿片段起始毫秒，供前端點擊跳轉音檔。
 type SummaryPoint struct {
 	Text    string `json:"text"`
 	Heading string `json:"heading,omitempty"`
 	Speaker string `json:"speaker,omitempty"`
+	StartMs *int   `json:"startMs,omitempty"`
 }
 
 // UnmarshalJSON 容忍 LLM 回裸字串的情形：字串收斂成 {Text: s}，避免整段解析失敗。
@@ -107,7 +109,13 @@ type SummarySection struct {
 // Summarizer 依情境產生結構化摘要區塊的 port（Gemini 實作在 infrastructure/llm）。
 // 與行動項抽取（actionitem.Extractor）分離，各自一次 LLM 呼叫。
 type Summarizer interface {
-	Summarize(ctx context.Context, transcript string, scenario Scenario) ([]SummarySection, error)
+	Summarize(ctx context.Context, transcript string, scenario Scenario) (SummaryResult, error)
+}
+
+// SummaryResult 摘要結果：結構化區塊 + AI 建議的主題標籤（自動分類，與手動標籤共用同一欄位）。
+type SummaryResult struct {
+	Sections []SummarySection
+	Tags     []string
 }
 
 type Meeting struct {
@@ -115,9 +123,13 @@ type Meeting struct {
 	UserID       uuid.UUID
 	Title        string
 	AudioGCSPath string
-	Status       Status
+	// SourceURL 匯入來源（YouTube/Podcast/直接音檔連結）；非空表示音檔由 worker 抓取而非前端上傳。
+	SourceURL string
+	Status    Status
 	// Scenario 紀錄情境（會議/閒聊）；預設 meeting，決定 AI 產出的區塊模板。
-	Scenario   Scenario
+	Scenario Scenario
+	// Tags 使用者自訂標籤（手動分類；本人限定，去空白去重）。
+	Tags       []string
 	Transcript string
 	// Summary 一句話摘要（TL;DR）；分析階段由 LLM 產生，未處理則為空。
 	Summary string
@@ -183,6 +195,8 @@ type ManageRepository interface {
 	Delete(ctx context.Context, id, userID uuid.UUID) (string, error)
 	// UpdateSpeakerNames 更新講者代號→顯示名對應（本人限定）；不存在或非本人回 ErrNotFound。
 	UpdateSpeakerNames(ctx context.Context, id, userID uuid.UUID, names map[string]string) (Meeting, error)
+	// UpdateTags 覆寫會議標籤（本人限定）；不存在或非本人回 ErrNotFound。
+	UpdateTags(ctx context.Context, id, userID uuid.UUID, tags []string) (Meeting, error)
 }
 
 // ReminderRepository 提醒掃描專用窄介面（MeetingRepo 一併實作）。

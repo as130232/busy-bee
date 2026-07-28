@@ -75,6 +75,7 @@ func (f *fakeStorage) SignedUploadURL(_ context.Context, path, contentType strin
 	return f.target, nil
 }
 
+func (f *fakeStorage) Upload(_ context.Context, _ string, _ io.Reader, _ string) error { return nil }
 func (f *fakeStorage) SignedDownloadURL(_ context.Context, _ string) (string, error) {
 	return "https://signed-download", nil
 }
