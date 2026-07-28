@@ -1,11 +1,13 @@
 # Busy Bee 開發計畫與進度追蹤
 
 > 依 `docs/PRODUCT.md` 的 F-ID 與優先序切分 Phase，記錄任務狀態與進度。
-> 更新日期：2026-07-22
+> 更新日期：2026-07-27
 
 ---
 
 ## 當前焦點
+
+**Phase 19–24 已 merge（`59ec949`）並部署 production（2026-07-27）**：一批六項深化單人工具的功能（RAG 跨會議問答、摘要↔音檔時間戳跳轉、貼連結匯入 YouTube/Podcast/直接音檔、情境/來源篩選+手動標籤、分享匯入、AI 自動標籤）皆已上線；CI 自動套用 migration 000014/000015、Cloud Run image 已含 yt-dlp（Dockerfile `apk add yt-dlp`）。三條功能分支合併後已刪除，本地僅剩 `main`。**剩裝置端 e2e 人工驗收（19.8 / 20.6 / 21.9 / 22.6 / 23.6 / 24.5）**；註：既有紀錄需按「重新處理」才會長出新的 AI 自動標籤與摘要時間戳（舊 prompt 產物無此欄位）。下一個開發功能待定（候選：追問式問答 / 週回顧 Digest / YouTube 播放清單批次匯入）。
 
 Phase 19（RAG 跨會議問答 F-QA）程式完成：使用者對本人全部會議自然語言提問，語意檢索片段 → LLM 生成帶 [n] 引用的答案（單次問答、無狀態、**無新增資料表**、無相關片段不呼叫 LLM 的成本護欄）。八成重用 Phase 15 既有 embedding/檢索/LLM 基礎設施，淨新增僅 `Answerer`/`QARetriever` port + `SearchSimilarForQA` 檢索（top-K 不收斂）+ `QAUC` + `handler/qa` + 前端 AskPage/「問答」Tab。全程 TDD、後端 build/test 全綠（27 packages）、前端 gen:api/typecheck/lint/build 綠。剩裝置端 e2e 人工驗收（19.8）+ merge/部署。
 Phase 17（紀錄情境化 F-SCENARIO：會議/閒聊模板 + 結構化摘要區塊）程式完成：後端 build/vet/test 全綠（24 packages）、前端 typecheck/lint/build 綠、本地 migration 000009 已套用、前後端本地已起。已再擴充第三情境「面試」（interview，17.8 ✅：migration 000010、面試 prompt、翠綠配色）。本 session 另含錄音頁情境配色化（會議黃/閒聊藍/面試綠，含大錄音鈕/光環/背景）、紀錄詳情頁改版（貼底 mini-player + hero 摘要 + meta 行 + 移除品牌列 + 完成狀態隱藏 + 頁籤 sticky）、品牌化載入動畫、確認彈窗改 Portal（修長頁被推到頁尾）。另對標競品 Aimture Shorts 擴充三項（同分支）：17.9 摘要卡片化（SummaryPoint heading/text/speaker＋講者徽章）、Phase 18 行動項到期日解析＋Web Push 到期提醒＋.ics 加入行事曆。全程 TDD、後端 build/vet/test 全綠、前端 typecheck/lint/build 綠、sqlc/openapi/TS client 重生成。剩裝置端 e2e 人工驗收（三情境各看對應區塊、卡片版型/講者徽章、dueISO 解析、Push 到期提醒、iOS 加入行事曆）與本地 migration 000011 套用 + merge/部署。
@@ -58,6 +60,15 @@ debug 工具（保留）：`POST /api/v1/push/test`（JWT，對自己訂閱即�
 | 🔄 | Phase 15 — RAG 語意搜尋（pgvector + Gemini embedding） | post-MVP |
 | ✅ | Phase 16 — 語者辨識 diarization（Deepgram）+ 講者改名 + 音檔播放 | post-MVP |
 | 🔄 | Phase 17 — 紀錄情境化（F-SCENARIO：會議/閒聊模板 + 結構化摘要區塊） | post-MVP |
+| 🔄 | Phase 18 — 行動項到期日 + 行事曆（F-ACTION 擴充） | post-MVP |
+| 🔄 | Phase 19 — RAG 跨會議問答（F-QA） | post-MVP |
+| 🔄 | Phase 20 — 摘要 ↔ 音檔時間戳跳轉（F-DIARIZE 擴充） | post-MVP |
+| 🔄 | Phase 21 — 貼連結匯入（YouTube / Podcast / 直接音檔） | post-MVP |
+| 🔄 | Phase 22 — 紀錄整理（情境/來源篩選 + 手動標籤，F-TAG） | post-MVP |
+| 🔄 | Phase 23 — 分享匯入（剪貼簿 + ?import + Android 分享目標） | post-MVP |
+| 🔄 | Phase 24 — AI 自動標籤（F-TAG 擴充） | post-MVP |
+
+> Phase 18–24 已 merge（`59ec949`）+ 部署（2026-07-27）；標 🔄 僅因各留最後一項裝置端 e2e 人工驗收待跑。
 
 ---
 
@@ -369,7 +380,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 ---
 
 ## Phase 19：RAG 跨會議問答（F-QA）
-> 里程碑：post-MVP | 🔄 程式完成，待裝置端驗收
+> 里程碑：post-MVP | 🔄 已 merge（`59ec949`）+ 部署（2026-07-27），剩裝置端 e2e（19.8）
 > 使用者用自然語言對本人全部會議提問，語意檢索相關片段 → LLM 生成帶 [n] 引用的答案（單次問答、無狀態、無新增資料表）。把 Phase 15 的 embedding 投資變現。八成重用既有基礎設施。
 
 - 19.1 ✅ domain：`domain/search` 加 `Answerer` port、`QARetriever` port（ISP，與 ChunkRepository 分離）、`RetrievedChunk`/`QASource`/`QAResult` 型別
@@ -386,7 +397,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 ---
 
 ## Phase 20：摘要 ↔ 音檔時間戳跳轉（F-DIARIZE 擴充）
-> 里程碑：post-MVP | 🔄 程式完成，待裝置端驗收
+> 里程碑：post-MVP | 🔄 已 merge（`59ec949`）+ 部署（2026-07-27），剩裝置端 e2e（20.6）
 > 逐字稿→音檔跳轉本已具備（SegmentRow onSeek）；本階段補「摘要重點→音檔」：摘要產生時讓 LLM 為每個依據逐字稿的重點標 startMs，前端顯示可點時間戳跳到該音檔片段。
 
 - 20.1 ✅ domain：`SummaryPoint` 加 `StartMs *int`（`startMs,omitempty`，JSONB 向後相容）；TDD 補解析測試（有/無 startMs）
@@ -399,7 +410,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 ---
 
 ## Phase 21：貼連結匯入（YouTube / Podcast / 直接音檔）
-> 里程碑：post-MVP | 🔄 程式完成，待裝置端驗收
+> 里程碑：post-MVP | 🔄 已 merge（`59ec949`）+ 部署（2026-07-27，Cloud Run image 已含 yt-dlp），剩裝置端 e2e（21.9）
 > 貼影片/音訊連結 → 後端抓取音訊放進 GCS → 接既有轉錄→摘要→待辦→索引管線（全部重用）。對準使用者「摘要線上影片」的真實用法。
 
 - 21.1 ✅ domain：`Meeting.SourceURL`、`AudioStorage.Upload`（後端寫 GCS）、`AudioFetcher` port（`FetchedAudio`）
@@ -415,7 +426,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 ---
 
 ## Phase 22：紀錄整理（情境/來源篩選 + 手動標籤，F-TAG）
-> 里程碑：post-MVP | 🔄 程式完成，待裝置端驗收
+> 里程碑：post-MVP | 🔄 已 merge（`59ec949`）+ 部署（2026-07-27），剩裝置端 e2e（22.6）
 > 紀錄變多後的分類：情境（會議/閒聊/面試/想法）與來源（錄音/匯入）用現成資料做篩選；再加使用者自訂標籤。
 
 - 22.1 ✅ DB：migration 000015（`meetings.tags text[]`）、`UpdateMeetingTags` query、sqlc 重生、repo `UpdateTags` + mapping；本地已套用（v15）
@@ -428,7 +439,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 ---
 
 ## Phase 23：分享匯入（剪貼簿 + ?import 參數 + Android 分享目標，F-IMPORT 擴充）
-> 里程碑：post-MVP | 🔄 程式完成，待裝置端驗收
+> 里程碑：post-MVP | 🔄 已 merge（`59ec949`）+ 部署（2026-07-27），剩裝置端 e2e（23.6）
 > 降低匯入摩擦。iOS Safari 不支援標準 Web Share Target，故 iOS 走「剪貼簿貼上 + ?import 參數（可配 iOS 捷徑）」，Android 順手加 share_target。全部共用既有 `importMeeting`（純前端）。
 
 - 23.1 ✅ `services/url.ts`：`extractURL`（從分享文字抽 http(s) 連結，容忍無協定）
@@ -441,7 +452,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 ---
 
 ## Phase 24：AI 自動標籤（F-TAG 擴充）
-> 里程碑：post-MVP | 🔄 程式完成，待裝置端驗收
+> 里程碑：post-MVP | 🔄 已 merge（`59ec949`）+ 部署（2026-07-27），剩裝置端 e2e（24.5）
 > 摘要產生時 LLM 順便給 2～4 個主題標籤，自動歸類；與手動標籤共用同一 `tags` 欄位、可再編輯。
 
 - 24.1 ✅ domain：`Summarizer.Summarize` 回傳改 `SummaryResult{Sections, Tags}`
@@ -456,6 +467,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
+| 2026-07-27 | **Phase 19–24 merge + 部署 production**：一批六項深化功能（RAG 跨會議問答、摘要↔音檔時間戳、貼連結匯入、情境/來源篩選+手動標籤、分享匯入、AI 自動標籤）ff-only 併入 main 並 push；CI 自動套用 migration 000014/000015、Cloud Run image 含 yt-dlp。合併後刪除三條分支（`feat/phase-19-24-...`、`fix/worker-reliability-and-hardening`、`refactor/post-audit-cleanup`），本地僅剩 main。剩各 Phase 最後一項裝置端 e2e 人工驗收 | `59ec949` |
 | 2026-07-25 | **iPhone 推播打通（實機驗收）**：測試推播 + 排程會議提醒皆收到（Apple 201）。根因＝VAPID JWT sub 雙重 mailto 前綴 → Apple 403 BadJwtToken（Chrome/FF 容忍、僅 iOS 失敗）；改傳原始 email + 回歸測試。連帶：403/404/410 一律清除失效訂閱（解殭屍訂閱洪水/429）。移除診斷 log | `0825a80, 6620e75` |
 | 2026-07-25 | 通知修正（demo / 免費 / scale-to-zero）：確認 F-REMIND 前後端已完備，決策 demo 觸發用**內建計時器**（無外部 Scheduler、零額外費用）；線上 VAPID 三變數到位；新增 debug 工具 `POST /api/v1/push/test`（`application/push/test.go` + push handler + 路由）、NotificationToggle 測試鈕、`sw.ts` push-debug log，加速 iPhone 實機顯示驗證。後端 vet/test 綠、前端 build 綠 | `main` |
 | 2026-07-17 | Phase 1 全部完成（1.1–1.6：骨架、apperr、config、server、response、compose）；TDD 全程；分支 feat/phase-1-backend-skeleton | `8cec0df..9fd11b5` |
