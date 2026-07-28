@@ -2,7 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { ListChecks } from 'lucide-react'
 
 import { ActionItemList } from './ActionItemList'
-import { listPendingActionItems, toggleActionItem, type PendingActionItem } from '../services/api/client'
+import { CollapsibleSection } from './CollapsibleSection'
+import {
+  deleteActionItem,
+  listPendingActionItems,
+  toggleActionItem,
+  type PendingActionItem,
+} from '../services/api/client'
 import { getIdToken } from '../services/token'
 
 /** Dashboard 上的跨會議未完成行動項卡；無待辦時不顯示。 */
@@ -31,16 +37,25 @@ export function PendingActionItems() {
     }
   }
 
+  // 刪除誤抽/重複的待辦（跨會議列表不去重，重複項可在此手動清掉）。
+  const remove = async (id: string) => {
+    setItems((prev) => prev.filter((it) => it.id !== id)) // 樂觀移除
+    try {
+      await deleteActionItem(await getIdToken(), id)
+    } catch {
+      void load() // 失敗則重載回滾
+    }
+  }
+
   if (items.length === 0) return null
 
   return (
-    <section className="animate-fade-in-up rounded-xl border border-border bg-surface p-4">
-      <h2 className="m-0 mb-1 flex items-center gap-2 text-sm font-semibold">
-        <ListChecks className="size-4 text-accent" />
-        待辦
-        <span className="text-muted">{items.length}</span>
-      </h2>
-      <ActionItemList items={items} onToggle={toggle} showMeeting />
-    </section>
+    <CollapsibleSection
+      title="待辦"
+      count={items.length}
+      icon={<ListChecks className="size-4 text-accent" />}
+    >
+      <ActionItemList items={items} onToggle={toggle} onRemove={remove} showMeeting />
+    </CollapsibleSection>
   )
 }

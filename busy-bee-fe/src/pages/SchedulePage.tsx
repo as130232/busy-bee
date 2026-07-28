@@ -1,3 +1,6 @@
+import { CalendarClock } from 'lucide-react'
+
+import { CollapsibleSection } from '../components/CollapsibleSection'
 import { MeetingList } from '../components/MeetingList'
 import { PendingActionItems } from '../components/PendingActionItems'
 import { ScheduleForm } from '../components/ScheduleForm'
@@ -16,9 +19,15 @@ export function SchedulePage() {
         <ScheduleForm onCreated={reload} />
       </div>
 
-      <PendingActionItems />
+      <CollapsibleSection
+        title="排程"
+        count={scheduled.length}
+        icon={<CalendarClock className="size-4 text-accent" />}
+      >
+        <MeetingList meetings={scheduled} emptyText="尚無排程會議，點右上角新增。" />
+      </CollapsibleSection>
 
-      <MeetingList meetings={scheduled} emptyText="尚無排程會議，點右上角新增。" />
+      <PendingActionItems />
     </>
   )
 }
