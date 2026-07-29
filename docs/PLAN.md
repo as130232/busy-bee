@@ -9,6 +9,8 @@
 
 **Phase 19–24 已 merge（`59ec949`）並部署 production（2026-07-27）**：一批六項深化單人工具的功能（RAG 跨會議問答、摘要↔音檔時間戳跳轉、貼連結匯入 YouTube/Podcast/直接音檔、情境/來源篩選+手動標籤、分享匯入、AI 自動標籤）皆已上線；CI 自動套用 migration 000014/000015、Cloud Run image 已含 yt-dlp（Dockerfile `apk add yt-dlp`）。三條功能分支合併後已刪除，本地僅剩 `main`。**剩裝置端 e2e 人工驗收（19.8 / 20.6 / 21.9 / 22.6 / 23.6 / 24.5）**；註：既有紀錄需按「重新處理」才會長出新的 AI 自動標籤與摘要時間戳（舊 prompt 產物無此欄位）。下一個開發功能待定（候選：追問式問答 / 週回顧 Digest / YouTube 播放清單批次匯入）。
 
+**2026-07-29 修正**：iOS 錄音中裝置休眠會切斷麥克風、且結束鈕卡死——已加 Screen Wake Lock 防閒置休眠、`stop()` 對被系統中斷的 recorder 韌性收尾、新增 `interrupted` 狀態保住已錄片段（`useRecorder.ts` / `RecorderPanel.tsx`）。已部署,待真機 e2e 驗收。
+
 Phase 19（RAG 跨會議問答 F-QA）程式完成：使用者對本人全部會議自然語言提問，語意檢索片段 → LLM 生成帶 [n] 引用的答案（單次問答、無狀態、**無新增資料表**、無相關片段不呼叫 LLM 的成本護欄）。八成重用 Phase 15 既有 embedding/檢索/LLM 基礎設施，淨新增僅 `Answerer`/`QARetriever` port + `SearchSimilarForQA` 檢索（top-K 不收斂）+ `QAUC` + `handler/qa` + 前端 AskPage/「問答」Tab。全程 TDD、後端 build/test 全綠（27 packages）、前端 gen:api/typecheck/lint/build 綠。剩裝置端 e2e 人工驗收（19.8）+ merge/部署。
 Phase 17（紀錄情境化 F-SCENARIO：會議/閒聊模板 + 結構化摘要區塊）程式完成：後端 build/vet/test 全綠（24 packages）、前端 typecheck/lint/build 綠、本地 migration 000009 已套用、前後端本地已起。已再擴充第三情境「面試」（interview，17.8 ✅：migration 000010、面試 prompt、翠綠配色）。本 session 另含錄音頁情境配色化（會議黃/閒聊藍/面試綠，含大錄音鈕/光環/背景）、紀錄詳情頁改版（貼底 mini-player + hero 摘要 + meta 行 + 移除品牌列 + 完成狀態隱藏 + 頁籤 sticky）、品牌化載入動畫、確認彈窗改 Portal（修長頁被推到頁尾）。另對標競品 Aimture Shorts 擴充三項（同分支）：17.9 摘要卡片化（SummaryPoint heading/text/speaker＋講者徽章）、Phase 18 行動項到期日解析＋Web Push 到期提醒＋.ics 加入行事曆。全程 TDD、後端 build/vet/test 全綠、前端 typecheck/lint/build 綠、sqlc/openapi/TS client 重生成。剩裝置端 e2e 人工驗收（三情境各看對應區塊、卡片版型/講者徽章、dueISO 解析、Push 到期提醒、iOS 加入行事曆）與本地 migration 000011 套用 + merge/部署。
 Phase 16（語者辨識 diarization：Deepgram + 講者改名 + 音檔播放）已 merge（`1da9020`）並部署 production：2026-07-22 實測 `DEEPGRAM_API_KEY` 已掛 Cloud Run（secret `busy-bee-deepgram-key:1`）、migration 000007 已隨 CI 自動套用、prod serving commit `687d52f`。全數完成（16.7 ✅）。
@@ -467,6 +469,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
+| 2026-07-29 | **修正 iOS 錄音休眠中斷 + 結束鈕卡死**：`useRecorder` 加 Screen Wake Lock（錄音中防螢幕閒置休眠、`visibilitychange` 回前景重取）；`stop()` 對已被系統停成 inactive 的 recorder 也能用既有 chunks 收尾（不再卡死、不整段丟失）；新增 `interrupted` 狀態（系統中斷時停計時器、`RecorderPanel` 顯示提示仍可上傳已錄部分）。前端無測試框架，驗證＝typecheck/lint/build 綠；剩真機 e2e。平台限制：手動鎖屏/來電仍會中斷（PWA 無法背景錄音），僅能兜底保片段 | `main` |
 | 2026-07-27 | **Phase 19–24 merge + 部署 production**：一批六項深化功能（RAG 跨會議問答、摘要↔音檔時間戳、貼連結匯入、情境/來源篩選+手動標籤、分享匯入、AI 自動標籤）ff-only 併入 main 並 push；CI 自動套用 migration 000014/000015、Cloud Run image 含 yt-dlp。合併後刪除三條分支（`feat/phase-19-24-...`、`fix/worker-reliability-and-hardening`、`refactor/post-audit-cleanup`），本地僅剩 main。剩各 Phase 最後一項裝置端 e2e 人工驗收 | `59ec949` |
 | 2026-07-25 | **iPhone 推播打通（實機驗收）**：測試推播 + 排程會議提醒皆收到（Apple 201）。根因＝VAPID JWT sub 雙重 mailto 前綴 → Apple 403 BadJwtToken（Chrome/FF 容忍、僅 iOS 失敗）；改傳原始 email + 回歸測試。連帶：403/404/410 一律清除失效訂閱（解殭屍訂閱洪水/429）。移除診斷 log | `0825a80, 6620e75` |
 | 2026-07-25 | 通知修正（demo / 免費 / scale-to-zero）：確認 F-REMIND 前後端已完備，決策 demo 觸發用**內建計時器**（無外部 Scheduler、零額外費用）；線上 VAPID 三變數到位；新增 debug 工具 `POST /api/v1/push/test`（`application/push/test.go` + push handler + 路由）、NotificationToggle 測試鈕、`sw.ts` push-debug log，加速 iPhone 實機顯示驗證。後端 vet/test 綠、前端 build 綠 | `main` |

@@ -122,6 +122,8 @@ export function RecorderPanel({
     )
   }
 
+  const interrupted = rec.phase === 'interrupted'
+
   return (
     <div className="animate-scale-in flex flex-col items-center gap-5 pt-8 pb-2">
       <div className="flex items-center gap-3">
@@ -131,24 +133,30 @@ export function RecorderPanel({
           )}
           <span
             className={`relative inline-flex size-3 rounded-full ${
-              rec.phase === 'paused' ? 'bg-muted' : 'bg-red-500'
+              interrupted ? 'bg-amber-500' : rec.phase === 'paused' ? 'bg-muted' : 'bg-red-500'
             }`}
           />
         </span>
         <span className="font-mono text-5xl font-medium tabular-nums">{fmt(rec.elapsedSec)}</span>
       </div>
+      {interrupted && (
+        <p className="m-0 max-w-xs text-center text-sm text-amber-600">
+          錄音因裝置休眠而中斷，可直接結束並上傳已錄部分。
+        </p>
+      )}
       <div className="flex items-center gap-3">
-        {rec.phase === 'recording' ? (
-          <button type="button" className="btn btn-secondary" onClick={rec.pause}>
-            <Pause className="size-4" />
-            暫停
-          </button>
-        ) : (
-          <button type="button" className="btn btn-secondary" onClick={rec.resume}>
-            <Play className="size-4" />
-            繼續
-          </button>
-        )}
+        {!interrupted &&
+          (rec.phase === 'recording' ? (
+            <button type="button" className="btn btn-secondary" onClick={rec.pause}>
+              <Pause className="size-4" />
+              暫停
+            </button>
+          ) : (
+            <button type="button" className="btn btn-secondary" onClick={rec.resume}>
+              <Play className="size-4" />
+              繼續
+            </button>
+          ))}
         <button type="button" className="btn btn-primary" onClick={() => void finish()}>
           結束並上傳
         </button>
