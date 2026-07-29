@@ -3,6 +3,7 @@
 package fetch
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -128,16 +129,21 @@ func (f *Fetcher) fetchHTTP(ctx context.Context, u *url.URL) (domainmeeting.Fetc
 
 // fetchYtdlp 先取 metadata（擋超長、免白下載），再抽音訊成 m4a 暫存檔。
 func (f *Fetcher) fetchYtdlp(ctx context.Context, rawURL string) (domainmeeting.FetchedAudio, error) {
-	metaOut, err := exec.CommandContext(ctx, f.ytdlpPath,
+	metaCmd := exec.CommandContext(ctx, f.ytdlpPath,
 		"--no-playlist", "--skip-download",
 		"--print", "%(title)s", "--print", "%(duration)s",
 		rawURL,
-	).Output()
+	)
+	var metaErr bytes.Buffer
+	metaCmd.Stderr = &metaErr
+	metaOut, err := metaCmd.Output()
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
 			return domainmeeting.FetchedAudio{}, fmt.Errorf("fetch: 伺服器未安裝 yt-dlp，無法匯入此連結")
 		}
-		return domainmeeting.FetchedAudio{}, fmt.Errorf("fetch yt-dlp metadata: %w", err)
+		// yt-dlp 真正的失敗原因（如 YouTube bot 偵測、extractor 過期）在 stderr，
+		// 帶最後一行進錯誤供後端 log 診斷（不回傳前端）。
+		return domainmeeting.FetchedAudio{}, fmt.Errorf("fetch yt-dlp metadata: %w (%s)", err, lastLine(metaErr.Bytes()))
 	}
 	lines := strings.Split(strings.TrimSpace(string(metaOut)), "\n")
 	title := ""
