@@ -33,7 +33,7 @@ func TestTitleFromURL(t *testing.T) {
 
 func TestCookieArgs_Empty(t *testing.T) {
 	f := New("")
-	args, cleanup := f.cookieArgs()
+	args, cleanup, _ := f.cookieArgs()
 	defer cleanup()
 	if args != nil {
 		t.Errorf("expected no args when cookiesPath empty, got %v", args)
@@ -43,7 +43,7 @@ func TestCookieArgs_Empty(t *testing.T) {
 func TestCookieArgs_MissingFile(t *testing.T) {
 	// cookies 路徑設了但檔案不存在 → 退回不帶 cookies（不報錯）。
 	f := New(filepath.Join(t.TempDir(), "nope.txt"))
-	args, cleanup := f.cookieArgs()
+	args, cleanup, _ := f.cookieArgs()
 	defer cleanup()
 	if args != nil {
 		t.Errorf("expected no args when cookies file missing, got %v", args)
@@ -56,7 +56,7 @@ func TestCookieArgs_CopiesToWritableTemp(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := New(src)
-	args, cleanup := f.cookieArgs()
+	args, cleanup, _ := f.cookieArgs()
 	defer cleanup()
 	if len(args) != 2 || args[0] != "--cookies" {
 		t.Fatalf("expected [--cookies <path>], got %v", args)

@@ -135,31 +135,32 @@ func (f *Fetcher) fetchHTTP(ctx context.Context, u *url.URL) (domainmeeting.Fetc
 // Cloud Run secret 掛載為唯讀，而 yt-dlp 結束時會嘗試寫回 cookiejar，
 // 直接指向唯讀檔會失敗；故複製一份可寫副本，用畢由 cleanup 刪除。
 // cookies 不可用時（本地開發無此檔屬正常）退回不帶 cookies。
-func (f *Fetcher) cookieArgs() (args []string, cleanup func()) {
+// note 回傳 cookies 套用狀態，供錯誤 log 診斷（applied / disabled / read/copy 失敗）。
+func (f *Fetcher) cookieArgs() (args []string, cleanup func(), note string) {
 	noop := func() {}
 	if f.cookiesPath == "" {
-		return nil, noop
+		return nil, noop, "cookies=disabled"
 	}
 	src, err := os.ReadFile(f.cookiesPath)
 	if err != nil {
-		return nil, noop
+		return nil, noop, "cookies=read_err:" + err.Error()
 	}
 	tmp, err := os.CreateTemp(f.tempDir, "bb-cookies-*.txt")
 	if err != nil {
-		return nil, noop
+		return nil, noop, "cookies=tmp_err:" + err.Error()
 	}
 	if _, err := tmp.Write(src); err != nil {
 		_ = tmp.Close()
 		_ = os.Remove(tmp.Name())
-		return nil, noop
+		return nil, noop, "cookies=write_err:" + err.Error()
 	}
 	_ = tmp.Close()
-	return []string{"--cookies", tmp.Name()}, func() { _ = os.Remove(tmp.Name()) }
+	return []string{"--cookies", tmp.Name()}, func() { _ = os.Remove(tmp.Name()) }, fmt.Sprintf("cookies=applied(%dB)", len(src))
 }
 
 // fetchYtdlp 先取 metadata（擋超長、免白下載），再抽音訊成 m4a 暫存檔。
 func (f *Fetcher) fetchYtdlp(ctx context.Context, rawURL string) (domainmeeting.FetchedAudio, error) {
-	ckArgs, ckCleanup := f.cookieArgs()
+	ckArgs, ckCleanup, ckNote := f.cookieArgs()
 	defer ckCleanup()
 
 	metaArgs := append([]string{"--no-playlist", "--skip-download",
@@ -175,7 +176,7 @@ func (f *Fetcher) fetchYtdlp(ctx context.Context, rawURL string) (domainmeeting.
 		}
 		// yt-dlp 真正的失敗原因（如 YouTube bot 偵測、extractor 過期）在 stderr，
 		// 帶最後一行進錯誤供後端 log 診斷（不回傳前端）。
-		return domainmeeting.FetchedAudio{}, fmt.Errorf("fetch yt-dlp metadata: %w (%s)", err, lastLine(metaErr.Bytes()))
+		return domainmeeting.FetchedAudio{}, fmt.Errorf("fetch yt-dlp metadata [%s]: %w (%s)", ckNote, err, lastLine(metaErr.Bytes()))
 	}
 	lines := strings.Split(strings.TrimSpace(string(metaOut)), "\n")
 	title := ""
