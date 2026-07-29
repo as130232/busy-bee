@@ -99,7 +99,7 @@ func main() {
 	// STT 用 Deepgram（聲學語者分離，一個聲音＝一位講者，較 LLM 推測式穩定）。
 	sttClient := stt.NewDeepgram(cfg.Deepgram.APIKey, cfg.Deepgram.Model, cfg.Deepgram.Language, cfg.Deepgram.Keywords)
 	// 匯入來源音訊抓取（貼連結：直接音檔/Podcast 走 HTTP，YouTube 走 yt-dlp）
-	audioFetcher := fetch.New(cfg.Fetch.CookiesPath)
+	audioFetcher := fetch.New()
 	processUC := appmeeting.NewProcessUC(appmeeting.ProcessDeps{
 		Meetings: meetingRepo, Storage: audioStorage, STT: sttClient,
 		Artifacts: artifactRepo, Summarizer: llmClient, Notifier: hub,

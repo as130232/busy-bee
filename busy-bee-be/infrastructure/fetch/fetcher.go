@@ -40,7 +40,6 @@ var audioExts = map[string]bool{
 type Fetcher struct {
 	http           *http.Client
 	ytdlpPath      string
-	cookiesPath    string
 	tempDir        string
 	maxDurationSec int
 	maxBytes       int64
@@ -48,13 +47,10 @@ type Fetcher struct {
 
 var _ domainmeeting.AudioFetcher = (*Fetcher)(nil)
 
-// New 建立 Fetcher。cookiesPath 為 yt-dlp cookies.txt 路徑（繞過 YouTube 對
-// 資料中心 IP 的機器人偵測）；傳空字串則不帶 cookies（本地開發預設）。
-func New(cookiesPath string) *Fetcher {
+func New() *Fetcher {
 	return &Fetcher{
 		http:           &http.Client{Timeout: 10 * time.Minute},
 		ytdlpPath:      "yt-dlp",
-		cookiesPath:    cookiesPath,
 		tempDir:        os.TempDir(),
 		maxDurationSec: defaultMaxDurationSec,
 		maxBytes:       defaultMaxBytes,
@@ -131,42 +127,13 @@ func (f *Fetcher) fetchHTTP(ctx context.Context, u *url.URL) (domainmeeting.Fetc
 	}, nil
 }
 
-// cookieArgs 若有設定 cookies，複製到可寫暫存檔再回傳 yt-dlp 參數。
-// Cloud Run secret 掛載為唯讀，而 yt-dlp 結束時會嘗試寫回 cookiejar，
-// 直接指向唯讀檔會失敗；故複製一份可寫副本，用畢由 cleanup 刪除。
-// cookies 不可用時（本地開發無此檔屬正常）退回不帶 cookies。
-// note 回傳 cookies 套用狀態，供錯誤 log 診斷（applied / disabled / read/copy 失敗）。
-func (f *Fetcher) cookieArgs() (args []string, cleanup func(), note string) {
-	noop := func() {}
-	if f.cookiesPath == "" {
-		return nil, noop, "cookies=disabled"
-	}
-	src, err := os.ReadFile(f.cookiesPath)
-	if err != nil {
-		return nil, noop, "cookies=read_err:" + err.Error()
-	}
-	tmp, err := os.CreateTemp(f.tempDir, "bb-cookies-*.txt")
-	if err != nil {
-		return nil, noop, "cookies=tmp_err:" + err.Error()
-	}
-	if _, err := tmp.Write(src); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmp.Name())
-		return nil, noop, "cookies=write_err:" + err.Error()
-	}
-	_ = tmp.Close()
-	return []string{"--cookies", tmp.Name()}, func() { _ = os.Remove(tmp.Name()) }, fmt.Sprintf("cookies=applied(%dB)", len(src))
-}
-
 // fetchYtdlp 先取 metadata（擋超長、免白下載），再抽音訊成 m4a 暫存檔。
 func (f *Fetcher) fetchYtdlp(ctx context.Context, rawURL string) (domainmeeting.FetchedAudio, error) {
-	ckArgs, ckCleanup, ckNote := f.cookieArgs()
-	defer ckCleanup()
-
-	metaArgs := append([]string{"--no-playlist", "--skip-download",
-		"--print", "%(title)s", "--print", "%(duration)s"}, ckArgs...)
-	metaArgs = append(metaArgs, rawURL)
-	metaCmd := exec.CommandContext(ctx, f.ytdlpPath, metaArgs...)
+	metaCmd := exec.CommandContext(ctx, f.ytdlpPath,
+		"--no-playlist", "--skip-download",
+		"--print", "%(title)s", "--print", "%(duration)s",
+		rawURL,
+	)
 	var metaErr bytes.Buffer
 	metaCmd.Stderr = &metaErr
 	metaOut, err := metaCmd.Output()
@@ -176,7 +143,7 @@ func (f *Fetcher) fetchYtdlp(ctx context.Context, rawURL string) (domainmeeting.
 		}
 		// yt-dlp 真正的失敗原因（如 YouTube bot 偵測、extractor 過期）在 stderr，
 		// 帶最後一行進錯誤供後端 log 診斷（不回傳前端）。
-		return domainmeeting.FetchedAudio{}, fmt.Errorf("fetch yt-dlp metadata [%s]: %w (%s)", ckNote, err, lastLine(metaErr.Bytes()))
+		return domainmeeting.FetchedAudio{}, fmt.Errorf("fetch yt-dlp metadata: %w (%s)", err, lastLine(metaErr.Bytes()))
 	}
 	lines := strings.Split(strings.TrimSpace(string(metaOut)), "\n")
 	title := ""
@@ -193,11 +160,12 @@ func (f *Fetcher) fetchYtdlp(ctx context.Context, rawURL string) (domainmeeting.
 
 	base := filepath.Join(f.tempDir, "bb-yt-"+uuid.NewString())
 	audioPath := base + ".m4a"
-	dlArgs := append([]string{"-x", "--audio-format", "m4a", "--no-playlist",
+	cmd := exec.CommandContext(ctx, f.ytdlpPath,
+		"-x", "--audio-format", "m4a", "--no-playlist",
 		"--max-filesize", strconv.FormatInt(f.maxBytes, 10),
-		"-o", base + ".%(ext)s"}, ckArgs...)
-	dlArgs = append(dlArgs, rawURL)
-	cmd := exec.CommandContext(ctx, f.ytdlpPath, dlArgs...)
+		"-o", base+".%(ext)s",
+		rawURL,
+	)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		_ = os.Remove(audioPath)
 		return domainmeeting.FetchedAudio{}, fmt.Errorf("fetch yt-dlp download: %w (%s)", err, lastLine(out))

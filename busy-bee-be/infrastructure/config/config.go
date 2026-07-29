@@ -20,13 +20,6 @@ type Config struct {
 	Deepgram DeepgramConfig
 	Push     PushConfig
 	Worker   WorkerConfig
-	Fetch    FetchConfig
-}
-
-type FetchConfig struct {
-	// CookiesPath yt-dlp 的 cookies.txt 路徑（Netscape 格式）。
-	// prod 走此路徑繞過 YouTube 對資料中心 IP 的機器人偵測；空 = 不帶 cookies（本地開發）。
-	CookiesPath string
 }
 
 type WorkerConfig struct {
@@ -145,9 +138,6 @@ func Load() (*Config, error) {
 		},
 		Worker: WorkerConfig{
 			TaskTimeout: parseDuration(lookup("WORKER_TASK_TIMEOUT", "15m"), 15*time.Minute),
-		},
-		Fetch: FetchConfig{
-			CookiesPath: lookup("YTDLP_COOKIES_PATH", ""),
 		},
 	}, nil
 }
