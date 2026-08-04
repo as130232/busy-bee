@@ -4,7 +4,7 @@ import { RefreshCw, Sparkles } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 
 import { askCrossMeetingQA, type QAResult, type QASource } from '../services/api/client'
-import { getIdToken } from '../services/token'
+import { useApiCall } from '../hooks/useApiCall'
 import { formatDateTime } from '../utils/format'
 
 const STORAGE_KEY = 'busybee.qa.last'
@@ -39,6 +39,7 @@ export function AskPage() {
   const [asked, setAsked] = useState<StoredQA | null>(stored)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const call = useApiCall()
 
   const result = asked?.result ?? null
   const byIndex = useMemo(
@@ -56,7 +57,7 @@ export function AskPage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await askCrossMeetingQA(await getIdToken(), trimmed)
+      const res = await call(askCrossMeetingQA, trimmed)
       const record: StoredQA = { question: trimmed, result: res, askedAt: new Date().toISOString() }
       setAsked(record)
       try {

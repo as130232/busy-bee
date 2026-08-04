@@ -15,7 +15,7 @@ import {
 } from 'firebase/auth'
 
 import { auth, googleProvider } from '../services/firebase'
-import { syncUser, ApiError, type User } from '../services/api/client'
+import { syncUser, setUnauthorizedHandler, ApiError, type User } from '../services/api/client'
 
 interface AuthState {
   /** Firebase 登入狀態尚未確定時為 true（避免閃現登入頁） */
@@ -54,6 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     })
     return unsubscribe
+  }, [])
+
+  // 任一 API 回 401/token 過期 → 集中登出並提示重新登入（RequireAuth 隨即導回 /login）。
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      void firebaseSignOut(auth)
+      setUser(null)
+      setError('登入已過期，請重新登入。')
+    })
+    return () => setUnauthorizedHandler(null)
   }, [])
 
   const signIn = useCallback(async () => {
