@@ -9,20 +9,21 @@ import {
   toggleActionItem,
   type PendingActionItem,
 } from '../services/api/client'
-import { getIdToken } from '../services/token'
+import { useApiCall } from '../hooks/useApiCall'
 
 /** Dashboard 上的跨會議未完成行動項卡；無待辦時不顯示。 */
 export function PendingActionItems() {
   const [items, setItems] = useState<PendingActionItem[]>([])
+  const call = useApiCall()
 
   const load = useCallback(async () => {
     try {
-      const { actionItems } = await listPendingActionItems(await getIdToken())
+      const { actionItems } = await call(listPendingActionItems)
       setItems(actionItems)
     } catch {
       // 待辦卡為輔助資訊，載入失敗時靜默略過（不干擾主流程）
     }
-  }, [])
+  }, [call])
 
   useEffect(() => {
     void load()
@@ -31,7 +32,7 @@ export function PendingActionItems() {
   const toggle = async (id: string, done: boolean) => {
     setItems((prev) => prev.filter((it) => it.id !== id)) // 勾選即從未完成清單移除（樂觀）
     try {
-      await toggleActionItem(await getIdToken(), id, done)
+      await call(toggleActionItem, id, done)
     } catch {
       void load() // 失敗則重載回滾
     }
@@ -41,7 +42,7 @@ export function PendingActionItems() {
   const remove = async (id: string) => {
     setItems((prev) => prev.filter((it) => it.id !== id)) // 樂觀移除
     try {
-      await deleteActionItem(await getIdToken(), id)
+      await call(deleteActionItem, id)
     } catch {
       void load() // 失敗則重載回滾
     }

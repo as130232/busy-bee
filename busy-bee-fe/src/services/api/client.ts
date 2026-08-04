@@ -18,6 +18,16 @@ export class ApiError extends Error {
   }
 }
 
+let unauthorizedHandler: (() => void) | null = null
+
+/**
+ * 註冊「授權失效」處理器：任一請求回 40101（token 過期）或 HTTP 401 時觸發，
+ * 由 AuthProvider 注入（登出並導回登入頁），讓 401 處理集中一處而非散落各 catch。
+ */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler
+}
+
 async function request<T>(path: string, init: RequestInit, idToken?: string): Promise<T> {
   const headers = new Headers(init.headers)
   if (idToken) headers.set('Authorization', `Bearer ${idToken}`)
@@ -36,6 +46,8 @@ async function request<T>(path: string, init: RequestInit, idToken?: string): Pr
 
   if (!res.ok || body.errCode !== 0) {
     const code = body.errCode ?? res.status
+    // 授權失效統一在此攔截，通知已註冊的處理器（登出導回登入）。
+    if (code === 40101 || res.status === 401) unauthorizedHandler?.()
     const msg = body.msg || `伺服器錯誤（HTTP ${res.status}）`
     throw new ApiError(code, friendlyMessage(code, msg), res.status, body.traceId)
   }
@@ -213,8 +225,8 @@ export function toggleActionItem(
 }
 
 /** 刪除單筆待辦 */
-export function deleteActionItem(idToken: string, id: string): Promise<unknown> {
-  return request<unknown>(`/api/v1/action-items/${id}`, { method: 'DELETE' }, idToken)
+export function deleteActionItem(idToken: string, id: string): Promise<void> {
+  return request<void>(`/api/v1/action-items/${id}`, { method: 'DELETE' }, idToken)
 }
 
 /** 修改待辦內容 */
@@ -339,8 +351,8 @@ export function updateMeetingSpeakers(
 }
 
 /** 刪除會議（任何狀態，本人限定；關聯資料連帶刪除） */
-export function deleteMeeting(idToken: string, meetingId: string): Promise<unknown> {
-  return request<unknown>(`/api/v1/meetings/${meetingId}`, { method: 'DELETE' }, idToken)
+export function deleteMeeting(idToken: string, meetingId: string): Promise<void> {
+  return request<void>(`/api/v1/meetings/${meetingId}`, { method: 'DELETE' }, idToken)
 }
 
 /** 取得 Web Push VAPID 公鑰 */
@@ -349,8 +361,8 @@ export function getVapidPublicKey(idToken: string): Promise<{ publicKey: string 
 }
 
 /** 註冊推播訂閱 */
-export function subscribePush(idToken: string, sub: PushSubscriptionJSON): Promise<unknown> {
-  return request(
+export function subscribePush(idToken: string, sub: PushSubscriptionJSON): Promise<void> {
+  return request<void>(
     '/api/v1/push/subscriptions',
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) },
     idToken,
@@ -358,8 +370,8 @@ export function subscribePush(idToken: string, sub: PushSubscriptionJSON): Promi
 }
 
 /** 取消推播訂閱 */
-export function unsubscribePush(idToken: string, endpoint: string): Promise<unknown> {
-  return request(
+export function unsubscribePush(idToken: string, endpoint: string): Promise<void> {
+  return request<void>(
     '/api/v1/push/subscriptions',
     { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint }) },
     idToken,

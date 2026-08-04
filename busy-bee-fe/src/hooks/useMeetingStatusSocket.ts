@@ -44,18 +44,24 @@ export function useMeetingStatusSocket(onEvent: (e: MeetingStatusEvent) => void)
 
       ws.onmessage = (evt) => {
         try {
-          const msg = JSON.parse(evt.data as string)
-          if (msg.type === 'authOk') {
+          const msg: unknown = JSON.parse(evt.data as string)
+          if (typeof msg !== 'object' || msg === null) return
+          const m = msg as Record<string, unknown>
+          if (m.type === 'authOk') {
             attempt = 0 // 連線健康，重置退避
-          } else if (msg.type === 'meetingStatus') {
+          } else if (
+            m.type === 'meetingStatus' &&
+            typeof m.meetingId === 'string' &&
+            typeof m.status === 'string'
+          ) {
             onEventRef.current({
-              meetingId: msg.meetingId,
-              status: msg.status,
-              errorMessage: msg.errorMessage,
+              meetingId: m.meetingId,
+              status: m.status,
+              errorMessage: typeof m.errorMessage === 'string' ? m.errorMessage : undefined,
             })
           }
         } catch {
-          // 非 JSON 訊息忽略
+          // 非 JSON 或結構不符的訊息一律忽略
         }
       }
 

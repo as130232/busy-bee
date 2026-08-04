@@ -2,13 +2,8 @@ import { Fragment } from 'react'
 import { Play, Sparkles } from 'lucide-react'
 
 import type { MeetingDetail } from '../services/api/client'
+import { formatClock } from '../utils/format'
 import { resolveSpeakerNames, speakerColor } from './speakerColor'
-
-/** 秒 → m:ss（與逐字稿時間戳一致）。 */
-function fmtClock(sec: number): string {
-  const s = Math.max(0, Math.floor(sec))
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-}
 
 /** 可點時間戳：跳到音檔對應片段（onSeek 由詳情頁注入，與 mini-player 共用 audio）。 */
 function TimeChip({ startMs, onSeek }: { startMs: number; onSeek: (sec: number) => void }) {
@@ -16,11 +11,11 @@ function TimeChip({ startMs, onSeek }: { startMs: number; onSeek: (sec: number) 
     <button
       type="button"
       onClick={() => onSeek(startMs / 1000)}
-      aria-label={`從 ${fmtClock(startMs / 1000)} 播放`}
+      aria-label={`從 ${formatClock(startMs / 1000)} 播放`}
       className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 font-mono text-[11px] tabular-nums text-accent transition hover:bg-accent/20"
     >
       <Play className="size-3" />
-      {fmtClock(startMs / 1000)}
+      {formatClock(startMs / 1000)}
     </button>
   )
 }

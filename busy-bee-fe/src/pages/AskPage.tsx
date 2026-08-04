@@ -4,18 +4,10 @@ import { RefreshCw, Sparkles } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 
 import { askCrossMeetingQA, type QAResult, type QASource } from '../services/api/client'
-import { getIdToken } from '../services/token'
+import { useApiCall } from '../hooks/useApiCall'
+import { formatDateTime } from '../utils/format'
 
 const STORAGE_KEY = 'busybee.qa.last'
-
-const dateTimeFmt: Intl.DateTimeFormatOptions = {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-}
 
 /** 上次問答（存本地端，不進 DB）：切頁回來仍可看到，重新整理也保留。 */
 interface StoredQA {
@@ -47,6 +39,7 @@ export function AskPage() {
   const [asked, setAsked] = useState<StoredQA | null>(stored)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const call = useApiCall()
 
   const result = asked?.result ?? null
   const byIndex = useMemo(
@@ -64,7 +57,7 @@ export function AskPage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await askCrossMeetingQA(await getIdToken(), trimmed)
+      const res = await call(askCrossMeetingQA, trimmed)
       const record: StoredQA = { question: trimmed, result: res, askedAt: new Date().toISOString() }
       setAsked(record)
       try {
@@ -121,7 +114,7 @@ export function AskPage() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{asked.question}</p>
                 <p className="mt-0.5 font-mono text-xs text-muted">
-                  {new Date(asked.askedAt).toLocaleString('zh-TW', dateTimeFmt)}
+                  {formatDateTime(asked.askedAt)}
                 </p>
               </div>
               <button
@@ -140,6 +133,7 @@ export function AskPage() {
             ) : (
               <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none prose-headings:font-semibold prose-h1:text-base prose-h2:mt-4 prose-h2:text-[15px] prose-h3:text-sm prose-p:my-2 prose-ul:my-2 prose-li:my-0.5">
                 <ReactMarkdown
+                  skipHtml
                   components={{
                     a: ({ href, children }) => {
                       const m = /^#cite-(\d+)$/.exec(href ?? '')

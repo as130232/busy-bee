@@ -1,22 +1,10 @@
-import { useState } from 'react'
 import { Mic, Pause, Play, Trash2 } from 'lucide-react'
 
 import { useRecorder } from '../hooks/useRecorder'
-import { auth } from '../services/firebase'
-import { uploadAudio } from '../services/upload'
+import { useFileUpload } from '../hooks/useFileUpload'
 import { scenarioLabels, type Meeting, type Scenario } from '../services/api/client'
+import { formatClock } from '../utils/format'
 import { scenarioThemes } from './scenarioTheme'
-
-function fmt(sec: number): string {
-  const m = Math.floor(sec / 60)
-  const s = sec % 60
-  return `${m}:${String(s).padStart(2, '0')}`
-}
-
-type UploadState =
-  | { phase: 'idle' }
-  | { phase: 'uploading'; percent: number }
-  | { phase: 'error'; message: string; file: File }
 
 export function RecorderPanel({
   onUploaded,
@@ -28,29 +16,12 @@ export function RecorderPanel({
   scenario?: Scenario
 }) {
   const rec = useRecorder()
-  const [upload, setUpload] = useState<UploadState>({ phase: 'idle' })
-
-  const uploadFile = async (file: File) => {
-    const fbUser = auth.currentUser
-    if (!fbUser) return
-    setUpload({ phase: 'uploading', percent: 0 })
-    try {
-      const token = await fbUser.getIdToken()
-      // 標題依情境組成：「會議錄音 …」/「閒聊錄音 …」（檔名前綴為中性「錄音 日期時間」）。
-      const title = `${scenarioLabels[scenario]}${file.name.replace(/\.[^.]+$/, '')}`
-      const meeting = await uploadAudio(
-        token,
-        title,
-        file,
-        (percent) => setUpload({ phase: 'uploading', percent }),
-        scenario,
-      )
-      setUpload({ phase: 'idle' })
-      onUploaded?.(meeting)
-    } catch (e) {
-      setUpload({ phase: 'error', message: e instanceof Error ? e.message : '上傳失敗', file })
-    }
-  }
+  // 上傳流程共用 useFileUpload；標題依情境組成：「會議…」/「閒聊…」（檔名前綴為中性「錄音 日期時間」）。
+  const { state: upload, upload: uploadFile } = useFileUpload({
+    scenario,
+    onUploaded,
+    titleFor: (file) => `${scenarioLabels[scenario]}${file.name.replace(/\.[^.]+$/, '')}`,
+  })
 
   const finish = async () => {
     const file = await rec.stop()
@@ -137,7 +108,7 @@ export function RecorderPanel({
             }`}
           />
         </span>
-        <span className="font-mono text-5xl font-medium tabular-nums">{fmt(rec.elapsedSec)}</span>
+        <span className="font-mono text-5xl font-medium tabular-nums">{formatClock(rec.elapsedSec)}</span>
       </div>
       {interrupted && (
         <p className="m-0 max-w-xs text-center text-sm text-amber-600">
