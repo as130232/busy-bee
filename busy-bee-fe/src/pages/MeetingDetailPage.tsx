@@ -1,4 +1,12 @@
-import { type CSSProperties, type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
@@ -176,6 +184,14 @@ export function MeetingDetailPage() {
     }
   }
 
+  // speakerOrder 依逐字稿首次出現順序，供摘要卡片講者徽章配色（與逐字稿一致）。
+  // 在早期 return 之前計算並 memoize（遵守 hooks 規則）：僅逐字稿變動時才重建陣列，
+  // 避免待辦/標籤更新時連帶重算所有講者配色。
+  const speakerOrder = useMemo(
+    () => [...new Set((meeting?.transcriptSegments ?? []).map((s) => s.speaker))],
+    [meeting?.transcriptSegments],
+  )
+
   if (error) {
     return (
       <AppShell hideTopBar>
@@ -203,10 +219,8 @@ export function MeetingDetailPage() {
   const artifactByType = new Map(artifacts.map((a) => [a.type, a]))
   // 頁籤 = 核心頁籤 + 已存在的選用文件頁籤（PRD / Tech Spec 不再預設出現）。
   const visibleTabs: Tab[] = [...coreTabs, ...optionalDocTabs.filter((t) => artifactByType.has(t))]
-  // meta 統計皆前端可得：講者數取自逐字稿實際出現的代號。
-  const speakerCount = new Set(meeting.transcriptSegments.map((s) => s.speaker)).size
-  // speakerOrder 依逐字稿首次出現順序，供摘要卡片講者徽章配色（與逐字稿一致）。
-  const speakerOrder = [...new Set(meeting.transcriptSegments.map((s) => s.speaker))]
+  // meta 統計皆前端可得：講者數取自逐字稿實際出現的代號（與 speakerOrder 同源）。
+  const speakerCount = speakerOrder.length
   const hasSummary = Boolean(meeting.summary) || meeting.summarySections.some((s) => s.items.length > 0)
   // 摘要 / 待辦 頁另行渲染，docContent 僅供逐字稿與選用文件（PRD/Tech Spec）。
   const docContent =

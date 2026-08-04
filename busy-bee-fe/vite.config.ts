@@ -36,6 +36,26 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // 把體積大且非首屏必需的相依切成獨立 chunk：firebase（auth SDK）與
+        // react-markdown（僅詳情頁/問答頁用到），避免灌入主 bundle（見重構計畫 P2）。
+        manualChunks(id) {
+          if (id.includes('/firebase/') || id.includes('/@firebase/')) return 'firebase'
+          if (
+            id.includes('/react-markdown/') ||
+            id.includes('/remark') ||
+            id.includes('/micromark') ||
+            id.includes('/mdast') ||
+            id.includes('/hast')
+          ) {
+            return 'markdown'
+          }
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/api': { target: 'http://localhost:8080', ws: true },
