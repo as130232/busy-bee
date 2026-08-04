@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 
 import { StatusBadge } from './StatusBadge'
 import { scenarioLabels, type Meeting } from '../services/api/client'
+import { formatDateTime, formatDuration } from '../utils/format'
 
 /** 情境標籤（會議/閒聊/面試）；配色對齊錄音頁情境色（會議琥珀、閒聊天藍、面試翠綠）。 */
 function ScenarioTag({ scenario }: { scenario: Meeting['scenario'] }) {
@@ -18,38 +19,19 @@ function ScenarioTag({ scenario }: { scenario: Meeting['scenario'] }) {
   return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
 }
 
-// formatDuration 以「X 分 Y 秒」呈現時長（不足 1 分只顯示秒；0 秒不顯示）。
-function formatDuration(totalSeconds: number): string {
-  if (totalSeconds <= 0) return ''
-  const min = Math.floor(totalSeconds / 60)
-  const sec = totalSeconds % 60
-  if (min === 0) return `${sec} 秒`
-  if (sec === 0) return `${min} 分`
-  return `${min} 分 ${sec} 秒`
-}
-
-const dateTimeFmt: Intl.DateTimeFormatOptions = {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-}
-
 /** 副標題：日期時間在前，時長以強調 tag 呈現以區隔。 */
 function Subtitle({ m }: { m: Meeting }) {
   if (m.status === 'scheduled' && m.scheduledAt) {
     return (
       <span className="mt-0.5 block font-mono text-xs text-muted">
-        排定 {new Date(m.scheduledAt).toLocaleString('zh-TW', dateTimeFmt)}
+        排定 {formatDateTime(m.scheduledAt)}
       </span>
     )
   }
   const dur = formatDuration(m.durationSeconds)
   return (
     <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
-      <span className="font-mono">{new Date(m.createdAt).toLocaleString('zh-TW', dateTimeFmt)}</span>
+      <span className="font-mono">{formatDateTime(m.createdAt)}</span>
       {dur && <span className="tabular-nums text-muted/80">· {dur}</span>}
     </span>
   )

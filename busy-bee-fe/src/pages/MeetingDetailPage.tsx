@@ -23,6 +23,7 @@ import {
   Trash2,
 } from 'lucide-react'
 
+import { formatClock } from '../utils/format'
 import { ActionItemList } from '../components/ActionItemList'
 import { AppShell } from '../components/AppShell'
 import { ExportBar } from '../components/ExportBar'
@@ -269,7 +270,7 @@ export function MeetingDetailPage() {
           {meeting.durationSeconds > 0 && (
             <>
               <span aria-hidden>·</span>
-              <span>{fmtClock(meeting.durationSeconds)}</span>
+              <span>{formatClock(meeting.durationSeconds)}</span>
             </>
           )}
           {speakerCount > 0 && (
@@ -709,9 +710,9 @@ function SegmentRow({
           type="button"
           className="group -mx-1 flex flex-1 items-center gap-2 rounded-md px-1 py-0.5 transition-colors hover:bg-surface-hover"
           onClick={() => onSeek?.(seg.startMs / 1000)}
-          aria-label={`從 ${fmtClock(seg.startMs / 1000)} 播放`}
+          aria-label={`從 ${formatClock(seg.startMs / 1000)} 播放`}
         >
-          <span className="font-mono text-[11px] tabular-nums text-muted">{fmtClock(seg.startMs / 1000)}</span>
+          <span className="font-mono text-[11px] tabular-nums text-muted">{formatClock(seg.startMs / 1000)}</span>
           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${colorClass}`}>{speakerName}</span>
           <Play className="ml-auto size-3.5 shrink-0 text-muted transition-colors group-hover:text-accent" />
         </button>
@@ -833,14 +834,6 @@ function SpeakerRenameSheet({
   )
 }
 
-// fmtClock 秒 → m:ss（時間碼／播放器共用）。
-function fmtClock(seconds: number): string {
-  if (!isFinite(seconds) || seconds < 0) seconds = 0
-  const m = Math.floor(seconds / 60)
-  const s = Math.floor(seconds % 60)
-  return `${m}:${String(s).padStart(2, '0')}`
-}
-
 /** 音檔播放器：播放/暫停、±10 秒、可拖曳進度條。時長以後端 durationSeconds 為準
  *  （MediaRecorder 產生的 webm 常無 duration metadata）。 */
 function AudioPlayer({
@@ -932,7 +925,7 @@ function AudioPlayer({
         >
           <FastForward className="size-4" />
         </button>
-        <span className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted">{fmtClock(cur)}</span>
+        <span className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted">{formatClock(cur)}</span>
         <input
           type="range"
           className="min-w-0 flex-1 accent-accent"
@@ -944,7 +937,7 @@ function AudioPlayer({
           disabled={!url}
           aria-label="播放進度"
         />
-        <span className="w-9 shrink-0 font-mono text-[11px] tabular-nums text-muted">{fmtClock(total)}</span>
+        <span className="w-9 shrink-0 font-mono text-[11px] tabular-nums text-muted">{formatClock(total)}</span>
       </div>
     </div>,
     document.body,

@@ -5,17 +5,9 @@ import ReactMarkdown from 'react-markdown'
 
 import { askCrossMeetingQA, type QAResult, type QASource } from '../services/api/client'
 import { getIdToken } from '../services/token'
+import { formatDateTime } from '../utils/format'
 
 const STORAGE_KEY = 'busybee.qa.last'
-
-const dateTimeFmt: Intl.DateTimeFormatOptions = {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-}
 
 /** 上次問答（存本地端，不進 DB）：切頁回來仍可看到，重新整理也保留。 */
 interface StoredQA {
@@ -121,7 +113,7 @@ export function AskPage() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{asked.question}</p>
                 <p className="mt-0.5 font-mono text-xs text-muted">
-                  {new Date(asked.askedAt).toLocaleString('zh-TW', dateTimeFmt)}
+                  {formatDateTime(asked.askedAt)}
                 </p>
               </div>
               <button
