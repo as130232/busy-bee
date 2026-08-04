@@ -133,6 +133,7 @@ export function AskPage() {
             ) : (
               <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none prose-headings:font-semibold prose-h1:text-base prose-h2:mt-4 prose-h2:text-[15px] prose-h3:text-sm prose-p:my-2 prose-ul:my-2 prose-li:my-0.5">
                 <ReactMarkdown
+                  skipHtml
                   components={{
                     a: ({ href, children }) => {
                       const m = /^#cite-(\d+)$/.exec(href ?? '')

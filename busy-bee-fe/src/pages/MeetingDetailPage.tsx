@@ -373,7 +373,7 @@ export function MeetingDetailPage() {
             <p className="text-sm leading-7 whitespace-pre-wrap">{docContent}</p>
           ) : (
             <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none prose-headings:font-semibold prose-h1:text-xl prose-h2:mt-6 prose-h2:border-b prose-h2:border-border prose-h2:pb-1.5 prose-h2:text-base">
-              <ReactMarkdown>{docContent}</ReactMarkdown>
+              <ReactMarkdown skipHtml>{docContent}</ReactMarkdown>
             </div>
           )
         ) : (
