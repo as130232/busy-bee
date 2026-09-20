@@ -51,7 +51,9 @@ type geminiSegment struct {
 	Text    string  `json:"text"`
 }
 
-func (c *GeminiClient) Transcribe(ctx context.Context, audio io.Reader, _ int64, filename string) (domainmeeting.TranscribeResult, error) {
+// Transcribe 的 language 參數目前未使用：GeminiClient 未 wire 進 main（見 cmd/server/main.go），
+// 靠 prompts/diarize.md 引導繁中輸出，不支援依語言切換。
+func (c *GeminiClient) Transcribe(ctx context.Context, audio io.Reader, _ int64, filename string, _ domainmeeting.Language) (domainmeeting.TranscribeResult, error) {
 	file, err := c.client.Files.Upload(ctx, audio, &genai.UploadFileConfig{MIMEType: mimeByExt(filename)})
 	if err != nil {
 		return domainmeeting.TranscribeResult{}, fmt.Errorf("stt gemini upload: %w", err)

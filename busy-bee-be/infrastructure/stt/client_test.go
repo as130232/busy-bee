@@ -48,7 +48,7 @@ func TestTranscribe_SendsMultipartAndParsesResponse(t *testing.T) {
 	srv := fakeGroqServer(t, http.StatusOK, string(resp), cap)
 
 	c := New("test-key", WithBaseURL(srv.URL), WithMaxUploadBytes(1024))
-	got, err := c.Transcribe(context.Background(), strings.NewReader("audio"), 5, "m.webm")
+	got, err := c.Transcribe(context.Background(), strings.NewReader("audio"), 5, "m.webm", "")
 	if err != nil {
 		t.Fatalf("Transcribe() error = %v", err)
 	}
@@ -78,7 +78,7 @@ func TestTranscribe_APIErrorSurfacesMessage(t *testing.T) {
 		`{"error":{"message":"rate limit exceeded"}}`, nil)
 
 	c := New("k", WithBaseURL(srv.URL), WithMaxUploadBytes(1024))
-	_, err := c.Transcribe(context.Background(), strings.NewReader("x"), 1, "a.mp3")
+	_, err := c.Transcribe(context.Background(), strings.NewReader("x"), 1, "a.mp3", "")
 
 	if err == nil || !strings.Contains(err.Error(), "rate limit exceeded") {
 		t.Fatalf("err = %v, want groq error message surfaced", err)
@@ -100,7 +100,7 @@ func TestTranscribe_DedupesConsecutiveRepeatedSegments(t *testing.T) {
 	srv := fakeGroqServer(t, http.StatusOK, string(resp), nil)
 
 	c := New("k", WithBaseURL(srv.URL), WithMaxUploadBytes(1<<20))
-	got, err := c.Transcribe(context.Background(), strings.NewReader("x"), 1, "a.mp3")
+	got, err := c.Transcribe(context.Background(), strings.NewReader("x"), 1, "a.mp3", "")
 	if err != nil {
 		t.Fatalf("Transcribe() error = %v", err)
 	}
@@ -116,7 +116,7 @@ func TestTranscribe_NoSegmentsFallsBackToText(t *testing.T) {
 	srv := fakeGroqServer(t, http.StatusOK, string(resp), nil)
 
 	c := New("k", WithBaseURL(srv.URL), WithMaxUploadBytes(1<<20))
-	got, err := c.Transcribe(context.Background(), strings.NewReader("x"), 1, "a.mp3")
+	got, err := c.Transcribe(context.Background(), strings.NewReader("x"), 1, "a.mp3", "")
 	if err != nil {
 		t.Fatalf("Transcribe() error = %v", err)
 	}

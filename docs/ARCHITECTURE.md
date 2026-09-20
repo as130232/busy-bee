@@ -315,6 +315,20 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 
 ---
 
+#### ADR-014: per-meeting STT 語言選擇，detect_language 而非 multi
+
+- **狀態**：採納（Phase 25，F-LANGUAGE）
+- **背景**：STT 語言原本是全域 config（`DEEPGRAM_LANGUAGE=zh-TW`）寫死，全英文會議/面試轉錄品質差（甚至可能拿到空逐字稿）。需求：每筆會議可選中文/英文/自動偵測。
+- **決策**：language 變成 `meetings.language` 欄位（比照 ADR-012 scenario 的「屬性驅動」模式），`domain/meeting.STTClient.Transcribe` 加 `language` 參數；auto 選項用 Deepgram **`detect_language=true`**，偵測到中文時後製簡轉繁（`github.com/longbridgeapp/opencc`，go:embed 內嵌詞典，CPU 執行、無常駐服務，符合 scale-to-zero）。
+- **踩坑（實測結論，保留紀錄）**：
+  1. **`language=multi`（多語混講模式）對純中文音訊仍會壞掉**——用真實 Deepgram API + TTS 中文測試音檔實測，幾乎丟失全部內容（僅轉出兩個英文字）。ADR-011 當年記錄的雷至今沒修好，故完全不採用。
+  2. **`detect_language=true` 是另一個獨立參數，正確可用**：中文音檔正確判斷 `zh`、英文音檔正確判斷 `en`；但 (a) 中文結果輸出為簡體，需後製轉繁；(b) 中英夾雜時英文單字斷詞比明確指定語言時差（如 "spr ing" 而非 "spring"）。
+  3. **明確指定 `language=zh-TW`/`en-US` 轉錄品質最好**，維持為主選項；`auto` 僅作為使用者不確定語言時的降級選項。同時發現：明確指定語言但音訊實際是另一語言時，nova-3 會回**空逐字稿**（比 nova-2 亂轉還不易察覺），提醒語言選擇仍需使用者自行判斷。
+- **後果**：`STTClient` port 簽名變更，三個實作（Deepgram/Groq/Gemini）皆需同步（後兩者未 wire，忽略參數即可編譯）；新增一個第三方 Go dependency（`longbridgeapp/opencc`，Apache-2.0，go:embed 內嵌詞典無外部檔案風險）。
+- **替代方案**：只保留 zh-TW 硬編碼、不做 per-meeting 選擇 → 否決（英文使用者體驗差）；用 `multi` 模式一次涵蓋雙語 → 否決（實測會壞）；自建語音語言辨識模型 → 否決（過度設計，Deepgram 內建 detect_language 已夠用）。
+
+---
+
 ## 10. 已取消 / 暫緩設計
 
 | 項目 | 狀態 | 理由 | 對應 PLAN.md |

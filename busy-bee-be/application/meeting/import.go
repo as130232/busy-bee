@@ -21,6 +21,7 @@ type ImportInput struct {
 	URL      string
 	Title    string // 選填；空則用來源標題（YouTube/Podcast）
 	Scenario string
+	Language string
 }
 
 // ImportUC 由外部連結建立會議：狀態直接 pending、帶 SourceURL，音訊由 worker 抓取（fetchStage）後接原管線。
@@ -51,6 +52,7 @@ func (uc *ImportUC) Execute(ctx context.Context, userID uuid.UUID, in ImportInpu
 		Title:        title,
 		Status:       domainmeeting.StatusPending,
 		Scenario:     domainmeeting.ParseScenario(in.Scenario),
+		Language:     domainmeeting.ParseLanguage(in.Language),
 		AudioGCSPath: fmt.Sprintf("audio/%s/%s.m4a", userID, id),
 		SourceURL:    src,
 	})

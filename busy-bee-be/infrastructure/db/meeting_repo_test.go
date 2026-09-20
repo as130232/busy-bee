@@ -37,9 +37,10 @@ func TestMeetingRepo_CreateAndGet(t *testing.T) {
 	repo := NewMeetingRepo(pool)
 
 	created, err := repo.Create(context.Background(), domainmeeting.Meeting{
-		UserID: u.ID,
-		Title:  "架構討論",
-		Status: domainmeeting.StatusPending,
+		UserID:   u.ID,
+		Title:    "架構討論",
+		Status:   domainmeeting.StatusPending,
+		Language: domainmeeting.LanguageEnUS,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -50,6 +51,9 @@ func TestMeetingRepo_CreateAndGet(t *testing.T) {
 	if created.RemindBeforeMin != 15 {
 		t.Errorf("RemindBeforeMin = %d, want default 15", created.RemindBeforeMin)
 	}
+	if created.Language != domainmeeting.LanguageEnUS {
+		t.Errorf("Language = %q, want en-US", created.Language)
+	}
 
 	got, err := repo.GetForUser(context.Background(), created.ID, u.ID)
 	if err != nil {
@@ -57,6 +61,9 @@ func TestMeetingRepo_CreateAndGet(t *testing.T) {
 	}
 	if got.Title != "架構討論" {
 		t.Errorf("Title = %q, want 架構討論", got.Title)
+	}
+	if got.Language != domainmeeting.LanguageEnUS {
+		t.Errorf("Language round-trip = %q, want en-US", got.Language)
 	}
 }
 

@@ -14,6 +14,7 @@ type importRequest struct {
 	URL      string `json:"url"`
 	Title    string `json:"title"`
 	Scenario string `json:"scenario"`
+	Language string `json:"language"`
 }
 
 // Import POST /api/v1/meetings/import — 由外部連結（YouTube/Podcast/直接音檔）匯入，音訊由 worker 抓取後跑管線。
@@ -34,6 +35,7 @@ func (h *Handler) Import(c *gin.Context) {
 		URL:      req.URL,
 		Title:    req.Title,
 		Scenario: req.Scenario,
+		Language: req.Language,
 	})
 	if err != nil {
 		response.Fail(c, err)

@@ -1,17 +1,19 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react'
 import { CheckCircle2, Upload } from 'lucide-react'
 
-import type { Meeting, Scenario } from '../services/api/client'
+import type { Language, Meeting, Scenario } from '../services/api/client'
 import { useFileUpload } from '../hooks/useFileUpload'
 
 export function UploadZone({
   onUploaded,
   scenario = 'meeting',
+  language = 'zh-TW',
 }: {
   onUploaded?: (m: Meeting) => void
   scenario?: Scenario
+  language?: Language
 }) {
-  const { state, upload, reset } = useFileUpload({ scenario, onUploaded })
+  const { state, upload, reset } = useFileUpload({ scenario, language, onUploaded })
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 

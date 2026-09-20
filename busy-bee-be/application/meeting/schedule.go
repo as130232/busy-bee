@@ -34,6 +34,7 @@ func validateSchedule(p *domainmeeting.ScheduleParams) error {
 		p.RemindBeforeMin = 15 // PRODUCT.md Q3 預設
 	}
 	p.Scenario = domainmeeting.ParseScenario(string(p.Scenario))
+	p.Language = domainmeeting.ParseLanguage(string(p.Language))
 	return nil
 }
 

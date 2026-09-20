@@ -57,6 +57,7 @@ func (r *MeetingRepo) Create(ctx context.Context, m domainmeeting.Meeting) (doma
 		AudioGcsPath:    m.AudioGCSPath,
 		Status:          string(m.Status),
 		Scenario:        string(domainmeeting.ParseScenario(string(m.Scenario))),
+		Language:        string(domainmeeting.ParseLanguage(string(m.Language))),
 		ScheduledAt:     m.ScheduledAt,
 		RemindBeforeMin: int32(remind),
 		SourceUrl:       m.SourceURL,
@@ -221,6 +222,7 @@ func toDomainMeeting(ctx context.Context, row sqlcgen.Meeting) domainmeeting.Mee
 		Tags:               row.Tags,
 		Status:             domainmeeting.Status(row.Status),
 		Scenario:           domainmeeting.ParseScenario(row.Scenario),
+		Language:           domainmeeting.ParseLanguage(row.Language),
 		Transcript:         row.Transcript,
 		Summary:            row.Summary,
 		SummarySections:    sections,
@@ -255,6 +257,7 @@ func (r *MeetingRepo) CreateScheduled(ctx context.Context, userID uuid.UUID, p d
 		UserID:          userID,
 		Title:           p.Title,
 		Scenario:        string(domainmeeting.ParseScenario(string(p.Scenario))),
+		Language:        string(domainmeeting.ParseLanguage(string(p.Language))),
 		ScheduledAt:     &at,
 		RemindBeforeMin: int32(p.RemindBeforeMin),
 	})

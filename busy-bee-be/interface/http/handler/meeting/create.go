@@ -29,6 +29,7 @@ func (h *Handler) Create(c *gin.Context) {
 		Title:       req.Title,
 		ContentType: req.ContentType,
 		Scenario:    req.Scenario,
+		Language:    req.Language,
 	})
 	if err != nil {
 		response.Fail(c, err)

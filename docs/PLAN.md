@@ -7,6 +7,8 @@
 
 ## 當前焦點
 
+**2026-09-19 Phase 25 per-meeting STT 語言選擇程式完成**：STT 語言從全域 config 寫死 `zh-TW` 改成每筆會議可選中文/英文/自動偵測；已用真實 Deepgram API + TTS 測試音檔實測確認 `language=multi` 對純中文音訊仍會壞掉（ADR-011 踩坑至今未修），改用 `detect_language=true` 做自動偵測（正確可用，但中文結果為簡體，已接 OpenCC `longbridgeapp/opencc` 後製轉繁體）。後端 build/vet/test 全綠（新增 domain/STT/application 層測試）、前端 typecheck/lint/test/build 全綠、DB migration 000016 已套用（本地）、sqlc/openapi/TS client 已重生成。詳見 `docs/ARCHITECTURE.md` ADR-014。剩裝置端 e2e 人工驗收（中/英/自動偵測各一段音檔）+ merge/部署。
+
 **2026-08-04 前端首次檢驗與重構（分支 `refactor/fe-first-pass`，進行中）**：三路審查（效能/安全/品質）後分階段清技術債，效能與可維護性並重。已完成並 typecheck/lint/build 全綠：
 - Phase 1（效能）：路由 `React.lazy` code splitting + `vite` manualChunks 切 firebase/markdown → 主 bundle 540KB→262KB；`MeetingDetailPage.speakerOrder` useMemo。
 - Phase 2（消重複）：新增 `utils/format.ts`（formatClock/formatDuration/formatDateTime）與 `hooks/useFileUpload.ts`（RecorderPanel/UploadZone 共用上傳流程）。
@@ -475,10 +477,26 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 
 ---
 
+## Phase 25：per-meeting STT 語言選擇（F-LANGUAGE）
+> 里程碑：post-MVP | 🔄 程式完成，待裝置端 e2e + merge/部署
+> 把 Deepgram STT 語言從全域 config 寫死 zh-TW 改成每筆會議可選：中文(zh-TW)/英文(en-US)/自動偵測(auto)。
+> 已實測：`language=multi` 對純中文音訊會壞掉（幾乎丟失內容，ADR-011 踩坑至今未修，不採用）；`detect_language=true` 正確可用但中文輸出為簡體（需後製轉繁）、中英夾雜斷詞略遜於明確指定語言。詳見 `docs/ARCHITECTURE.md` ADR-014。
+
+- 25.1 ✅ DB：migration 000016（`language` text + CHECK `zh-TW/en-US/auto`）、`CreateMeeting`/`CreateScheduledMeeting` query 加欄位、sqlc 重生、repo `Create`/`CreateScheduled`/`toDomainMeeting` 加轉換
+- 25.2 ✅ domain：`Language`/`ParseLanguage`（TDD）、`Meeting`/`ScheduleParams` 加欄位、`STTClient.Transcribe` 簽名加 language 參數
+- 25.3 ✅ infra：`infrastructure/stt/deepgram.go` 抽出 `buildDeepgramQuery`、auto 分支走 `detect_language=true`（不用 `language=multi`）+ 簡轉繁後製（新增 `github.com/longbridgeapp/opencc` 依賴，go:embed 內嵌詞典無外部檔案風險）；Groq/Gemini client 同步簽名（未 wire，忽略參數）
+- 25.4 ✅ application：create/import/schedule 加 `Language` 輸入 + `ParseLanguage`；process.go 轉發 `m.Language` 給 STT；排程編輯不可改語言（比照 scenario）
+- 25.5 ✅ API/handler：openapi（Meeting schema + 三個 create endpoint）+ request/response 串接 language；重生 TS client
+- 25.6 ✅ 前端：新增 `LanguageSelect`（原生 select，中文/英文/自動偵測）；`RecordPage`/`ScheduleForm` 整合，語言比照情境傳遞給 Recorder/Upload/Import；`uploadAudio` 簽名收斂為 options 物件（`{scenario, language}`）
+- 25.7 ⬜ 裝置端 e2e（中/英/自動偵測各一段音檔，確認自動偵測中文輸出為繁體）+ merge/部署
+
+---
+
 ## Session Log
 
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
+| 2026-09-19 | **Phase 25 per-meeting STT 語言選擇程式完成**：實測 Deepgram 真實 API 確認 `language=multi` 對純中文音訊仍壞（ADR-011 踩坑未修），改採 `detect_language=true` 自動偵測（正確可用）+ OpenCC 簡轉繁後製（`longbridgeapp/opencc`，go:embed 無外部檔案風險）。domain `Language`/`ParseLanguage`（TDD）→ migration 000016 → `STTClient.Transcribe` 加 language 參數（三實作同步）→ application/handler/openapi 串接 → 前端 `LanguageSelect` + `RecordPage`/`ScheduleForm` 整合、`uploadAudio` 簽名收斂為 options 物件。後端 build/vet/test 全綠、前端 typecheck/lint/test/build 全綠。剩裝置端 e2e（25.7）+ merge/部署 | — |
 | 2026-07-29 | **修正 iOS 錄音休眠中斷 + 結束鈕卡死**：`useRecorder` 加 Screen Wake Lock（錄音中防螢幕閒置休眠、`visibilitychange` 回前景重取）；`stop()` 對已被系統停成 inactive 的 recorder 也能用既有 chunks 收尾（不再卡死、不整段丟失）；新增 `interrupted` 狀態（系統中斷時停計時器、`RecorderPanel` 顯示提示仍可上傳已錄部分）。前端無測試框架，驗證＝typecheck/lint/build 綠；剩真機 e2e。平台限制：手動鎖屏/來電仍會中斷（PWA 無法背景錄音），僅能兜底保片段 | `main` |
 | 2026-07-27 | **Phase 19–24 merge + 部署 production**：一批六項深化功能（RAG 跨會議問答、摘要↔音檔時間戳、貼連結匯入、情境/來源篩選+手動標籤、分享匯入、AI 自動標籤）ff-only 併入 main 並 push；CI 自動套用 migration 000014/000015、Cloud Run image 含 yt-dlp。合併後刪除三條分支（`feat/phase-19-24-...`、`fix/worker-reliability-and-hardening`、`refactor/post-audit-cleanup`），本地僅剩 main。剩各 Phase 最後一項裝置端 e2e 人工驗收 | `59ec949` |
 | 2026-07-25 | **iPhone 推播打通（實機驗收）**：測試推播 + 排程會議提醒皆收到（Apple 201）。根因＝VAPID JWT sub 雙重 mailto 前綴 → Apple 403 BadJwtToken（Chrome/FF 容忍、僅 iOS 失敗）；改傳原始 email + 回歸測試。連帶：403/404/410 一律清除失效訂閱（解殭屍訂閱洪水/429）。移除診斷 log | `0825a80, 6620e75` |

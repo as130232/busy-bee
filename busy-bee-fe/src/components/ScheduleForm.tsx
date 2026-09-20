@@ -4,10 +4,12 @@ import { CalendarPlus, X } from 'lucide-react'
 import {
   createScheduledMeeting,
   updateMeetingSchedule,
+  type Language,
   type Meeting,
   type Scenario,
 } from '../services/api/client'
 import { getIdToken } from '../services/token'
+import { LanguageSelect } from './LanguageSelect'
 import { ScenarioToggle } from './ScenarioToggle'
 import { Sheet } from './Sheet'
 
@@ -29,6 +31,7 @@ interface SheetProps {
 export function ScheduleSheet({ editing, onClose, onSaved }: SheetProps) {
   const [title, setTitle] = useState(editing?.title ?? '')
   const [scenario, setScenario] = useState<Scenario>('meeting')
+  const [language, setLanguage] = useState<Language>('zh-TW')
   const [at, setAt] = useState(editing?.scheduledAt ? toLocalInputValue(editing.scheduledAt) : '')
   const [remind, setRemind] = useState(editing?.remindBeforeMin ?? 15)
   const [error, setError] = useState<string | null>(null)
@@ -40,10 +43,10 @@ export function ScheduleSheet({ editing, onClose, onSaved }: SheetProps) {
     try {
       const input = { title, scheduledAt: new Date(at).toISOString(), remindBeforeMin: remind }
       const token = await getIdToken()
-      // 情境僅於建立時設定（排程編輯不改情境）。
+      // 情境與語言僅於建立時設定（排程編輯不改情境/語言）。
       const { meeting } = editing
         ? await updateMeetingSchedule(token, editing.id, input)
-        : await createScheduledMeeting(token, { ...input, scenario })
+        : await createScheduledMeeting(token, { ...input, scenario, language })
       onClose()
       onSaved?.(meeting)
     } catch (e) {
@@ -69,9 +72,11 @@ export function ScheduleSheet({ editing, onClose, onSaved }: SheetProps) {
           onChange={(e) => setTitle(e.target.value)}
         />
         {!editing && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted">情境</span>
             <ScenarioToggle value={scenario} onChange={setScenario} disabled={busy} />
+            <span className="text-sm text-muted">語言</span>
+            <LanguageSelect value={language} onChange={setLanguage} disabled={busy} />
           </div>
         )}
         <input

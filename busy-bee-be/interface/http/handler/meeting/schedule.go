@@ -16,6 +16,7 @@ import (
 type scheduleRequest struct {
 	Title           string `json:"title"`
 	Scenario        string `json:"scenario"`    // meeting/casual；省略回退 meeting
+	Language        string `json:"language"`    // zh-TW/en-US/auto；省略回退 zh-TW
 	ScheduledAt     string `json:"scheduledAt"` // RFC3339
 	RemindBeforeMin int    `json:"remindBeforeMin"`
 }
@@ -28,6 +29,7 @@ func (r scheduleRequest) toParams() (domainmeeting.ScheduleParams, error) {
 	return domainmeeting.ScheduleParams{
 		Title:           r.Title,
 		Scenario:        domainmeeting.ParseScenario(r.Scenario),
+		Language:        domainmeeting.ParseLanguage(r.Language),
 		ScheduledAt:     at,
 		RemindBeforeMin: r.RemindBeforeMin,
 	}, nil

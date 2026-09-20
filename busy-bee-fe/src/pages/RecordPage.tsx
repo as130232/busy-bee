@@ -3,13 +3,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Link2, Upload, X } from 'lucide-react'
 
 import { ImportLinkForm } from '../components/ImportLinkForm'
+import { LanguageSelect } from '../components/LanguageSelect'
 import { RecorderPanel } from '../components/RecorderPanel'
 import { ScenarioToggle } from '../components/ScenarioToggle'
 import { scenarioThemes } from '../components/scenarioTheme'
 import { Sheet } from '../components/Sheet'
 import { UploadZone } from '../components/UploadZone'
 import { useShareImport } from '../hooks/useShareImport'
-import type { Scenario } from '../services/api/client'
+import type { Language, Scenario } from '../services/api/client'
 
 type SheetKind = null | 'upload' | 'link'
 
@@ -42,6 +43,8 @@ export function RecordPage() {
 
   // 錄音/上傳前先選情境；預設會議。決定 AI 產出的摘要區塊模板。
   const [scenario, setScenario] = useState<Scenario>('meeting')
+  // 錄音/上傳前先選語言；預設中文。決定 STT 辨識語言。
+  const [language, setLanguage] = useState<Language>('zh-TW')
   const [sheet, setSheet] = useState<SheetKind>(null)
 
   // 分享/捷徑帶進來的連結（?import= 或 PWA share_target）自動匯入
@@ -82,12 +85,18 @@ export function RecordPage() {
         </div>
       )}
 
-      <div className="flex justify-center pt-3">
+      <div className="flex flex-wrap items-center justify-center gap-2 pt-3">
         <ScenarioToggle value={scenario} onChange={setScenario} />
+        <LanguageSelect value={language} onChange={setLanguage} />
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center">
-        <RecorderPanel onUploaded={toMeetings} highlight={highlight} scenario={scenario} />
+        <RecorderPanel
+          onUploaded={toMeetings}
+          highlight={highlight}
+          scenario={scenario}
+          language={language}
+        />
       </div>
 
       {/* 匯入捷徑：兩顆簡約按鈕，點擊彈出對應視窗 */}
@@ -99,13 +108,13 @@ export function RecordPage() {
       {sheet === 'upload' && (
         <Sheet onClose={() => setSheet(null)}>
           <SheetHeader title="上傳音訊檔" onClose={() => setSheet(null)} />
-          <UploadZone onUploaded={toMeetings} scenario={scenario} />
+          <UploadZone onUploaded={toMeetings} scenario={scenario} language={language} />
         </Sheet>
       )}
       {sheet === 'link' && (
         <Sheet onClose={() => setSheet(null)}>
           <SheetHeader title="貼連結匯入" onClose={() => setSheet(null)} />
-          <ImportLinkForm onImported={toMeetings} scenario={scenario} />
+          <ImportLinkForm onImported={toMeetings} scenario={scenario} language={language} />
         </Sheet>
       )}
     </div>

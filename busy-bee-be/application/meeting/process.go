@@ -255,7 +255,7 @@ func (uc *ProcessUC) transcribe(ctx context.Context, m domainmeeting.Meeting) (d
 	}
 	defer audio.Close()
 
-	result, err := uc.stt.Transcribe(ctx, audio, size, path.Base(m.AudioGCSPath))
+	result, err := uc.stt.Transcribe(ctx, audio, size, path.Base(m.AudioGCSPath), m.Language)
 	if err != nil {
 		return domainmeeting.TranscribeResult{}, fmt.Errorf("process transcribe: %w", err)
 	}

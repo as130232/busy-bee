@@ -31,6 +31,8 @@ type CreateInput struct {
 	ContentType string
 	// Scenario 紀錄情境（會議/閒聊）；空或無效值一律回退 meeting。
 	Scenario string
+	// Language STT 辨識語言（zh-TW/en-US/auto）；空或無效值一律回退 zh-TW。
+	Language string
 }
 
 type CreateOutput struct {
@@ -65,6 +67,7 @@ func (uc *CreateUC) Execute(ctx context.Context, userID uuid.UUID, in CreateInpu
 		Title:        title,
 		Status:       domainmeeting.StatusScheduled,
 		Scenario:     domainmeeting.ParseScenario(in.Scenario),
+		Language:     domainmeeting.ParseLanguage(in.Language),
 		AudioGCSPath: fmt.Sprintf("audio/%s/%s%s", userID, id, ext),
 	})
 	if err != nil {

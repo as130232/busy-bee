@@ -35,7 +35,10 @@ describe('useFileUpload', () => {
       await result.current.upload(audioFile())
     })
 
-    expect(uploadAudioMock).toHaveBeenCalledWith('tok', 'rec', expect.any(File), expect.any(Function), 'meeting')
+    expect(uploadAudioMock).toHaveBeenCalledWith('tok', 'rec', expect.any(File), expect.any(Function), {
+      scenario: 'meeting',
+      language: 'zh-TW',
+    })
     expect(result.current.state).toMatchObject({ phase: 'done', meeting })
     expect(onUploaded).toHaveBeenCalledWith(meeting)
   })
@@ -48,7 +51,10 @@ describe('useFileUpload', () => {
     await act(async () => {
       await result.current.upload(audioFile('abc.m4a'))
     })
-    expect(uploadAudioMock).toHaveBeenCalledWith('tok', '會議abc', expect.any(File), expect.any(Function), 'meeting')
+    expect(uploadAudioMock).toHaveBeenCalledWith('tok', '會議abc', expect.any(File), expect.any(Function), {
+      scenario: 'meeting',
+      language: 'zh-TW',
+    })
   })
 
   it('失敗時轉為 error、保留 file 供重試', async () => {

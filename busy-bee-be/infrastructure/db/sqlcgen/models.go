@@ -57,6 +57,7 @@ type Meeting struct {
 	SummarySections    []byte
 	SourceUrl          string
 	Tags               []string
+	Language           string
 }
 
 type PushSubscription struct {

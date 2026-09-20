@@ -88,6 +88,16 @@ export const scenarioLabels: Record<Scenario, string> = {
   idea: '想法',
 }
 
+/** STT 辨識語言（中文 / 英文 / 自動偵測）。 */
+export type Language = Meeting['language']
+
+/** 語言顯示標籤（前端一律以此對應中文標籤，避免各處硬編）。 */
+export const languageLabels: Record<Language, string> = {
+  'zh-TW': '中文',
+  'en-US': '英文',
+  auto: '自動偵測',
+}
+
 export interface CreateMeetingResult {
   meeting: Meeting
   upload: { url: string; headers: Record<string, string> }
@@ -96,7 +106,7 @@ export interface CreateMeetingResult {
 /** 建立會議並取得 GCS 直傳 signed URL */
 export function createMeeting(
   idToken: string,
-  input: { title: string; contentType: string; scenario?: Scenario },
+  input: { title: string; contentType: string; scenario?: Scenario; language?: Language },
 ): Promise<CreateMeetingResult> {
   return request<CreateMeetingResult>(
     '/api/v1/meetings',
@@ -112,7 +122,7 @@ export function createMeeting(
 /** 貼連結匯入（YouTube / Podcast / 直接音檔）：音訊由後端抓取後跑管線；標題留空自動用來源標題 */
 export function importMeeting(
   idToken: string,
-  input: { url: string; title?: string; scenario?: Scenario },
+  input: { url: string; title?: string; scenario?: Scenario; language?: Language },
 ): Promise<{ meeting: Meeting }> {
   return request<{ meeting: Meeting }>(
     '/api/v1/meetings/import',
@@ -249,7 +259,13 @@ export function editActionItem(
 /** 建立排程會議（提醒用） */
 export function createScheduledMeeting(
   idToken: string,
-  input: { title: string; scheduledAt: string; remindBeforeMin?: number; scenario?: Scenario },
+  input: {
+    title: string
+    scheduledAt: string
+    remindBeforeMin?: number
+    scenario?: Scenario
+    language?: Language
+  },
 ): Promise<{ meeting: Meeting }> {
   return request<{ meeting: Meeting }>(
     '/api/v1/meetings/scheduled',

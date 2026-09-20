@@ -74,7 +74,7 @@ func TestTranscribe_OversizedTriggersCompression(t *testing.T) {
 
 	// 上限 50KB：原始 wav（約 220KB）觸發壓縮，壓縮後（約 10KB）可通過
 	c := New("k", WithBaseURL(srv.URL), WithMaxUploadBytes(50*1024))
-	_, err := c.Transcribe(context.Background(), in, info.Size(), "big.wav")
+	_, err := c.Transcribe(context.Background(), in, info.Size(), "big.wav", "")
 	if err != nil {
 		t.Fatalf("Transcribe() error = %v", err)
 	}

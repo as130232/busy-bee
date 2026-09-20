@@ -402,6 +402,11 @@ export interface components {
              * @enum {string}
              */
             scenario: "meeting" | "casual" | "interview" | "idea";
+            /**
+             * @description STT 辨識語言（中文/英文/自動偵測）
+             * @enum {string}
+             */
+            language: "zh-TW" | "en-US" | "auto";
             /** @description 使用者自訂標籤（手動分類/篩選） */
             tags: string[];
             /** @description true 表示由貼連結匯入（非錄音/上傳） */
@@ -621,6 +626,12 @@ export interface operations {
                      * @enum {string}
                      */
                     scenario?: "meeting" | "casual" | "interview" | "idea";
+                    /**
+                     * @description STT 辨識語言（中文/英文/自動偵測）；省略或無效值回退 zh-TW。
+                     * @default zh-TW
+                     * @enum {string}
+                     */
+                    language?: "zh-TW" | "en-US" | "auto";
                 };
             };
         };
@@ -679,6 +690,12 @@ export interface operations {
                      * @enum {string}
                      */
                     scenario?: "meeting" | "casual" | "interview" | "idea";
+                    /**
+                     * @description STT 辨識語言（中文/英文/自動偵測）；省略或無效值回退 zh-TW。
+                     * @default zh-TW
+                     * @enum {string}
+                     */
+                    language?: "zh-TW" | "en-US" | "auto";
                 };
             };
         };
@@ -781,6 +798,12 @@ export interface operations {
                      * @enum {string}
                      */
                     scenario?: "meeting" | "casual" | "interview" | "idea";
+                    /**
+                     * @description STT 辨識語言（中文/英文/自動偵測）；省略或無效值回退 zh-TW。
+                     * @default zh-TW
+                     * @enum {string}
+                     */
+                    language?: "zh-TW" | "en-US" | "auto";
                     /** Format: date-time */
                     scheduledAt: string;
                     /** @default 15 */

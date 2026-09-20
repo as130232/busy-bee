@@ -120,6 +120,11 @@ paths:
                   enum: [meeting, casual, interview, idea]
                   default: meeting
                   description: 紀錄情境（會議/閒聊/面試）；決定 AI 產出的結構化摘要區塊模板。省略或無效值回退 meeting。
+                language:
+                  type: string
+                  enum: [zh-TW, en-US, auto]
+                  default: zh-TW
+                  description: STT 辨識語言（中文/英文/自動偵測）；省略或無效值回退 zh-TW。
       responses:
         "200":
           description: 建立成功
@@ -182,6 +187,11 @@ paths:
                   type: string
                   enum: [meeting, casual, interview, idea]
                   default: meeting
+                language:
+                  type: string
+                  enum: [zh-TW, en-US, auto]
+                  default: zh-TW
+                  description: STT 辨識語言（中文/英文/自動偵測）；省略或無效值回退 zh-TW。
       responses:
         "200":
           description: 已建立（status = pending，worker 開始抓取）
@@ -283,6 +293,11 @@ paths:
                   enum: [meeting, casual, interview, idea]
                   default: meeting
                   description: 紀錄情境（會議/閒聊/面試）；省略或無效值回退 meeting。
+                language:
+                  type: string
+                  enum: [zh-TW, en-US, auto]
+                  default: zh-TW
+                  description: STT 辨識語言（中文/英文/自動偵測）；省略或無效值回退 zh-TW。
                 scheduledAt: { type: string, format: date-time }
                 remindBeforeMin: { type: integer, default: 15, minimum: 1 }
       responses:
@@ -1013,7 +1028,7 @@ components:
 
     Meeting:
       type: object
-      required: [id, title, status, scenario, tags, imported, durationSeconds, remindBeforeMin, createdAt]
+      required: [id, title, status, scenario, language, tags, imported, durationSeconds, remindBeforeMin, createdAt]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -1024,6 +1039,10 @@ components:
           type: string
           enum: [meeting, casual, interview, idea]
           description: "紀錄情境（會議/閒聊/面試）"
+        language:
+          type: string
+          enum: [zh-TW, en-US, auto]
+          description: "STT 辨識語言（中文/英文/自動偵測）"
         tags:
           type: array
           items: { type: string }

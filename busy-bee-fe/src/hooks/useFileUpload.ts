@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 
 import { auth } from '../services/firebase'
 import { uploadAudio } from '../services/upload'
-import type { Meeting, Scenario } from '../services/api/client'
+import type { Language, Meeting, Scenario } from '../services/api/client'
 
 /** 音檔上傳狀態機（RecorderPanel / UploadZone 共用）。 */
 export type FileUploadState =
@@ -13,6 +13,7 @@ export type FileUploadState =
 
 export interface UseFileUploadOptions {
   scenario?: Scenario
+  language?: Language
   onUploaded?: (m: Meeting) => void
   /** 由檔案決定標題；未提供時取去副檔名的檔名（空則「未命名會議」）。 */
   titleFor?: (file: File) => string
@@ -29,7 +30,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
   optsRef.current = options
 
   const upload = useCallback(async (file: File) => {
-    const { scenario = 'meeting', onUploaded, titleFor } = optsRef.current
+    const { scenario = 'meeting', language = 'zh-TW', onUploaded, titleFor } = optsRef.current
     const fbUser = auth.currentUser
     if (!fbUser) return
     setState({ phase: 'uploading', percent: 0, file })
@@ -41,7 +42,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
         title,
         file,
         (percent) => setState({ phase: 'uploading', percent, file }),
-        scenario,
+        { scenario, language },
       )
       setState({ phase: 'done', meeting })
       onUploaded?.(meeting)

@@ -118,11 +118,13 @@ type fakeSTT struct {
 	err         error
 	called      bool
 	gotFilename string
+	gotLanguage domainmeeting.Language
 }
 
-func (f *fakeSTT) Transcribe(_ context.Context, _ io.Reader, _ int64, filename string) (domainmeeting.TranscribeResult, error) {
+func (f *fakeSTT) Transcribe(_ context.Context, _ io.Reader, _ int64, filename string, language domainmeeting.Language) (domainmeeting.TranscribeResult, error) {
 	f.called = true
 	f.gotFilename = filename
+	f.gotLanguage = language
 	return f.result, f.err
 }
 
@@ -179,6 +181,21 @@ func TestProcess_FullPipelineFromPending(t *testing.T) {
 	}
 	if stt.gotFilename != "m.webm" {
 		t.Errorf("stt filename = %q, want m.webm (base of gcs path)", stt.gotFilename)
+	}
+}
+
+func TestProcess_TranscribeForwardsLanguage(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusPending, "")}
+	repo.meeting.Language = domainmeeting.LanguageEnUS
+	st := &processFakeStorage{content: "audio-bytes"}
+	stt := &fakeSTT{result: domainmeeting.TranscribeResult{Text: "hello", DurationSeconds: 3}}
+	uc := newTestProcessUC(repo, st, stt, &fakeNotifier{})
+
+	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if stt.gotLanguage != domainmeeting.LanguageEnUS {
+		t.Errorf("stt language = %q, want en-US", stt.gotLanguage)
 	}
 }
 

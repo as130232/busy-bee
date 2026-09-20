@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CheckCircle2, ClipboardPaste, Link2 } from 'lucide-react'
 
-import { importMeeting, type Meeting, type Scenario } from '../services/api/client'
+import { importMeeting, type Language, type Meeting, type Scenario } from '../services/api/client'
 import { getIdToken } from '../services/token'
 import { extractURL } from '../services/url'
 
@@ -14,9 +14,11 @@ type State =
 /** 貼連結匯入：YouTube / Podcast / 直接音檔連結 → 後端抓取音訊 → 轉錄摘要。 */
 export function ImportLinkForm({
   scenario = 'meeting',
+  language = 'zh-TW',
   onImported,
 }: {
   scenario?: Scenario
+  language?: Language
   onImported?: (m: Meeting) => void
 }) {
   const [url, setUrl] = useState('')
@@ -42,7 +44,7 @@ export function ImportLinkForm({
     if (!link || state.phase === 'submitting') return
     setState({ phase: 'submitting' })
     try {
-      const { meeting } = await importMeeting(await getIdToken(), { url: link, scenario })
+      const { meeting } = await importMeeting(await getIdToken(), { url: link, scenario, language })
       setState({ phase: 'done', meeting })
       setUrl('')
       onImported?.(meeting)

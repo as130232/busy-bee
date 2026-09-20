@@ -2,7 +2,7 @@ import { Mic, Pause, Play, Trash2 } from 'lucide-react'
 
 import { useRecorder } from '../hooks/useRecorder'
 import { useFileUpload } from '../hooks/useFileUpload'
-import { scenarioLabels, type Meeting, type Scenario } from '../services/api/client'
+import { scenarioLabels, type Language, type Meeting, type Scenario } from '../services/api/client'
 import { formatClock } from '../utils/format'
 import { scenarioThemes } from './scenarioTheme'
 
@@ -10,15 +10,18 @@ export function RecorderPanel({
   onUploaded,
   highlight = false,
   scenario = 'meeting',
+  language = 'zh-TW',
 }: {
   onUploaded?: (m: Meeting) => void
   highlight?: boolean
   scenario?: Scenario
+  language?: Language
 }) {
   const rec = useRecorder()
   // 上傳流程共用 useFileUpload；標題依情境組成：「會議…」/「閒聊…」（檔名前綴為中性「錄音 日期時間」）。
   const { state: upload, upload: uploadFile } = useFileUpload({
     scenario,
+    language,
     onUploaded,
     titleFor: (file) => `${scenarioLabels[scenario]}${file.name.replace(/\.[^.]+$/, '')}`,
   })

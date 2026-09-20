@@ -71,6 +71,30 @@ func ParseScenario(s string) Scenario {
 	return ScenarioMeeting
 }
 
+// Language STT 辨識語言：zh-TW（繁中，預設）/ en-US（英文）/ auto（自動偵測）。
+// auto 走 Deepgram detect_language=true；偵測為中文時輸出為簡體，需後製簡轉繁
+// （infrastructure/stt/deepgram.go），偵測為英文時中英夾雜斷詞略遜於明確指定語言。
+type Language string
+
+const (
+	LanguageZhTW Language = "zh-TW"
+	LanguageEnUS Language = "en-US"
+	LanguageAuto Language = "auto"
+)
+
+func (l Language) IsValid() bool {
+	return l == LanguageZhTW || l == LanguageEnUS || l == LanguageAuto
+}
+
+// ParseLanguage 將字串轉為 Language；無效或空值一律回退 zh-TW（不回錯，容忍舊資料，比照 ParseScenario）。
+func ParseLanguage(s string) Language {
+	l := Language(s)
+	if l.IsValid() {
+		return l
+	}
+	return LanguageZhTW
+}
+
 // SummaryPoint 區塊內的一個重點。Text 為必填內容（純條列時即內容，卡片時為說明）；
 // Heading 有值時渲染成卡片標題，Speaker 有值時顯示講者徽章（多為 meeting 情境）。
 // StartMs 有值時為該重點主要依據的逐字稿片段起始毫秒，供前端點擊跳轉音檔。
@@ -128,6 +152,8 @@ type Meeting struct {
 	Status    Status
 	// Scenario 紀錄情境（會議/閒聊）；預設 meeting，決定 AI 產出的區塊模板。
 	Scenario Scenario
+	// Language STT 辨識語言；預設 zh-TW，決定 Deepgram language/detect_language 參數。
+	Language Language
 	// Tags 使用者自訂標籤（手動分類；本人限定，去空白去重）。
 	Tags       []string
 	Transcript string
@@ -176,6 +202,7 @@ type Repository interface {
 type ScheduleParams struct {
 	Title           string
 	Scenario        Scenario
+	Language        Language
 	ScheduledAt     time.Time
 	RemindBeforeMin int
 }

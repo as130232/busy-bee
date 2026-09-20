@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
@@ -17,13 +18,38 @@ import (
 
 const deepgramBaseURL = "https://api.deepgram.com/v1/listen"
 
+// buildDeepgramQuery 組裝 Deepgram API 的 query 參數。
+// lang == "auto" 時用 detect_language=true（不用 language=multi：對純中文音訊會壞掉，已實測確認）；
+// lang 為其他非空值時明確帶 language；lang 為空時兩者皆不帶，交由 Deepgram 預設。
+func buildDeepgramQuery(model, lang string, keywords []string) url.Values {
+	q := url.Values{}
+	q.Set("model", model)
+	q.Set("diarize", "true")
+	q.Set("punctuate", "true")
+	q.Set("smart_format", "true")
+	switch domainmeeting.Language(lang) {
+	case domainmeeting.LanguageAuto:
+		q.Set("detect_language", "true")
+	case "":
+		// 不帶語言參數
+	default:
+		q.Set("language", lang)
+	}
+	for _, kw := range keywords {
+		q.Add("keywords", kw) // 術語加權，提升專有名詞/英文詞辨識
+	}
+	return q
+}
+
 type DeepgramClient struct {
 	httpClient *http.Client
 	apiKey     string
 	model      string
-	language   string
-	keywords   []string
-	baseURL    string
+	// language 是 config 注入的 fallback 預設值；per-meeting 語言由 Transcribe 呼叫時的參數決定，
+	// 只有呼叫端未帶語言（空字串）才會用到這個值。
+	language string
+	keywords []string
+	baseURL  string
 }
 
 var _ domainmeeting.STTClient = (*DeepgramClient)(nil)
@@ -56,11 +82,21 @@ type deepgramResponse struct {
 	} `json:"metadata"`
 	Results struct {
 		Channels []struct {
-			Alternatives []struct {
+			// DetectedLanguage 僅在請求帶 detect_language=true（language=auto）時有值。
+			DetectedLanguage string `json:"detected_language"`
+			Alternatives     []struct {
 				Words []deepgramWord `json:"words"`
 			} `json:"alternatives"`
 		} `json:"channels"`
 	} `json:"results"`
+}
+
+// detectedLanguage 回傳 Deepgram 回應中偵測到的語言（僅 auto 模式有值），無資料時回傳空字串。
+func detectedLanguage(dr deepgramResponse) string {
+	if len(dr.Results.Channels) == 0 {
+		return ""
+	}
+	return dr.Results.Channels[0].DetectedLanguage
 }
 
 type deepgramWord struct {
@@ -71,18 +107,12 @@ type deepgramWord struct {
 	Speaker        *int    `json:"speaker"`
 }
 
-func (c *DeepgramClient) Transcribe(ctx context.Context, audio io.Reader, sizeBytes int64, filename string) (domainmeeting.TranscribeResult, error) {
-	q := url.Values{}
-	q.Set("model", c.model)
-	q.Set("diarize", "true")
-	q.Set("punctuate", "true")
-	q.Set("smart_format", "true")
-	if c.language != "" {
-		q.Set("language", c.language)
+func (c *DeepgramClient) Transcribe(ctx context.Context, audio io.Reader, sizeBytes int64, filename string, language domainmeeting.Language) (domainmeeting.TranscribeResult, error) {
+	lang := string(language)
+	if lang == "" {
+		lang = c.language // 呼叫端未帶語言時，退回 config 注入的 fallback 預設值
 	}
-	for _, kw := range c.keywords {
-		q.Add("keywords", kw) // 術語加權，提升專有名詞/英文詞辨識
-	}
+	q := buildDeepgramQuery(c.model, lang, c.keywords)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"?"+q.Encode(), audio)
 	if err != nil {
@@ -114,6 +144,13 @@ func (c *DeepgramClient) Transcribe(ctx context.Context, audio io.Reader, sizeBy
 	}
 
 	segs := aggregateDeepgramWords(dr)
+	// 只有 auto 模式且偵測結果為中文時才做簡轉繁：明確指定 zh-TW 時 Deepgram 已直接輸出繁體，
+	// 再轉一次徒增成本也可能誤判，故僅在 auto 分支後製。
+	if lang == string(domainmeeting.LanguageAuto) && strings.HasPrefix(detectedLanguage(dr), "zh") {
+		for i := range segs {
+			segs[i].Text = toTraditional(segs[i].Text)
+		}
+	}
 	return domainmeeting.TranscribeResult{
 		Text:            domainmeeting.FlattenSegments(segs),
 		Segments:        segs,

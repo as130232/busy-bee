@@ -26,7 +26,7 @@ type TranscribeResult struct {
 // STTClient 語音轉文字 port（實作在 infrastructure/stt）。
 // 實作自行處理供應商的檔案大小上限（必要時壓縮）；支援 diarization 者一併回填 Segments。
 type STTClient interface {
-	Transcribe(ctx context.Context, audio io.Reader, sizeBytes int64, filename string) (TranscribeResult, error)
+	Transcribe(ctx context.Context, audio io.Reader, sizeBytes int64, filename string, language Language) (TranscribeResult, error)
 }
 
 // FlattenSegments 將分講者片段攤平為帶講者前綴的純文字（每段一行 "A: …"），

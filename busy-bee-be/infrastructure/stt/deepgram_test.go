@@ -1,8 +1,14 @@
 package stt
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 )
 
 func TestAggregateDeepgramWords(t *testing.T) {
@@ -42,5 +48,89 @@ func TestAggregateDeepgramWords(t *testing.T) {
 	// 時間碼：seg0 從 0 到 1100ms
 	if segs[0].StartMs != 0 || segs[0].EndMs != 1100 {
 		t.Errorf("seg0 time = %d-%d, want 0-1100", segs[0].StartMs, segs[0].EndMs)
+	}
+}
+
+func TestBuildDeepgramQuery(t *testing.T) {
+	cases := []struct {
+		name           string
+		lang           string
+		wantLanguage   string
+		wantHasLang    bool
+		wantDetectLang string
+		wantHasDetect  bool
+	}{
+		{"明確語言", "zh-TW", "zh-TW", true, "", false},
+		{"auto 走 detect_language 不走 multi", "auto", "", false, "true", true},
+		{"空值兩者皆不帶", "", "", false, "", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			q := buildDeepgramQuery("nova-3", c.lang, nil)
+			if got, has := q["language"]; has != c.wantHasLang || (has && got[0] != c.wantLanguage) {
+				t.Errorf("language = %v (has=%v), want %q (has=%v)", got, has, c.wantLanguage, c.wantHasLang)
+			}
+			if got, has := q["detect_language"]; has != c.wantHasDetect || (has && got[0] != c.wantDetectLang) {
+				t.Errorf("detect_language = %v (has=%v), want %q (has=%v)", got, has, c.wantDetectLang, c.wantHasDetect)
+			}
+			// language=multi 對純中文音訊會壞掉（已實測），任何情況都不應出現
+			if q.Get("language") == "multi" {
+				t.Error("不應使用 language=multi")
+			}
+		})
+	}
+}
+
+func TestTranscribe_AutoDetectedChinese_ConvertsToTraditional(t *testing.T) {
+	// 簡體「国」在偵測為中文（auto）時應轉換為繁體「國」。
+	const raw = `{
+      "metadata": {"duration": 1.0},
+      "results": {"channels": [{
+        "detected_language": "zh",
+        "alternatives": [{"words": [
+          {"word": "国", "punctuated_word": "国", "start": 0.0, "end": 0.5, "speaker": 0}
+        ]}]
+      }]}
+    }`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(raw))
+	}))
+	defer srv.Close()
+
+	c := NewDeepgram("k", "nova-3", "zh-TW", nil, WithDeepgramBaseURL(srv.URL))
+	result, err := c.Transcribe(context.Background(), strings.NewReader("audio"), 5, "a.wav", domainmeeting.LanguageAuto)
+	if err != nil {
+		t.Fatalf("Transcribe() error = %v", err)
+	}
+	if result.Text != "A: 國" {
+		t.Errorf("Text = %q, want \"A: 國\"（簡轉繁後）", result.Text)
+	}
+}
+
+func TestTranscribe_ExplicitZhTW_DoesNotConvert(t *testing.T) {
+	// 明確指定 zh-TW（非 auto）時，即使回應帶 detected_language 也不應觸發簡轉繁。
+	const raw = `{
+      "metadata": {"duration": 1.0},
+      "results": {"channels": [{
+        "detected_language": "zh",
+        "alternatives": [{"words": [
+          {"word": "国", "punctuated_word": "国", "start": 0.0, "end": 0.5, "speaker": 0}
+        ]}]
+      }]}
+    }`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(raw))
+	}))
+	defer srv.Close()
+
+	c := NewDeepgram("k", "nova-3", "zh-TW", nil, WithDeepgramBaseURL(srv.URL))
+	result, err := c.Transcribe(context.Background(), strings.NewReader("audio"), 5, "a.wav", domainmeeting.LanguageZhTW)
+	if err != nil {
+		t.Fatalf("Transcribe() error = %v", err)
+	}
+	if result.Text != "A: 国" {
+		t.Errorf("Text = %q, want \"A: 国\"（不應被轉換）", result.Text)
 	}
 }

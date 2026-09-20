@@ -17,6 +17,7 @@ type meetingResponse struct {
 	Title           string     `json:"title"`
 	Status          string     `json:"status"`
 	Scenario        string     `json:"scenario"`
+	Language        string     `json:"language"`
 	Tags            []string   `json:"tags"`
 	Imported        bool       `json:"imported"`
 	Summary         string     `json:"summary,omitempty"`
@@ -46,6 +47,7 @@ func toMeetingResponse(m domainmeeting.Meeting) meetingResponse {
 		Title:           m.Title,
 		Status:          string(m.Status),
 		Scenario:        string(m.Scenario),
+		Language:        string(m.Language),
 		Tags:            tagsOrEmpty(m.Tags),
 		Imported:        m.SourceURL != "",
 		Summary:         m.Summary,
