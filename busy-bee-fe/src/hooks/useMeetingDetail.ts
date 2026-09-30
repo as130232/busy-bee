@@ -51,9 +51,10 @@ export function useMeetingDetail(id: string | undefined) {
   }, [load])
 
   // 本會議狀態變更時重新載入（完成時文件才會出現）
+  // 閒置斷線後回來：重載補上漏掉的狀態
   useMeetingStatusSocket((e) => {
     if (e.meetingId === id) void load()
-  })
+  }, () => void load())
 
   const retry = useCallback(async () => {
     if (!id) return

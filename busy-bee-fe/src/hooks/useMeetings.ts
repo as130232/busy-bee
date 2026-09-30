@@ -32,7 +32,7 @@ export function useMeetings(search = '') {
           : m,
       ),
     )
-  })
+  }, () => void load(search)) // 閒置斷線後回來：重載補上漏掉的狀態
 
   return { meetings, error, reload: () => void load(search) }
 }
