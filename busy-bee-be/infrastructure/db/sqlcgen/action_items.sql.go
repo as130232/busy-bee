@@ -39,6 +39,25 @@ func (q *Queries) DeleteActionItemsForMeeting(ctx context.Context, meetingID uui
 	return err
 }
 
+const deleteReplaceableActionItem = `-- name: DeleteReplaceableActionItem :execrows
+DELETE FROM action_items
+WHERE id = $1 AND user_id = $2 AND source = 'llm' AND NOT done AND NOT edited
+`
+
+type DeleteReplaceableActionItemParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+// AI 校正覆蓋用：只刪「仍是」未勾選、未改內容的 AI 抽取項；期間被使用者動過的不刪（0 列不視為錯誤）。
+func (q *Queries) DeleteReplaceableActionItem(ctx context.Context, arg DeleteReplaceableActionItemParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteReplaceableActionItem, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const insertActionItem = `-- name: InsertActionItem :one
 INSERT INTO action_items (meeting_id, user_id, description, assignee, due_text, due_at, source, sort_order)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)

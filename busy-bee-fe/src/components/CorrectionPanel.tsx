@@ -22,40 +22,49 @@ export function CorrectionPanel({ meeting, onChanged }: { meeting: MeetingDetail
   const [state, setState] = useState<CorrectionState | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const completed = meeting.status === 'completed'
-  useEffect(() => {
-    if (!completed) return
-    let cancelled = false
-    call(getCorrection, meeting.id)
-      .then((r) => {
-        if (!cancelled) setState(r.correction)
-      })
-      .catch(() => {}) // 取不到狀態時不顯示面板，不影響其他內容
-    return () => {
-      cancelled = true
-    }
-  }, [call, meeting, completed])
-
-  const start = useCallback(async () => {
-    setBusy(true)
+  const refresh = useCallback(async () => {
     try {
-      setState((await call(startCorrection, meeting.id)).correction)
-      setConfirming(false)
-    } finally {
-      setBusy(false)
+      setState((await call(getCorrection, meeting.id)).correction)
+    } catch {
+      // 取不到狀態時維持現狀（首次失敗則不顯示面板），不影響其他內容
     }
   }, [call, meeting.id])
 
+  useEffect(() => {
+    if (completed) void refresh()
+  }, [refresh, meeting, completed])
+
+  const start = useCallback(async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      setState((await call(startCorrection, meeting.id)).correction)
+    } catch (e) {
+      // 例如另一台裝置已開始校正或次數已用完：提示並以伺服器狀態為準
+      setError(e instanceof Error ? e.message : '無法開始校正')
+      void refresh()
+    } finally {
+      setConfirming(false)
+      setBusy(false)
+    }
+  }, [call, meeting.id, refresh])
+
   const revert = useCallback(async () => {
     setBusy(true)
+    setError(null)
     try {
       setState((await call(revertCorrection, meeting.id)).correction)
       onChanged()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '無法還原')
+      void refresh()
     } finally {
       setBusy(false)
     }
-  }, [call, meeting.id, onChanged])
+  }, [call, meeting.id, onChanged, refresh])
 
   if (!completed || !state) return null
   const running = state.status === 'queued' || state.status === 'running'
@@ -89,6 +98,11 @@ export function CorrectionPanel({ meeting, onChanged }: { meeting: MeetingDetail
           </button>
         </div>
       </div>
+      {error && (
+        <p role="alert" className="m-0 text-xs text-red-600">
+          {error}
+        </p>
+      )}
       {confirming && (
         <Sheet onClose={() => setConfirming(false)}>
           <h2 className="m-0 text-base font-semibold">AI 重新聽錄音校正</h2>

@@ -32,8 +32,11 @@ type fakeRepo struct {
 	count     int
 	progress  []correction.Progress
 	applied   *correction.Result
-	reverted  bool
-	statuses  []correction.Status
+	// current 模擬 DB 落庫交易內讀到的當下 segments；appliedSegs 為合併結果
+	current     func() []meeting.TranscriptSegment
+	appliedSegs []meeting.TranscriptSegment
+	reverted    bool
+	statuses    []correction.Status
 }
 
 func newFakeRepo() *fakeRepo { return &fakeRepo{stored: map[uuid.UUID]correction.Correction{}} }
@@ -88,6 +91,9 @@ func (f *fakeRepo) SaveProgress(_ context.Context, _ uuid.UUID, p correction.Pro
 func (f *fakeRepo) ListUnfinishedIDs(context.Context) ([]uuid.UUID, error) { return nil, nil }
 func (f *fakeRepo) ApplyResult(_ context.Context, c correction.Correction, r correction.Result) error {
 	f.applied = &r
+	if f.current != nil {
+		f.appliedSegs = correction.ApplyPatches(f.current(), r.Patches)
+	}
 	c.Status = correction.StatusCompleted
 	f.stored[c.ID] = c
 	return nil
@@ -350,6 +356,12 @@ func newExecFixture(segs []meeting.TranscriptSegment) *execFixture {
 		Original: correction.Snapshot{Segments: segs},
 	}
 	f.repo.stored[f.c.ID] = f.c
+	f.repo.current = func() []meeting.TranscriptSegment {
+		if f.meetings.afterFirst != nil {
+			return f.meetings.afterFirst.TranscriptSegments
+		}
+		return f.meetings.m.TranscriptSegments
+	}
 	f.uc = NewExecuteUC(ExecuteDeps{
 		Repo: f.repo, Meetings: f.meetings, Storage: fakeStorage{}, Clipper: f.clipper,
 		Corrector: f.corrector, Summarizer: &fakeSummarizer{sections: []meeting.SummarySection{{Type: "summary", Title: "新"}}},
@@ -403,7 +415,7 @@ func TestExecute_SkipsCompletedChunks(t *testing.T) {
 	if last := f.repo.progress[len(f.repo.progress)-1]; len(last.Chunks) != 3 {
 		t.Errorf("最終 progress = %+v，want 3 段", last)
 	}
-	if f.repo.applied == nil || f.repo.applied.Segments[0].Text != "已校正0" {
+	if f.repo.applied == nil || f.repo.appliedSegs[0].Text != "已校正0" {
 		t.Errorf("progress 中的 patch 應被套用：%+v", f.repo.applied)
 	}
 }
@@ -442,14 +454,15 @@ func TestExecute_AppliesValidatedPatchesAndMerges(t *testing.T) {
 	if r == nil {
 		t.Fatal("未呼叫 ApplyResult")
 	}
-	if r.Segments[0].Text != "小王處理" || r.Segments[0].OriginalText != "小娃處理" {
-		t.Errorf("seg0 = %+v", r.Segments[0])
+	segsOut := f.repo.appliedSegs
+	if segsOut[0].Text != "小王處理" || segsOut[0].OriginalText != "小娃處理" {
+		t.Errorf("seg0 = %+v", segsOut[0])
 	}
-	if r.Segments[1].Text != "人工改過" || r.Segments[1].OriginalText != "" {
-		t.Errorf("鎖定段不應被改：%+v", r.Segments[1])
+	if segsOut[1].Text != "人工改過" || segsOut[1].OriginalText != "" {
+		t.Errorf("鎖定段不應被改：%+v", segsOut[1])
 	}
-	if r.Transcript != "A: 小王處理\nB: 人工改過" {
-		t.Errorf("transcript = %q", r.Transcript)
+	if len(r.Patches) != 1 || r.Patches[0].I != 0 {
+		t.Errorf("鎖定段的 patch 應在驗證時丟棄：%+v", r.Patches)
 	}
 	if r.Summary != "新摘要" || len(r.SummarySections) != 1 || r.SummarySections[0].Title != "新" {
 		t.Errorf("summary = %q sections = %+v", r.Summary, r.SummarySections)
@@ -486,7 +499,7 @@ func TestExecute_UserEditDuringCorrectionWins(t *testing.T) {
 	if err := f.uc.Execute(ctx, f.c.ID); err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if got := f.repo.applied.Segments[0].Text; got != "使用者剛改" {
+	if got := f.repo.appliedSegs[0].Text; got != "使用者剛改" {
 		t.Errorf("Text = %q，校正期間的人工編輯應優先", got)
 	}
 }
@@ -497,7 +510,7 @@ func TestExecute_CorrectorBadOutputTreatedAsNoChange(t *testing.T) {
 	if err := f.uc.Execute(ctx, f.c.ID); err != nil {
 		t.Fatalf("壞輸出不應讓整體失敗：%v", err)
 	}
-	if f.repo.applied == nil || f.repo.applied.Segments[0].Text != "原文" {
+	if f.repo.applied == nil || len(f.repo.applied.Patches) != 0 {
 		t.Errorf("applied = %+v", f.repo.applied)
 	}
 	if p := f.repo.progress[0]; len(p.Chunks["0"]) != 0 {

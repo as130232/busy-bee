@@ -86,4 +86,29 @@ describe('CorrectionPanel', () => {
     await Promise.resolve()
     expect(container).toBeEmptyDOMElement()
   })
+
+  // 審查 I3：開始/還原失敗要有提示，並重抓狀態（例如另一台裝置已開始校正）
+  it('開始校正失敗時顯示錯誤、關閉確認並重抓狀態', async () => {
+    getMock
+      .mockResolvedValueOnce({ correction: state() })
+      .mockResolvedValueOnce({ correction: state({ status: 'running', attemptsUsed: 1 }) })
+    startMock.mockRejectedValue(new Error('correction already in progress'))
+    render(<CorrectionPanel meeting={meeting()} onChanged={() => {}} />)
+    await userEvent.click(await screen.findByRole('button', { name: 'AI 校正' }))
+    await userEvent.click(screen.getByRole('button', { name: '開始校正' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('correction already in progress')
+    expect(screen.queryByRole('button', { name: '開始校正' })).not.toBeInTheDocument()
+    expect(await screen.findByText(/校正中/)).toBeInTheDocument()
+    expect(getMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('還原失敗時顯示錯誤', async () => {
+    getMock.mockResolvedValue({ correction: state({ status: 'completed', attemptsUsed: 1, canRevert: true }) })
+    revertMock.mockRejectedValue(new Error('nothing to revert'))
+    const onChanged = vi.fn()
+    render(<CorrectionPanel meeting={meeting()} onChanged={onChanged} />)
+    await userEvent.click(await screen.findByRole('button', { name: '還原' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('nothing to revert')
+    expect(onChanged).not.toHaveBeenCalled()
+  })
 })

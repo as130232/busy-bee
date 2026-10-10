@@ -1,7 +1,6 @@
 package correction
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/as130232/busy-bee/busy-bee-be/domain/correction"
@@ -31,24 +30,6 @@ func ValidatePatches(segs []meeting.TranscriptSegment, ch correction.Chunk, in [
 			continue
 		}
 		out = append(out, correction.Patch{I: p.I, Text: text})
-	}
-	return out
-}
-
-// ApplyPatches 回傳套用後的新 slice（不改輸入）：
-// 此刻已 ManuallyEdited 的段跳過（校正期間使用者編輯優先）；OriginalText 只在首次被改時寫入；清空 MarkedText。
-func ApplyPatches(current []meeting.TranscriptSegment, patches []correction.Patch) []meeting.TranscriptSegment {
-	out := slices.Clone(current)
-	for _, p := range patches {
-		if p.I < 0 || p.I >= len(out) || out[p.I].ManuallyEdited {
-			continue
-		}
-		s := &out[p.I]
-		if s.OriginalText == "" {
-			s.OriginalText = s.Text
-		}
-		s.Text = p.Text
-		s.MarkedText = ""
 	}
 	return out
 }

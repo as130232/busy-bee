@@ -44,3 +44,16 @@ func TestParsePatches(t *testing.T) {
 		t.Errorf("壞 JSON 應回 ErrBadOutput，got %v", err)
 	}
 }
+
+// 審查 I2：片段音訊從 ClipStartMs 開始，prompt 時間需相對於片段起點，模型才能依時間對位。
+func TestBuildCorrectionPrompt_TimesRelativeToClip(t *testing.T) {
+	p := buildCorrectionPrompt(correction.CorrectorInput{
+		ClipStartMs: 690_000, // 11:30
+		Segments: []correction.IndexedSegment{
+			{I: 3, Segment: meeting.TranscriptSegment{Speaker: "A", Text: "x", StartMs: 720_000}}, // 12:00 → 片段內 00:30
+		},
+	})
+	if !strings.Contains(p, "[3] (00:30) A: x") {
+		t.Errorf("時間應相對片段起點，prompt:\n%s", p)
+	}
+}

@@ -60,7 +60,7 @@ func (c *GeminiClient) CorrectChunk(ctx context.Context, in correction.Corrector
 	return parsePatches(resp.Text())
 }
 
-// buildCorrectionPrompt 上文以「講者: 文字」列出；待校正段以「[i] (🔒 )(mm:ss) 講者: 文字」列出，
+// buildCorrectionPrompt 上文以「講者: 文字」列出；待校正段以「[i] (🔒 )(mm:ss) 講者: 文字」列出（mm:ss 為片段內相對時間），
 // 文字用 AnalysisText（含低信心標記），讓模型知道哪裡最需要細聽。
 func buildCorrectionPrompt(in correction.CorrectorInput) string {
 	var ctxB, segB strings.Builder
@@ -72,7 +72,7 @@ func buildCorrectionPrompt(in correction.CorrectorInput) string {
 		if s.Locked {
 			lock = "🔒 "
 		}
-		sec := s.Segment.StartMs / 1000
+		sec := max(0, s.Segment.StartMs-in.ClipStartMs) / 1000 // 片段內相對時間，與音訊對齊
 		fmt.Fprintf(&segB, "[%d] %s(%02d:%02d) %s: %s\n", s.I, lock, sec/60, sec%60, s.Segment.Speaker, s.Segment.AnalysisText())
 	}
 	p := strings.ReplaceAll(correctPrompt, "{{CONTEXT}}", orNone(ctxB.String()))

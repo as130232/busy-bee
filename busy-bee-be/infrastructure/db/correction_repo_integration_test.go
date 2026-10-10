@@ -99,9 +99,8 @@ func TestCorrectionRepo_ApplyAndRevert(t *testing.T) {
 		t.Errorf("progress 未落庫：%+v", got.Progress)
 	}
 
-	newSegs := []domainmeeting.TranscriptSegment{{Speaker: "A", Text: "小王", OriginalText: "小娃"}}
 	if err := repo.ApplyResult(ctx, c, domaincorrection.Result{
-		Segments: newSegs, Transcript: "A: 小王",
+		Patches:         []domaincorrection.Patch{{I: 0, Text: "小王"}},
 		SummarySections: []domainmeeting.SummarySection{{Type: "summary", Title: "摘要", Items: []domainmeeting.SummaryPoint{{Text: "新重點"}}}},
 		Summary:         "新",
 		DeleteItemIDs:   []uuid.UUID{llmItem.ID},
@@ -158,5 +157,71 @@ func TestActionItemRepo_UpdateDescriptionMarksEdited(t *testing.T) {
 	upd, err := items.UpdateDescription(ctx, it.ID, u.ID, "改")
 	if err != nil || !upd.Edited {
 		t.Errorf("改內容後應 Edited，got %+v err %v", upd, err)
+	}
+}
+
+// 審查 C1/C2/I1：收尾與還原都以交易內「當下」資料為準，使用者在 LLM 呼叫期間的編輯/勾選不被覆蓋或刪除。
+func TestCorrectionRepo_ApplyAndRevertRespectConcurrentUserChanges(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	u := testUser(t, pool)
+	meetings := NewMeetingRepo(pool)
+	items := NewActionItemRepo(pool)
+	repo := NewCorrectionRepo(pool)
+
+	m, _ := meetings.Create(ctx, domainmeeting.Meeting{UserID: u.ID, Title: "併發", Status: domainmeeting.StatusCompleted})
+	orig := []domainmeeting.TranscriptSegment{{Speaker: "A", Text: "小娃"}, {Speaker: "B", Text: "接流"}}
+	if _, err := meetings.UpdateTranscriptSegments(ctx, m.ID, u.ID, orig, "x"); err != nil {
+		t.Fatal(err)
+	}
+	ai, _ := items.Insert(ctx, m.ID, u.ID, domainactionitem.Extracted{Description: "AI 項"}, 0)
+
+	c, _ := repo.CreateWithSnapshot(ctx, m.ID, u.ID, domaincorrection.Snapshot{Segments: orig, Transcript: "x"})
+	c, _ = repo.UpdateStatus(ctx, c.ID, domaincorrection.StatusQueued, domaincorrection.StatusRunning, "")
+
+	// worker 讀完後、寫回前：使用者手改段落 1、勾選 AI 項
+	edited := []domainmeeting.TranscriptSegment{orig[0], {Speaker: "B", Text: "使用者改的", ManuallyEdited: true}}
+	if _, err := meetings.UpdateTranscriptSegments(ctx, m.ID, u.ID, edited, "y"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := items.SetDone(ctx, ai.ID, u.ID, true); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := repo.ApplyResult(ctx, c, domaincorrection.Result{
+		Patches:       []domaincorrection.Patch{{I: 0, Text: "小王"}, {I: 1, Text: "金流"}},
+		DeleteItemIDs: []uuid.UUID{ai.ID},
+	}); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	got, _ := meetings.GetForUser(ctx, m.ID, u.ID)
+	if got.TranscriptSegments[0].Text != "小王" || got.TranscriptSegments[1].Text != "使用者改的" || !got.TranscriptSegments[1].ManuallyEdited {
+		t.Errorf("apply 後 segments = %+v（使用者的編輯應保留）", got.TranscriptSegments)
+	}
+	if got.Transcript != "A: 小王\nB: 使用者改的" {
+		t.Errorf("transcript = %q", got.Transcript)
+	}
+	if list, _ := items.ListByMeeting(ctx, m.ID); len(list) != 1 {
+		t.Errorf("已勾選的 AI 項不應被刪，剩 %d 筆", len(list))
+	}
+
+	// 校正後使用者又手改段落 0 → 還原時保留
+	after := []domainmeeting.TranscriptSegment{{Speaker: "A", Text: "校正後手改", ManuallyEdited: true, OriginalText: "小娃"}, got.TranscriptSegments[1]}
+	if _, err := meetings.UpdateTranscriptSegments(ctx, m.ID, u.ID, after, "z"); err != nil {
+		t.Fatal(err)
+	}
+	c.Status = domaincorrection.StatusCompleted
+	if err := repo.Revert(ctx, c); err != nil {
+		t.Fatalf("revert: %v", err)
+	}
+	got, _ = meetings.GetForUser(ctx, m.ID, u.ID)
+	if got.TranscriptSegments[0].Text != "校正後手改" || got.TranscriptSegments[0].OriginalText != "" {
+		t.Errorf("還原應保留校正後的手動修改：%+v", got.TranscriptSegments[0])
+	}
+	if got.TranscriptSegments[1].Text != "使用者改的" {
+		t.Errorf("seg1 = %+v", got.TranscriptSegments[1])
+	}
+	if got.Transcript != "A: 校正後手改\nB: 使用者改的" {
+		t.Errorf("transcript = %q", got.Transcript)
 	}
 }

@@ -11,8 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	domainactionitem "github.com/as130232/busy-bee/busy-bee-be/domain/actionitem"
 	domaincorrection "github.com/as130232/busy-bee/busy-bee-be/domain/correction"
+	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/db/sqlcgen"
 )
 
@@ -128,7 +128,12 @@ func (r *CorrectionRepo) ApplyResult(ctx context.Context, c domaincorrection.Cor
 		q := sqlcgen.New(tx)
 		meetings := &MeetingRepo{q: q}
 		items := &ActionItemRepo{q: q}
-		if _, err := meetings.UpdateTranscriptSegments(ctx, c.MeetingID, c.UserID, res.Segments, res.Transcript); err != nil {
+		current, err := lockSegments(ctx, q, c)
+		if err != nil {
+			return fmt.Errorf("db.ApplyCorrection lock: %w", err)
+		}
+		segs := domaincorrection.ApplyPatches(current, res.Patches)
+		if _, err := meetings.UpdateTranscriptSegments(ctx, c.MeetingID, c.UserID, segs, domainmeeting.FlattenSegments(segs)); err != nil {
 			return fmt.Errorf("db.ApplyCorrection segments: %w", err)
 		}
 		if len(res.SummarySections) > 0 {
@@ -142,8 +147,8 @@ func (r *CorrectionRepo) ApplyResult(ctx context.Context, c domaincorrection.Cor
 			}
 		}
 		for _, id := range res.DeleteItemIDs {
-			// 使用者可能在校正期間自行刪除該項，查無列不視為錯誤
-			if err := items.Delete(ctx, id, c.UserID); err != nil && !errors.Is(err, domainactionitem.ErrNotFound) {
+			// 期間被使用者勾選/改過/刪除的項目不刪（0 列不視為錯誤）
+			if _, err := q.DeleteReplaceableActionItem(ctx, sqlcgen.DeleteReplaceableActionItemParams{ID: id, UserID: c.UserID}); err != nil {
 				return fmt.Errorf("db.ApplyCorrection delete item: %w", err)
 			}
 		}
@@ -167,7 +172,12 @@ func (r *CorrectionRepo) Revert(ctx context.Context, c domaincorrection.Correcti
 		q := sqlcgen.New(tx)
 		meetings := &MeetingRepo{q: q}
 		snap := c.Original
-		if _, err := meetings.UpdateTranscriptSegments(ctx, c.MeetingID, c.UserID, snap.Segments, snap.Transcript); err != nil {
+		current, err := lockSegments(ctx, q, c)
+		if err != nil {
+			return fmt.Errorf("db.RevertCorrection lock: %w", err)
+		}
+		segs := domaincorrection.RevertSegments(snap.Segments, current)
+		if _, err := meetings.UpdateTranscriptSegments(ctx, c.MeetingID, c.UserID, segs, domainmeeting.FlattenSegments(segs)); err != nil {
 			return fmt.Errorf("db.RevertCorrection segments: %w", err)
 		}
 		if _, err := meetings.SaveSummarySections(ctx, c.MeetingID, c.UserID, snap.SummarySections); err != nil {
@@ -183,6 +193,21 @@ func (r *CorrectionRepo) Revert(ctx context.Context, c domaincorrection.Correcti
 		}
 		return nil
 	})
+}
+
+// lockSegments 交易內以 FOR UPDATE 鎖定並讀取紀錄當下的 segments。
+func lockSegments(ctx context.Context, q *sqlcgen.Queries, c domaincorrection.Correction) ([]domainmeeting.TranscriptSegment, error) {
+	raw, err := q.LockMeetingSegments(ctx, sqlcgen.LockMeetingSegmentsParams{ID: c.MeetingID, UserID: c.UserID})
+	if err != nil {
+		return nil, mapNoRows(err, domaincorrection.ErrNotFound, "db.LockMeetingSegments")
+	}
+	var segs []domainmeeting.TranscriptSegment
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &segs); err != nil {
+			return nil, fmt.Errorf("db.LockMeetingSegments unmarshal: %w", err)
+		}
+	}
+	return segs, nil
 }
 
 func toDomainCorrection(row sqlcgen.TranscriptCorrection) (domaincorrection.Correction, error) {

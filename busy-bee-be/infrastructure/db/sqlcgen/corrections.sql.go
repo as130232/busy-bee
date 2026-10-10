@@ -158,6 +158,23 @@ func (q *Queries) ListUnfinishedCorrectionIDs(ctx context.Context) ([]uuid.UUID,
 	return items, nil
 }
 
+const lockMeetingSegments = `-- name: LockMeetingSegments :one
+SELECT transcript_segments FROM meetings WHERE id = $1 AND user_id = $2 FOR UPDATE
+`
+
+type LockMeetingSegmentsParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+// AI 校正收尾/還原：交易內鎖定並讀取當下 segments，以使用者最新編輯為準合併（避免覆蓋 LLM 呼叫期間的修改）。
+func (q *Queries) LockMeetingSegments(ctx context.Context, arg LockMeetingSegmentsParams) ([]byte, error) {
+	row := q.db.QueryRow(ctx, lockMeetingSegments, arg.ID, arg.UserID)
+	var transcript_segments []byte
+	err := row.Scan(&transcript_segments)
+	return transcript_segments, err
+}
+
 const updateCorrectionProgress = `-- name: UpdateCorrectionProgress :exec
 UPDATE transcript_corrections SET progress = $2 WHERE id = $1
 `

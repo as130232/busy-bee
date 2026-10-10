@@ -30,3 +30,7 @@ UPDATE transcript_corrections SET progress = $2 WHERE id = $1;
 
 -- name: ListUnfinishedCorrectionIDs :many
 SELECT id FROM transcript_corrections WHERE status IN ('queued', 'running');
+
+-- name: LockMeetingSegments :one
+-- AI 校正收尾/還原：交易內鎖定並讀取當下 segments，以使用者最新編輯為準合併（避免覆蓋 LLM 呼叫期間的修改）。
+SELECT transcript_segments FROM meetings WHERE id = $1 AND user_id = $2 FOR UPDATE;

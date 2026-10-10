@@ -88,7 +88,7 @@ func (uc *ExecuteUC) Execute(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return fmt.Errorf("correction reload meeting: %w", err)
 	}
-	segs := ApplyPatches(m.TranscriptSegments, all)
+	segs := correction.ApplyPatches(m.TranscriptSegments, all)
 
 	// 摘要回傳的 tags 忽略：tags 與手動標籤共用欄位，重寫會蓋掉使用者標籤（spec D2a）
 	sum, err := uc.d.Summarizer.Summarize(ctx, meeting.TimestampedTranscript(segs, m.Transcript), m.Scenario)
@@ -101,7 +101,7 @@ func (uc *ExecuteUC) Execute(ctx context.Context, id uuid.UUID) error {
 	}
 
 	if err := uc.d.Repo.ApplyResult(ctx, c, correction.Result{
-		Segments: segs, Transcript: meeting.FlattenSegments(segs),
+		Patches:         all,
 		SummarySections: sum.Sections, Summary: summary,
 		DeleteItemIDs: plan.DeleteIDs, InsertItems: plan.Insert, InsertSortFrom: plan.InsertSortFrom,
 	}); err != nil {
@@ -175,11 +175,12 @@ func (uc *ExecuteUC) correctChunk(ctx context.Context, audioPath string, base []
 	}
 	defer clip.Close()
 
-	patched := ApplyPatches(base, prior)
+	patched := correction.ApplyPatches(base, prior)
 	in := correction.CorrectorInput{
-		Audio:    clip,
-		Filename: "clip.mp3",
-		Context:  patched[max(0, ch.First-contextSegments):ch.First],
+		Audio:       clip,
+		Filename:    "clip.mp3",
+		ClipStartMs: ch.ClipFromMs,
+		Context:     patched[max(0, ch.First-contextSegments):ch.First],
 	}
 	for i := ch.First; i <= ch.Last; i++ {
 		in.Segments = append(in.Segments, correction.IndexedSegment{I: i, Segment: base[i], Locked: base[i].ManuallyEdited})

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -88,8 +89,10 @@ type IndexedSegment struct {
 type CorrectorInput struct {
 	Audio    io.Reader
 	Filename string
-	Context  []meeting.TranscriptSegment // 上一段結尾（唯讀上下文）
-	Segments []IndexedSegment
+	// ClipStartMs 音訊片段在整場錄音中的起點；prompt 時間以此換算為片段內相對時間。
+	ClipStartMs int
+	Context     []meeting.TranscriptSegment // 上一段結尾（唯讀上下文）
+	Segments    []IndexedSegment
 }
 
 // Corrector 聽音訊片段修正逐字稿，只回傳有修改的段落（未驗證，由 application 層過濾）。
@@ -102,10 +105,10 @@ type ClipCutter interface {
 	CutClip(ctx context.Context, srcPath string, fromMs, toMs int) (clipPath string, cleanup func(), err error)
 }
 
-// Result 校正完成要落庫的產物。
+// Result 校正完成要落庫的產物。Patches 於落庫交易內套用到「當下」segments（使用者在 LLM 呼叫期間的編輯優先）；
+// DeleteItemIDs 只刪仍未勾選、未改內容的 AI 項。
 type Result struct {
-	Segments        []meeting.TranscriptSegment
-	Transcript      string
+	Patches         []Patch
 	SummarySections []meeting.SummarySection
 	Summary         string
 	DeleteItemIDs   []uuid.UUID
@@ -124,9 +127,9 @@ type Repository interface {
 	UpdateStatus(ctx context.Context, id uuid.UUID, from, to Status, errorMessage string) (Correction, error)
 	SaveProgress(ctx context.Context, id uuid.UUID, p Progress) error
 	ListUnfinishedIDs(ctx context.Context) ([]uuid.UUID, error)
-	// ApplyResult 原子：寫 segments/transcript、summary_sections、summary、行動項替換、status running→completed。
+	// ApplyResult 原子：鎖定當下 segments 套用 patches、summary_sections、summary、行動項替換、status running→completed。
 	ApplyResult(ctx context.Context, c Correction, r Result) error
-	// Revert 原子：快照寫回 meeting、status completed→reverted。
+	// Revert 原子：快照寫回 meeting（保留校正後的手動修改，見 RevertSegments）、status completed→reverted。
 	Revert(ctx context.Context, c Correction) error
 }
 
@@ -149,4 +152,38 @@ func StateFromLatest(latest *Correction, count int) State {
 		CanRevert:    latest.Status == StatusCompleted,
 		ErrorMessage: latest.ErrorMessage,
 	}
+}
+
+// ApplyPatches 回傳套用後的新 slice（不改輸入）：
+// 此刻已 ManuallyEdited 的段跳過（校正期間使用者編輯優先）；OriginalText 只在首次被改時寫入；清空 MarkedText。
+func ApplyPatches(current []meeting.TranscriptSegment, patches []Patch) []meeting.TranscriptSegment {
+	out := slices.Clone(current)
+	for _, p := range patches {
+		if p.I < 0 || p.I >= len(out) || out[p.I].ManuallyEdited {
+			continue
+		}
+		s := &out[p.I]
+		if s.OriginalText == "" {
+			s.OriginalText = s.Text
+		}
+		s.Text = p.Text
+		s.MarkedText = ""
+	}
+	return out
+}
+
+// RevertSegments 還原用：以快照為準，但保留「校正後」使用者手動修改的段落（ManuallyEdited 且文字與快照不同），
+// 並清掉其 OriginalText（已非 AI 校正結果）。段數不一致（理論上不會發生）時整份用快照。
+func RevertSegments(snapshot, current []meeting.TranscriptSegment) []meeting.TranscriptSegment {
+	out := slices.Clone(snapshot)
+	if len(current) != len(snapshot) {
+		return out
+	}
+	for i, cur := range current {
+		if cur.ManuallyEdited && cur.Text != snapshot[i].Text {
+			cur.OriginalText = ""
+			out[i] = cur
+		}
+	}
+	return out
 }

@@ -47,3 +47,8 @@ UPDATE action_items SET reminded_at = now(), updated_at = now() WHERE id = $1;
 
 -- name: DeleteActionItem :execrows
 DELETE FROM action_items WHERE id = $1 AND user_id = $2;
+
+-- name: DeleteReplaceableActionItem :execrows
+-- AI 校正覆蓋用：只刪「仍是」未勾選、未改內容的 AI 抽取項；期間被使用者動過的不刪（0 列不視為錯誤）。
+DELETE FROM action_items
+WHERE id = $1 AND user_id = $2 AND source = 'llm' AND NOT done AND NOT edited;
