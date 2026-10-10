@@ -26,7 +26,7 @@ RETURNING *;
 
 -- name: UpdateActionItemDescription :one
 UPDATE action_items
-SET description = $3, updated_at = now()
+SET description = $3, edited = true, updated_at = now()
 WHERE id = $1 AND user_id = $2
 RETURNING *;
 

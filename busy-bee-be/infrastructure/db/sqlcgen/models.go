@@ -25,6 +25,7 @@ type ActionItem struct {
 	DueAt       *time.Time
 	RemindedAt  *time.Time
 	Source      string
+	Edited      bool
 }
 
 type Artifact struct {
@@ -77,6 +78,23 @@ type TranscriptChunk struct {
 	Content    string
 	Embedding  *pgvector.Vector
 	CreatedAt  time.Time
+}
+
+type TranscriptCorrection struct {
+	ID                      uuid.UUID
+	MeetingID               uuid.UUID
+	UserID                  uuid.UUID
+	Attempt                 int32
+	Status                  string
+	Progress                []byte
+	OriginalSegments        []byte
+	OriginalTranscript      string
+	OriginalSummarySections []byte
+	OriginalSummary         string
+	ErrorMessage            string
+	CreatedAt               time.Time
+	CompletedAt             *time.Time
+	RevertedAt              *time.Time
 }
 
 type User struct {

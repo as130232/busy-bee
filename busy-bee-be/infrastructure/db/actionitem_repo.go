@@ -185,6 +185,8 @@ func toDomainActionItem(row sqlcgen.ActionItem) domainactionitem.ActionItem {
 		DueAt:       row.DueAt,
 		RemindedAt:  row.RemindedAt,
 		Done:        row.Done,
+		Source:      row.Source,
+		Edited:      row.Edited,
 		CreatedAt:   row.CreatedAt,
 	}
 }

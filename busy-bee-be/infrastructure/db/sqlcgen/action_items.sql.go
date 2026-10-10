@@ -42,7 +42,7 @@ func (q *Queries) DeleteActionItemsForMeeting(ctx context.Context, meetingID uui
 const insertActionItem = `-- name: InsertActionItem :one
 INSERT INTO action_items (meeting_id, user_id, description, assignee, due_text, due_at, source, sort_order)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, meeting_id, user_id, description, assignee, due_text, done, sort_order, created_at, updated_at, due_at, reminded_at, source
+RETURNING id, meeting_id, user_id, description, assignee, due_text, done, sort_order, created_at, updated_at, due_at, reminded_at, source, edited
 `
 
 type InsertActionItemParams struct {
@@ -82,12 +82,13 @@ func (q *Queries) InsertActionItem(ctx context.Context, arg InsertActionItemPara
 		&i.DueAt,
 		&i.RemindedAt,
 		&i.Source,
+		&i.Edited,
 	)
 	return i, err
 }
 
 const listActionItemsByMeeting = `-- name: ListActionItemsByMeeting :many
-SELECT id, meeting_id, user_id, description, assignee, due_text, done, sort_order, created_at, updated_at, due_at, reminded_at, source FROM action_items WHERE meeting_id = $1 ORDER BY sort_order, created_at
+SELECT id, meeting_id, user_id, description, assignee, due_text, done, sort_order, created_at, updated_at, due_at, reminded_at, source, edited FROM action_items WHERE meeting_id = $1 ORDER BY sort_order, created_at
 `
 
 func (q *Queries) ListActionItemsByMeeting(ctx context.Context, meetingID uuid.UUID) ([]ActionItem, error) {
@@ -113,6 +114,7 @@ func (q *Queries) ListActionItemsByMeeting(ctx context.Context, meetingID uuid.U
 			&i.DueAt,
 			&i.RemindedAt,
 			&i.Source,
+			&i.Edited,
 		); err != nil {
 			return nil, err
 		}
@@ -125,7 +127,7 @@ func (q *Queries) ListActionItemsByMeeting(ctx context.Context, meetingID uuid.U
 }
 
 const listDueActionItemReminders = `-- name: ListDueActionItemReminders :many
-SELECT ai.id, ai.meeting_id, ai.user_id, ai.description, ai.assignee, ai.due_text, ai.done, ai.sort_order, ai.created_at, ai.updated_at, ai.due_at, ai.reminded_at, ai.source, m.title AS meeting_title
+SELECT ai.id, ai.meeting_id, ai.user_id, ai.description, ai.assignee, ai.due_text, ai.done, ai.sort_order, ai.created_at, ai.updated_at, ai.due_at, ai.reminded_at, ai.source, ai.edited, m.title AS meeting_title
 FROM action_items ai
 JOIN meetings m ON m.id = ai.meeting_id
 WHERE ai.done = false
@@ -151,6 +153,7 @@ type ListDueActionItemRemindersRow struct {
 	DueAt        *time.Time
 	RemindedAt   *time.Time
 	Source       string
+	Edited       bool
 	MeetingTitle string
 }
 
@@ -177,6 +180,7 @@ func (q *Queries) ListDueActionItemReminders(ctx context.Context) ([]ListDueActi
 			&i.DueAt,
 			&i.RemindedAt,
 			&i.Source,
+			&i.Edited,
 			&i.MeetingTitle,
 		); err != nil {
 			return nil, err
@@ -190,7 +194,7 @@ func (q *Queries) ListDueActionItemReminders(ctx context.Context) ([]ListDueActi
 }
 
 const listPendingActionItemsForUser = `-- name: ListPendingActionItemsForUser :many
-SELECT ai.id, ai.meeting_id, ai.user_id, ai.description, ai.assignee, ai.due_text, ai.done, ai.sort_order, ai.created_at, ai.updated_at, ai.due_at, ai.reminded_at, ai.source, m.title AS meeting_title
+SELECT ai.id, ai.meeting_id, ai.user_id, ai.description, ai.assignee, ai.due_text, ai.done, ai.sort_order, ai.created_at, ai.updated_at, ai.due_at, ai.reminded_at, ai.source, ai.edited, m.title AS meeting_title
 FROM action_items ai
 JOIN meetings m ON m.id = ai.meeting_id
 WHERE ai.user_id = $1 AND ai.done = false
@@ -212,6 +216,7 @@ type ListPendingActionItemsForUserRow struct {
 	DueAt        *time.Time
 	RemindedAt   *time.Time
 	Source       string
+	Edited       bool
 	MeetingTitle string
 }
 
@@ -238,6 +243,7 @@ func (q *Queries) ListPendingActionItemsForUser(ctx context.Context, userID uuid
 			&i.DueAt,
 			&i.RemindedAt,
 			&i.Source,
+			&i.Edited,
 			&i.MeetingTitle,
 		); err != nil {
 			return nil, err
@@ -263,7 +269,7 @@ const setActionItemDone = `-- name: SetActionItemDone :one
 UPDATE action_items
 SET done = $3, updated_at = now()
 WHERE id = $1 AND user_id = $2
-RETURNING id, meeting_id, user_id, description, assignee, due_text, done, sort_order, created_at, updated_at, due_at, reminded_at, source
+RETURNING id, meeting_id, user_id, description, assignee, due_text, done, sort_order, created_at, updated_at, due_at, reminded_at, source, edited
 `
 
 type SetActionItemDoneParams struct {
@@ -289,15 +295,16 @@ func (q *Queries) SetActionItemDone(ctx context.Context, arg SetActionItemDonePa
 		&i.DueAt,
 		&i.RemindedAt,
 		&i.Source,
+		&i.Edited,
 	)
 	return i, err
 }
 
 const updateActionItemDescription = `-- name: UpdateActionItemDescription :one
 UPDATE action_items
-SET description = $3, updated_at = now()
+SET description = $3, edited = true, updated_at = now()
 WHERE id = $1 AND user_id = $2
-RETURNING id, meeting_id, user_id, description, assignee, due_text, done, sort_order, created_at, updated_at, due_at, reminded_at, source
+RETURNING id, meeting_id, user_id, description, assignee, due_text, done, sort_order, created_at, updated_at, due_at, reminded_at, source, edited
 `
 
 type UpdateActionItemDescriptionParams struct {
@@ -323,6 +330,7 @@ func (q *Queries) UpdateActionItemDescription(ctx context.Context, arg UpdateAct
 		&i.DueAt,
 		&i.RemindedAt,
 		&i.Source,
+		&i.Edited,
 	)
 	return i, err
 }

@@ -26,7 +26,11 @@ type ActionItem struct {
 	// RemindedAt 已推播到期提醒的時間；nil 代表尚未提醒。
 	RemindedAt *time.Time
 	Done       bool
-	CreatedAt  time.Time
+	// Source 來源：llm（AI 抽取）/ manual（使用者新增）。
+	Source string
+	// Edited 使用者改過內容（AI 校正重抽時保留）。
+	Edited    bool
+	CreatedAt time.Time
 }
 
 // PendingItem 跨會議待辦清單用（含所屬會議標題）。
