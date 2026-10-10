@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,10 +36,29 @@ func buildDeepgramQuery(model, lang string, keywords []string) url.Values {
 	default:
 		q.Set("language", lang)
 	}
+	// 術語加權，提升專有名詞/英文詞辨識。nova-3 不支援 keywords，改用 keyterm（不帶權重）。
+	useKeyterm := strings.HasPrefix(model, "nova-3")
 	for _, kw := range keywords {
-		q.Add("keywords", kw) // 術語加權，提升專有名詞/英文詞辨識
+		if useKeyterm {
+			q.Add("keyterm", stripKeywordWeight(kw))
+		} else {
+			q.Add("keywords", kw)
+		}
 	}
 	return q
+}
+
+// stripKeywordWeight 去除 keywords 格式的「:權重」後綴（如 "Kubernetes:2" → "Kubernetes"）；
+// 冒號後不是數字時視為術語本身的一部分，原樣保留。
+func stripKeywordWeight(kw string) string {
+	i := strings.LastIndex(kw, ":")
+	if i < 0 {
+		return kw
+	}
+	if _, err := strconv.ParseFloat(kw[i+1:], 64); err != nil {
+		return kw
+	}
+	return kw[:i]
 }
 
 type DeepgramClient struct {
@@ -105,6 +125,8 @@ type deepgramWord struct {
 	Start          float64 `json:"start"`
 	End            float64 `json:"end"`
 	Speaker        *int    `json:"speaker"`
+	// Confidence 0~1，辨識信心；以指標區分「未回傳」與「真的是 0」。
+	Confidence *float64 `json:"confidence"`
 }
 
 func (c *DeepgramClient) Transcribe(ctx context.Context, audio io.Reader, sizeBytes int64, filename string, language domainmeeting.Language) (domainmeeting.TranscribeResult, error) {
@@ -143,12 +165,16 @@ func (c *DeepgramClient) Transcribe(ctx context.Context, audio io.Reader, sizeBy
 		return domainmeeting.TranscribeResult{}, fmt.Errorf("stt deepgram parse: %w", err)
 	}
 
-	segs := aggregateDeepgramWords(dr)
+	autoZh := lang == string(domainmeeting.LanguageAuto) && strings.HasPrefix(detectedLanguage(dr), "zh")
+	segs := aggregateDeepgramWords(dr, strings.HasPrefix(lang, "zh") || autoZh)
 	// 只有 auto 模式且偵測結果為中文時才做簡轉繁：明確指定 zh-TW 時 Deepgram 已直接輸出繁體，
 	// 再轉一次徒增成本也可能誤判，故僅在 auto 分支後製。
-	if lang == string(domainmeeting.LanguageAuto) && strings.HasPrefix(detectedLanguage(dr), "zh") {
+	if autoZh {
 		for i := range segs {
 			segs[i].Text = toTraditional(segs[i].Text)
+			if segs[i].MarkedText != "" {
+				segs[i].MarkedText = toTraditional(segs[i].MarkedText)
+			}
 		}
 	}
 	return domainmeeting.TranscribeResult{
@@ -158,16 +184,68 @@ func (c *DeepgramClient) Transcribe(ctx context.Context, audio io.Reader, sizeBy
 	}, nil
 }
 
+// lowConfidenceThreshold 字詞 confidence 低於此值視為辨識不可靠，在 MarkedText 中以「〔?…〕」標記。
+const lowConfidenceThreshold = 0.6
+
+// fragmentGapSec 中文模式下，英文字詞與前一個英文字詞的間隔小於此值（秒）視為同一個單字被切開的片段。
+const fragmentGapSec = 0.01
+
+// segmentBuilder 累積同一講者連續字詞，同步組出純文字與帶低信心標記的文字。
+type segmentBuilder struct {
+	seg    domainmeeting.TranscriptSegment
+	marked strings.Builder
+	inLow  bool // 目前是否在一段未關閉的低信心標記中
+	hasLow bool
+	// joinFragments 中文模式：Deepgram 會把中文裡夾的英文單字切成時間相連的片段
+	// （如 Kubernetes → "k","er","net","es"），此時相連片段直接接合、不加空白。
+	joinFragments bool
+	lastEnd       float64
+}
+
+func (b *segmentBuilder) add(token string, low bool, start, end float64) {
+	sep := ""
+	if b.seg.Text != "" && (hasASCIILetter(token) || hasASCIILetter(lastRune(b.seg.Text))) {
+		sep = " " // 中文詞間不加空白，英文詞間加空白
+		if b.joinFragments && hasASCIILetter(token) && hasASCIILetter(lastRune(b.seg.Text)) && start-b.lastEnd < fragmentGapSec {
+			sep = ""
+		}
+	}
+	b.lastEnd = end
+	b.seg.Text += sep + token
+	switch {
+	case low && !b.inLow:
+		b.marked.WriteString(sep + "〔?" + token)
+		b.inLow, b.hasLow = true, true
+	case !low && b.inLow:
+		b.marked.WriteString("〕" + sep + token)
+		b.inLow = false
+	default:
+		b.marked.WriteString(sep + token)
+	}
+}
+
+func (b *segmentBuilder) finish() domainmeeting.TranscriptSegment {
+	if b.hasLow {
+		if b.inLow {
+			b.marked.WriteString("〕")
+		}
+		b.seg.MarkedText = b.marked.String()
+	}
+	return b.seg
+}
+
 // aggregateDeepgramWords 把逐字 words（各帶 speaker 整數）聚合成連續同一講者的段落；
 // speaker 0→A、1→B…。中文詞間不加空白，英文詞間加空白。
-func aggregateDeepgramWords(dr deepgramResponse) []domainmeeting.TranscriptSegment {
+// 低信心字詞（confidence < lowConfidenceThreshold）另記於 MarkedText，供 LLM 判斷哪裡可能聽錯。
+// zh 為 true（中文音訊）時，時間相連的英文片段接合成一個單字。
+func aggregateDeepgramWords(dr deepgramResponse, zh bool) []domainmeeting.TranscriptSegment {
 	if len(dr.Results.Channels) == 0 || len(dr.Results.Channels[0].Alternatives) == 0 {
 		return nil
 	}
 	words := dr.Results.Channels[0].Alternatives[0].Words
 
 	var segs []domainmeeting.TranscriptSegment
-	var cur *domainmeeting.TranscriptSegment
+	var cur *segmentBuilder
 	for _, w := range words {
 		spk := "A"
 		if w.Speaker != nil {
@@ -177,27 +255,18 @@ func aggregateDeepgramWords(dr deepgramResponse) []domainmeeting.TranscriptSegme
 		if token == "" {
 			token = w.Word
 		}
-		if cur == nil || cur.Speaker != spk {
+		if cur == nil || cur.seg.Speaker != spk {
 			if cur != nil {
-				segs = append(segs, *cur)
+				segs = append(segs, cur.finish())
 			}
-			cur = &domainmeeting.TranscriptSegment{
-				Speaker: spk,
-				Text:    token,
-				StartMs: int(w.Start * 1000),
-				EndMs:   int(w.End * 1000),
-			}
-			continue
+			cur = &segmentBuilder{seg: domainmeeting.TranscriptSegment{Speaker: spk, StartMs: int(w.Start * 1000)}, joinFragments: zh}
 		}
-		cur.EndMs = int(w.End * 1000)
-		if hasASCIILetter(token) || hasASCIILetter(lastRune(cur.Text)) {
-			cur.Text += " " + token
-		} else {
-			cur.Text += token
-		}
+		cur.seg.EndMs = int(w.End * 1000)
+		// 無 confidence 欄位時視為可信，避免整段被誤標
+		cur.add(token, w.Confidence != nil && *w.Confidence < lowConfidenceThreshold, w.Start, w.End)
 	}
 	if cur != nil {
-		segs = append(segs, *cur)
+		segs = append(segs, cur.finish())
 	}
 	return segs
 }

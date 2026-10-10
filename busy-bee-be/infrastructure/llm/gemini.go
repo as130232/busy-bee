@@ -166,9 +166,21 @@ func (c *GeminiClient) generate(ctx context.Context, templatePath, transcript st
 	return c.complete(ctx, templatePath, prompt)
 }
 
+// generateConfig 依模型決定生成設定。gemini-3 系列預設 thinking=high，思考 token 以輸出價計費，
+// 對摘要/抽取這類任務成本高而效益有限，故一律降為 low；其他模型（含 gemini-flash-latest 等別名）
+// 不確定是否支援 thinkingLevel，維持供應商預設。
+func generateConfig(model string) *genai.GenerateContentConfig {
+	if !strings.HasPrefix(model, "gemini-3") {
+		return nil
+	}
+	return &genai.GenerateContentConfig{
+		ThinkingConfig: &genai.ThinkingConfig{ThinkingLevel: genai.ThinkingLevelLow},
+	}
+}
+
 // complete 送出已組好的 prompt 並回傳非空文字回應（空回應視為錯誤）。
 func (c *GeminiClient) complete(ctx context.Context, label, prompt string) (string, error) {
-	resp, err := c.client.Models.GenerateContent(ctx, c.model, genai.Text(prompt), nil)
+	resp, err := c.client.Models.GenerateContent(ctx, c.model, genai.Text(prompt), generateConfig(c.model))
 	if err != nil {
 		return "", fmt.Errorf("llm.generate %s: %w", label, err)
 	}

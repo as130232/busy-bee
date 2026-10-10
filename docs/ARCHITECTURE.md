@@ -37,7 +37,7 @@
 | Logger | slog（stdlib） | 結構化，無額外依賴 |
 | 設定管理 | env-based（.env.local） | 同 sport-hub，無 YAML |
 | STT | Deepgram nova-2（`language=zh-TW`、diarize=true） | 聲學語者分離（分講者逐字稿）；Groq/Gemini client 保留未 wire，換供應商只動 `infrastructure/stt/`（ADR-011） |
-| LLM | Gemini（`google.golang.org/genai`；預設 gemini-flash-latest，env 可切 gemini-3-flash-preview） | 已有 key；interface 隔離可抽換（ADR-007） |
+| LLM | Gemini（`google.golang.org/genai`；預設 gemini-flash-latest，prod 為 gemini-3-flash-preview；`gemini-3*` 固定 thinkingLevel=LOW 控成本，ADR-015） | 已有 key；interface 隔離可抽換（ADR-007） |
 | 音訊儲存 | GCS | 與 Cloud Run 同區低延遲 |
 | 身份驗證 | Firebase Auth（Google Login） | 小團隊快速落地 |
 | 前端 | React + Vite（PWA） | |
@@ -326,6 +326,21 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
   3. **明確指定 `language=zh-TW`/`en-US` 轉錄品質最好**，維持為主選項；`auto` 僅作為使用者不確定語言時的降級選項。同時發現：明確指定語言但音訊實際是另一語言時，nova-3 會回**空逐字稿**（比 nova-2 亂轉還不易察覺），提醒語言選擇仍需使用者自行判斷。
 - **後果**：`STTClient` port 簽名變更，三個實作（Deepgram/Groq/Gemini）皆需同步（後兩者未 wire，忽略參數即可編譯）；新增一個第三方 Go dependency（`longbridgeapp/opencc`，Apache-2.0，go:embed 內嵌詞典無外部檔案風險）。
 - **替代方案**：只保留 zh-TW 硬編碼、不做 per-meeting 選擇 → 否決（英文使用者體驗差）；用 `multi` 模式一次涵蓋雙語 → 否決（實測會壞）；自建語音語言辨識模型 → 否決（過度設計，Deepgram 內建 detect_language 已夠用）。
+
+#### ADR-015: STT 低信心字詞標記 + prompt 容錯，不讓 LLM 直接聽音檔
+
+- **狀態**：採納（Phase 26，F-DOCGEN 品質強化）
+- **背景**：報告只依 STT 逐字稿生成。收音差時 Deepgram 會出同音錯字/漏字，但 LLM 拿到的文字沒有任何可靠度資訊，錯字會被當事實寫進摘要，數字/人名尤其危險；漏掉的內容 LLM 完全看不到。
+- **決策**：
+  1. Deepgram 每個 word 的 `confidence` < 0.6（`lowConfidenceThreshold`）時，於 `TranscriptSegment.MarkedText` 以「〔?…〕」包住（相鄰低信心字詞合併成一段）。`Text` 保持乾淨供前端顯示與搜尋；`MarkedText` 只在段落含低信心字詞時才有值，存於 `transcript_segments` JSONB（omitempty，無 migration），**不對前端輸出**。
+  2. 摘要（`timestampedTranscript`）與行動項（`analysisTranscript`）都改吃 `AnalysisText()`（有標記用標記版）。
+  3. 所有摘要/行動項 prompt 說明逐字稿是 ASR 產物：可依上下文修正明顯同音錯字、不得補事實；依據不清的重點加註「（語音不清，待確認）」，數字/金額/日期/人名落在標記內不猜精確值。待確認以文字註記呈現，不改 JSON schema 與前端（ADR-012 B-lite）。
+  4. 使用者手動編輯段落時清空該段 `MarkedText`（人工校正後標記失效）。
+  5. nova-3 不支援 `keywords`，`buildDeepgramQuery` 對 `nova-3*` 改送 `keyterm`（去掉 `:權重` 後綴）；其他 model 維持 `keywords`。
+  6. 中文模式（`zh*` 或 auto 偵測為中文）下，nova-3 會把夾雜的英文單字切成時間相連的片段（實測 Kubernetes → `k`/`er`/`net`/`es`，間隔 0 秒）；聚合時間隔 < 10ms（`fragmentGapSec`）的相鄰英文片段直接接合不加空白。英文模式不套用（英文單字本來就時間相連，接合會黏成一團）。拼字錯誤（如 kernetes）交由 LLM 依上下文修正。
+- **成本**：同 Phase 對 `gemini-3*` 設 `thinkingLevel=LOW`（預設 high 的 thinking token 以輸出價計費；實測摘要每次省 1.1k–2.2k token，輸出品質無明顯差異）。
+- **後果**：零額外 API 成本；只能標記「聽到但不確定」的字，STT 完全沒產出的內容仍會遺漏。門檻 0.6 為初值，需用真實低品質錄音觀察再調。
+- **替代方案**：音檔＋逐字稿一起送 Gemini 多模態摘要 → 暫不採用（token 成本數倍、延遲增加、需改 `Summarizer` port）；若標記後仍常遺漏，可做成「平均 confidence 低於門檻才走多模態」的條件式降級。
 
 ---
 

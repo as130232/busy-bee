@@ -34,7 +34,7 @@ func (f *fakeSegmentRepo) UpdateTranscriptSegments(_ context.Context, _, _ uuid.
 func TestEditSegment_UpdatesTextAndReflattens(t *testing.T) {
 	repo := &fakeSegmentRepo{meeting: domainmeeting.Meeting{
 		TranscriptSegments: []domainmeeting.TranscriptSegment{
-			{Speaker: "A", Text: "情緒教職"}, // 待修正
+			{Speaker: "A", Text: "情緒教職", MarkedText: "〔?情緒教職〕"}, // 待修正
 			{Speaker: "B", Text: "對啊"},
 		},
 	}}
@@ -46,6 +46,9 @@ func TestEditSegment_UpdatesTextAndReflattens(t *testing.T) {
 	}
 	if repo.savedSegs[0].Text != "情緒價值" {
 		t.Errorf("segment text = %q, want trimmed 情緒價值", repo.savedSegs[0].Text)
+	}
+	if repo.savedSegs[0].MarkedText != "" {
+		t.Errorf("人工編輯後應清除過期的低信心標記，got %q", repo.savedSegs[0].MarkedText)
 	}
 	// 攤平文字應反映修正
 	if repo.savedText != "A: 情緒價值\nB: 對啊" {

@@ -13,6 +13,17 @@ type TranscriptSegment struct {
 	Text    string `json:"text"`
 	StartMs int    `json:"startMs"`
 	EndMs   int    `json:"endMs"`
+	// MarkedText 與 Text 同內容，但 STT 低信心字詞以「〔?…〕」包住，僅供 LLM 分析時知道哪裡不可靠；
+	// 段落無低信心字詞、或使用者手動編輯過該段時為空（此時以 Text 為準）。不對前端輸出。
+	MarkedText string `json:"markedText,omitempty"`
+}
+
+// AnalysisText 回傳供 LLM 分析用的段落文字：有低信心標記時用 MarkedText，否則用 Text。
+func (s TranscriptSegment) AnalysisText() string {
+	if s.MarkedText != "" {
+		return s.MarkedText
+	}
+	return s.Text
 }
 
 // TranscribeResult STT 轉錄結果。

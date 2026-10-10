@@ -1,6 +1,10 @@
 package llm
 
-import "testing"
+import (
+	"testing"
+
+	"google.golang.org/genai"
+)
 
 func TestParseExtraction(t *testing.T) {
 	t.Run("純 JSON 物件（摘要 + 行動項）", func(t *testing.T) {
@@ -42,4 +46,18 @@ func TestParseExtraction(t *testing.T) {
 			t.Fatal("expected error for invalid JSON")
 		}
 	})
+}
+
+func TestGenerateConfig_ThinkingLevel(t *testing.T) {
+	for _, m := range []string{"gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-3.5-flash-lite"} {
+		cfg := generateConfig(m)
+		if cfg == nil || cfg.ThinkingConfig == nil || cfg.ThinkingConfig.ThinkingLevel != genai.ThinkingLevelLow {
+			t.Errorf("%s 應設 thinkingLevel=LOW，got %+v", m, cfg)
+		}
+	}
+	for _, m := range []string{"gemini-flash-latest", "gemini-2.5-flash"} {
+		if cfg := generateConfig(m); cfg != nil {
+			t.Errorf("%s 應維持供應商預設（nil），got %+v", m, cfg)
+		}
+	}
 }

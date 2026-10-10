@@ -7,6 +7,8 @@
 
 ## 當前焦點
 
+**2026-10-10 Phase 26 收音不佳時的報告完整度程式完成**：STT 低信心字詞標記給 LLM、prompt 加 ASR 容錯與「（語音不清，待確認）」註記、nova-3 改用 `keyterm`（ADR-015）。後端 vet/test 全綠；剩真實低品質錄音驗證（26.5）+ merge/部署。
+
 **2026-09-19 Phase 25 per-meeting STT 語言選擇程式完成**：STT 語言從全域 config 寫死 `zh-TW` 改成每筆會議可選中文/英文/自動偵測；已用真實 Deepgram API + TTS 測試音檔實測確認 `language=multi` 對純中文音訊仍會壞掉（ADR-011 踩坑至今未修），改用 `detect_language=true` 做自動偵測（正確可用，但中文結果為簡體，已接 OpenCC `longbridgeapp/opencc` 後製轉繁體）。後端 build/vet/test 全綠（新增 domain/STT/application 層測試）、前端 typecheck/lint/test/build 全綠、DB migration 000016 已套用（本地）、sqlc/openapi/TS client 已重生成。詳見 `docs/ARCHITECTURE.md` ADR-014。剩裝置端 e2e 人工驗收（中/英/自動偵測各一段音檔）+ merge/部署。
 
 **2026-08-04 前端首次檢驗與重構（分支 `refactor/fe-first-pass`，進行中）**：三路審查（效能/安全/品質）後分階段清技術債，效能與可維護性並重。已完成並 typecheck/lint/build 全綠：
@@ -490,12 +492,26 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 - 25.6 ✅ 前端：新增 `LanguageSelect`（原生 select，中文/英文/自動偵測）；`RecordPage`/`ScheduleForm` 整合，語言比照情境傳遞給 Recorder/Upload/Import；`uploadAudio` 簽名收斂為 options 物件（`{scenario, language}`）
 - 25.7 ⬜ 裝置端 e2e（中/英/自動偵測各一段音檔，確認自動偵測中文輸出為繁體）+ merge/部署
 
+## Phase 26：收音不佳時的報告完整度（F-DOCGEN 品質強化）
+> 里程碑：post-MVP | 🔄 程式完成，待真實低品質錄音驗證 + merge/部署
+> 報告只依逐字稿生成，收音差時錯字會被當事實、漏字直接遺漏。詳見 `docs/ARCHITECTURE.md` ADR-015。
+
+- 26.1 ✅ STT：Deepgram `confidence` < 0.6 的字詞於 `TranscriptSegment.MarkedText` 以「〔?…〕」標記（`Text` 不變、不對前端輸出）；auto 簡轉繁同步轉 MarkedText
+- 26.2 ✅ application：摘要/行動項改吃 `AnalysisText()`（`timestampedTranscript` / 新增 `analysisTranscript`）；手動編輯段落清空 MarkedText
+- 26.3 ✅ prompt：五個模板加 ASR 容錯規則（修正明顯同音錯字、不補事實、不清處加註「（語音不清，待確認）」）
+- 26.4 ✅ nova-3 改送 `keyterm`（去權重後綴），nova-2 維持 `keywords`
+- 26.6 ✅ LLM 成本：`gemini-3*` 一律設 `thinkingLevel=LOW`（`llm.generateConfig`）。實測 gemini-3-flash-preview 摘要 prompt：high 每次多 1.1k–2.2k thinking token、low 為 0，JSON 輸出正常
+- 26.7 ✅ 中文模式英文片段接合（`k er net es` → `kernetes`）；實測 nova-3 vs nova-2：nova-3 中文明顯較準（小王/金流串接進度），zh-TW 與 auto 皆正常（空稿問題僅限 `language=multi`）；重噪音下兩者皆會漏內容
+- 26.8 ✅ 模型 A/B（同一份帶錯字逐字稿）：3.1-flash-lite 完全不遵守「待確認」規則、3-flash-preview 與 3.5-flash-lite 皆遵守 → prod 改 `GEMINI_MODEL=gemini-3.5-flash-lite`（GA、較便宜）、`DEEPGRAM_MODEL=nova-3`
+- 26.5 ⬜ 用真實嘈雜/小聲錄音比較前後報告，視結果調整門檻 0.6；確認 prod `DEEPGRAM_MODEL` 與 `DEEPGRAM_KEYWORDS` 實際值
+
 ---
 
 ## Session Log
 
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
+| 2026-10-10 | **Phase 26 收音不佳時的報告完整度程式完成**：Deepgram 低信心字詞「〔?…〕」標記（`MarkedText`，僅供 LLM）＋摘要/行動項改吃標記版＋五個 prompt 加 ASR 容錯與「待確認」規則＋nova-3 改用 `keyterm`。多模態（音檔直送 Gemini）評估後暫不做（ADR-015）。後端 vet/test 全綠。剩真實低品質錄音驗證（26.5）+ merge/部署 | — |
 | 2026-09-30 | **降 Cloud Run 閒置費用**：8 月 Cloud Run 159.5 TWD 主因＝以執行個體計費（`cpu-throttling=false`）＋前端 WS 斷線 1s 自動重連（Cloud Run 300s timeout 切斷後立即重連），分頁/PWA 開著 instance 就永不縮到 0。`useMeetingStatusSocket` 改為閒置斷線：背景 >60s 或可見但無操作 >10 分 → 關 WS 且不重連；回前景/有操作 → 重連並 `onResync` 重載補漏事件（`useMeetings`/`useMeetingDetail` 已接）。新增 8 例 hook 測試；前端 test/typecheck 綠。待部署前端後觀察 billable_instance_time | — |
 | 2026-09-19 | **Phase 25 per-meeting STT 語言選擇程式完成**：實測 Deepgram 真實 API 確認 `language=multi` 對純中文音訊仍壞（ADR-011 踩坑未修），改採 `detect_language=true` 自動偵測（正確可用）+ OpenCC 簡轉繁後製（`longbridgeapp/opencc`，go:embed 無外部檔案風險）。domain `Language`/`ParseLanguage`（TDD）→ migration 000016 → `STTClient.Transcribe` 加 language 參數（三實作同步）→ application/handler/openapi 串接 → 前端 `LanguageSelect` + `RecordPage`/`ScheduleForm` 整合、`uploadAudio` 簽名收斂為 options 物件。後端 build/vet/test 全綠、前端 typecheck/lint/test/build 全綠。剩裝置端 e2e（25.7）+ merge/部署 | — |
 | 2026-07-29 | **修正 iOS 錄音休眠中斷 + 結束鈕卡死**：`useRecorder` 加 Screen Wake Lock（錄音中防螢幕閒置休眠、`visibilitychange` 回前景重取）；`stop()` 對已被系統停成 inactive 的 recorder 也能用既有 chunks 收尾（不再卡死、不整段丟失）；新增 `interrupted` 狀態（系統中斷時停計時器、`RecorderPanel` 顯示提示仍可上傳已錄部分）。前端無測試框架，驗證＝typecheck/lint/build 綠；剩真機 e2e。平台限制：手動鎖屏/來電仍會中斷（PWA 無法背景錄音），僅能兜底保片段 | `main` |
