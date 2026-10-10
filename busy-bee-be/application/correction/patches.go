@@ -18,11 +18,11 @@ const (
 func ValidatePatches(segs []meeting.TranscriptSegment, ch correction.Chunk, in []correction.Patch) []correction.Patch {
 	out := make([]correction.Patch, 0, len(in))
 	for _, p := range in {
-		text := strings.TrimSpace(p.Text)
 		if p.I < ch.First || p.I > ch.Last || p.I < 0 || p.I >= len(segs) {
 			continue
 		}
 		orig := segs[p.I]
+		text := stripSpeakerPrefix(strings.TrimSpace(p.Text), orig.Speaker)
 		if orig.ManuallyEdited || text == "" || text == orig.Text {
 			continue
 		}
@@ -51,4 +51,18 @@ func ApplyPatches(current []meeting.TranscriptSegment, patches []correction.Patc
 		s.MarkedText = ""
 	}
 	return out
+}
+
+// stripSpeakerPrefix 去除模型抄進修正文字的「講者: 」前綴（prompt 以「講者: 文字」列出段落，模型偶爾整行照抄）。
+// 只比對該段自己的講者代號，避免誤刪本來就以英文字開頭的內容。
+func stripSpeakerPrefix(text, speaker string) string {
+	if speaker == "" {
+		return text
+	}
+	for _, sep := range []string{":", "："} {
+		if rest, ok := strings.CutPrefix(text, speaker+sep); ok {
+			return strings.TrimSpace(rest)
+		}
+	}
+	return text
 }

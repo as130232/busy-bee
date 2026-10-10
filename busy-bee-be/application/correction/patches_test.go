@@ -63,3 +63,22 @@ func TestApplyPatches_IgnoresOutOfRange(t *testing.T) {
 		t.Errorf("got %+v", got)
 	}
 }
+
+// 實測 gemini-3.5-flash-lite 會把 prompt 中的「講者: 」前綴抄進修正文字（逐字稿變成「A: A: …」），需去除。
+func TestValidatePatches_StripsEchoedSpeakerPrefix(t *testing.T) {
+	segs := []meeting.TranscriptSegment{{Speaker: "A", Text: "眼角老8折"}, {Speaker: "B", Text: "小娃處理"}}
+	ch := correction.Chunk{First: 0, Last: 1}
+	got := ValidatePatches(segs, ch, []correction.Patch{{I: 0, Text: "A: 年繳打8折"}, {I: 1, Text: "B：小王處理"}})
+	want := []correction.Patch{{I: 0, Text: "年繳打8折"}, {I: 1, Text: "小王處理"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+}
+
+func TestValidatePatches_KeepsTextThatMerelyStartsWithLetter(t *testing.T) {
+	segs := []meeting.TranscriptSegment{{Speaker: "A", Text: "Api 很慢"}}
+	got := ValidatePatches(segs, correction.Chunk{First: 0, Last: 0}, []correction.Patch{{I: 0, Text: "API 很慢"}})
+	if len(got) != 1 || got[0].Text != "API 很慢" {
+		t.Errorf("got %+v（非「講者:」前綴不應被去除）", got)
+	}
+}
