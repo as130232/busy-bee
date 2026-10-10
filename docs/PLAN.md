@@ -7,6 +7,8 @@
 
 ## 當前焦點
 
+**2026-10-10 Phase 27 AI 錄音重新校正（F-CORRECT）程式完成（分支 `feat/ai-correction`）**：詳情頁「AI 校正」→ Gemini 聽已上傳錄音逐段修正逐字稿 → 重產摘要、合併行動項；每場 2 次、整份還原、手動修改段落不覆蓋（ADR-016）。後端 vet/test（含整合測試）全綠、前端 typecheck/lint/test/build 全綠、本地 migration 000017 已套用。剩使用者裝置端 e2e（27.12）+ merge/部署（prod migration 由 CI 自動套用）。
+
 **2026-10-10 Phase 26 收音不佳時的報告完整度程式完成**：STT 低信心字詞標記給 LLM、prompt 加 ASR 容錯與「（語音不清，待確認）」註記、nova-3 改用 `keyterm`（ADR-015）。後端 vet/test 全綠；剩真實低品質錄音驗證（26.5）+ merge/部署。
 
 **2026-09-19 Phase 25 per-meeting STT 語言選擇程式完成**：STT 語言從全域 config 寫死 `zh-TW` 改成每筆會議可選中文/英文/自動偵測；已用真實 Deepgram API + TTS 測試音檔實測確認 `language=multi` 對純中文音訊仍會壞掉（ADR-011 踩坑至今未修），改用 `detect_language=true` 做自動偵測（正確可用，但中文結果為簡體，已接 OpenCC `longbridgeapp/opencc` 後製轉繁體）。後端 build/vet/test 全綠（新增 domain/STT/application 層測試）、前端 typecheck/lint/test/build 全綠、DB migration 000016 已套用（本地）、sqlc/openapi/TS client 已重生成。詳見 `docs/ARCHITECTURE.md` ADR-014。剩裝置端 e2e 人工驗收（中/英/自動偵測各一段音檔）+ merge/部署。
@@ -505,12 +507,30 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 - 26.8 ✅ 模型 A/B（同一份帶錯字逐字稿）：3.1-flash-lite 完全不遵守「待確認」規則、3-flash-preview 與 3.5-flash-lite 皆遵守 → prod 改 `GEMINI_MODEL=gemini-3.5-flash-lite`（GA、較便宜）、`DEEPGRAM_MODEL=nova-3`
 - 26.5 ⬜ 用真實嘈雜/小聲錄音比較前後報告，視結果調整門檻 0.6；確認 prod `DEEPGRAM_MODEL` 與 `DEEPGRAM_KEYWORDS` 實際值
 
+## Phase 27：AI 錄音重新校正（F-CORRECT）
+> 里程碑：post-MVP | 🔄 程式完成，待使用者 e2e + merge/部署
+> 規格 `docs/superpowers/specs/2026-10-10-ai-transcript-correction-design.md`；計畫 `docs/superpowers/plans/2026-10-10-ai-transcript-correction.md`；ADR-016。
+
+- 27.1 ✅ 段落 `manuallyEdited`/`originalText`、`UncertainRatio`、詳情 API `uncertainRatio` — `a5f9e19`
+- 27.2 ✅ migration 000017（`transcript_corrections`、`action_items.edited` + 保守回填）、sqlc — `0e1a105`
+- 27.3 ✅ `domain/correction` entity/ports、錯誤碼 40902–40905 — `98551b7`
+- 27.4 ✅ 切段 `PlanChunks`、`ValidatePatches`、`ApplyPatches` — `25e53f4`
+- 27.5 ✅ 行動項合併 `SplitActionItems`/`PlanMerge`、`ExtractExcluding` — `6dd6904`
+- 27.6 ✅ `CorrectionRepo`（原子套用/還原，整合測試）— `b9730e6`
+- 27.7 ✅ ffmpeg `CutClip`、`CompressToTempFile`、Gemini `CorrectChunk` + `prompts/correct_transcript.md` — `b9d13d4`
+- 27.8 ✅ Start/Execute/Revert/Get use cases、WS `correctionStatus` — `d799f00`
+- 27.9 ✅ 校正佇列 + sweeper（`NewSweeperFunc`）+ main 組裝 — `89bf706`
+- 27.10 ✅ HTTP `GET/POST /meetings/{id}/correction`、`POST …/correction/revert` + OpenAPI — `15c6e26`
+- 27.11 ✅ 前端 `CorrectionPanel`、段落「AI 已校正」標籤與原文 Sheet — `efa2627`
+- 27.12 ⬜ 使用者裝置端 e2e（嘈雜錄音、還原、校正中手動編輯、行動項保留、≥ 40 分鐘長錄音）+ merge/部署
+
 ---
 
 ## Session Log
 
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
+| 2026-10-10 | **Phase 27 AI 錄音重新校正程式完成**：brainstorming → spec → plan → inline 執行 12 tasks（TDD）。新增 `transcript_corrections` 表與獨立校正佇列/sweeper；逐段（~12 分鐘、重疊 30 秒、帶上文）Gemini 聽音訊修正、patch 驗證（越界/鎖定/長度比）、校正期間人工編輯優先、行動項保留規則、整份還原；前端校正面板與「AI 已校正」標籤。後端 vet/test + integration 全綠、前端全綠。剩使用者 e2e + merge/部署 | `a5f9e19..efa2627` |
 | 2026-10-10 | **Phase 26 收音不佳時的報告完整度程式完成**：Deepgram 低信心字詞「〔?…〕」標記（`MarkedText`，僅供 LLM）＋摘要/行動項改吃標記版＋五個 prompt 加 ASR 容錯與「待確認」規則＋nova-3 改用 `keyterm`。多模態（音檔直送 Gemini）評估後暫不做（ADR-015）。後端 vet/test 全綠。剩真實低品質錄音驗證（26.5）+ merge/部署 | — |
 | 2026-09-30 | **降 Cloud Run 閒置費用**：8 月 Cloud Run 159.5 TWD 主因＝以執行個體計費（`cpu-throttling=false`）＋前端 WS 斷線 1s 自動重連（Cloud Run 300s timeout 切斷後立即重連），分頁/PWA 開著 instance 就永不縮到 0。`useMeetingStatusSocket` 改為閒置斷線：背景 >60s 或可見但無操作 >10 分 → 關 WS 且不重連；回前景/有操作 → 重連並 `onResync` 重載補漏事件（`useMeetings`/`useMeetingDetail` 已接）。新增 8 例 hook 測試；前端 test/typecheck 綠。待部署前端後觀察 billable_instance_time | — |
 | 2026-09-19 | **Phase 25 per-meeting STT 語言選擇程式完成**：實測 Deepgram 真實 API 確認 `language=multi` 對純中文音訊仍壞（ADR-011 踩坑未修），改採 `detect_language=true` 自動偵測（正確可用）+ OpenCC 簡轉繁後製（`longbridgeapp/opencc`，go:embed 無外部檔案風險）。domain `Language`/`ParseLanguage`（TDD）→ migration 000016 → `STTClient.Transcribe` 加 language 參數（三實作同步）→ application/handler/openapi 串接 → 前端 `LanguageSelect` + `RecordPage`/`ScheduleForm` 整合、`uploadAudio` 簽名收斂為 options 物件。後端 build/vet/test 全綠、前端 typecheck/lint/test/build 全綠。剩裝置端 e2e（25.7）+ merge/部署 | — |

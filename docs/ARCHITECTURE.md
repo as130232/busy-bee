@@ -342,6 +342,21 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 - **後果**：零額外 API 成本；只能標記「聽到但不確定」的字，STT 完全沒產出的內容仍會遺漏。門檻 0.6 為初值，需用真實低品質錄音觀察再調。
 - **替代方案**：音檔＋逐字稿一起送 Gemini 多模態摘要 → 暫不採用（token 成本數倍、延遲增加、需改 `Summarizer` port）；若標記後仍常遺漏，可做成「平均 confidence 低於門檻才走多模態」的條件式降級。
 
+#### ADR-016: AI 錄音重新校正——使用者觸發、伺服器分段、只改文字
+
+- **狀態**：採納（Phase 27，F-CORRECT）
+- **背景**：ADR-015 的低信心標記只能標「聽到但不確定」的字，STT 完全沒轉出的內容 LLM 看不到。讓 Gemini 每場都聽音檔成本數倍，改為使用者需要時才觸發。
+- **決策**：
+  1. 新表 `transcript_corrections`：每次一筆、`attempt` 1–2（每場上限 2，按下即計次）、部分唯一索引確保同場只有一筆進行中；存校正前快照（segments/transcript/summary_sections/summary）供整份還原，`progress` 存每段 patch 作斷點。
+  2. 獨立記憶體佇列（併發 1）+ `NewSweeperFunc` 復原；`ExecuteUC` 冪等：終態跳過、progress 已有段不再呼叫 Gemini。
+  3. 切段 `PlanChunks`：累積區間 ≤ 12 分鐘、對齊 segment 邊界；非首段音訊往前重疊 30 秒；上下文帶上一段最後 3 個 segment（已套用 patch，唯讀）。ffmpeg 只剪該段音訊上傳 Files API，費用與錄音長度成正比。
+  4. Gemini 只回 `[{i,text}]` 有修改的段；`ValidatePatches` 丟棄越界、鎖定（`manuallyEdited`）、空字串、相同、長度比 ∉ [0.5, 2.0]；輸出無法解析（`ErrBadOutput`）視為無修改。講者代號與時間錨點不動（ADR-011）。
+  5. 套用前重讀 meeting：校正期間被人工編輯的段跳過；`originalText` 只在首次被改時寫入；清 `MarkedText`。
+  6. 摘要以整份校正後逐字稿重產；**tags 不動**（與手動標籤共用欄位）。行動項：`manual`/`done`/`edited` 保留，其餘 llm 項刪除換新抽取（`ExtractExcluding` 告知既有項 + 正規化去重）。`action_items.edited` 舊資料以 `updated_at > created_at` 保守回填。
+  7. 跨表原子寫入沿用 `ProcessRepo` 模式（repo 內 `pgx.BeginFunc`）。狀態以 `StatusEvent.CorrectionStatus` 經 WS 推送，前端收到即重抓。
+- **後果**：一小時錄音約 US$0.05–0.07、約 2 分鐘；新版前手動修改過的段落無 `manuallyEdited` 標記，可能被校正（標籤 + 還原緩解）。
+- **替代方案**：每場自動多模態 → 否決（成本）；錄音中邊錄邊處理 → 否決（跨段講者代號無法對齊、iOS 背景上傳不穩）；同步 API 處理 → 否決（逾時、無斷點）；欄位全加在 meetings → 否決（只能留一份快照）。
+
 ---
 
 ## 10. 已取消 / 暫緩設計
