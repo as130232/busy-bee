@@ -19,12 +19,17 @@ type UnfinishedLister interface {
 }
 
 type Sweeper struct {
-	lister UnfinishedLister
-	queue  domainmeeting.TaskQueue
+	list    func(ctx context.Context) ([]uuid.UUID, error)
+	enqueue func(ctx context.Context, id uuid.UUID) error
 }
 
 func NewSweeper(lister UnfinishedLister, queue domainmeeting.TaskQueue) *Sweeper {
-	return &Sweeper{lister: lister, queue: queue}
+	return NewSweeperFunc(lister.ListUnfinishedIDs, queue.EnqueueProcessMeeting)
+}
+
+// NewSweeperFunc 以函式組裝掃描器，供會議處理以外的佇列（如 AI 校正）共用復原機制。
+func NewSweeperFunc(list func(ctx context.Context) ([]uuid.UUID, error), enqueue func(ctx context.Context, id uuid.UUID) error) *Sweeper {
+	return &Sweeper{list: list, enqueue: enqueue}
 }
 
 // Run 立即掃一次，之後每 interval 掃描；ctx 取消時結束。
@@ -43,14 +48,14 @@ func (s *Sweeper) Run(ctx context.Context, interval time.Duration) {
 }
 
 func (s *Sweeper) sweep(ctx context.Context) {
-	ids, err := s.lister.ListUnfinishedIDs(ctx)
+	ids, err := s.list(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "worker.sweeper.list_failed", "err", err)
 		return
 	}
 	for _, id := range ids {
-		if err := s.queue.EnqueueProcessMeeting(ctx, id); err != nil {
-			slog.WarnContext(ctx, "worker.sweeper.enqueue_failed", "meeting_id", id, "err", err)
+		if err := s.enqueue(ctx, id); err != nil {
+			slog.WarnContext(ctx, "worker.sweeper.enqueue_failed", "id", id, "err", err)
 		}
 	}
 	if len(ids) > 0 {

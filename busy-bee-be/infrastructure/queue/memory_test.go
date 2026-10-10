@@ -233,3 +233,26 @@ func waitCond(t *testing.T, cond func() bool) {
 	}
 	t.Fatal("condition not met within 2s")
 }
+
+func TestMemory_EnqueueCorrectionConsumed(t *testing.T) {
+	q := NewMemory(4, 0, testRetryDelays)
+	got := make(chan uuid.UUID, 1)
+	q.Start(context.Background(), 1, func(_ context.Context, id uuid.UUID) error {
+		got <- id
+		return nil
+	}, func(_ context.Context, _ uuid.UUID, _ error) {})
+	t.Cleanup(func() { q.Stop(time.Second) })
+
+	id := uuid.New()
+	if err := q.EnqueueCorrection(context.Background(), id); err != nil {
+		t.Fatalf("EnqueueCorrection: %v", err)
+	}
+	select {
+	case h := <-got:
+		if h != id {
+			t.Errorf("handled %v, want %v", h, id)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("task not consumed")
+	}
+}

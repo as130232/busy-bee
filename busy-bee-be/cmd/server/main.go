@@ -11,6 +11,7 @@ import (
 	"time"
 
 	appactionitem "github.com/as130232/busy-bee/busy-bee-be/application/actionitem"
+	appcorrection "github.com/as130232/busy-bee/busy-bee-be/application/correction"
 	appmeeting "github.com/as130232/busy-bee/busy-bee-be/application/meeting"
 	apppush "github.com/as130232/busy-bee/busy-bee-be/application/push"
 	appsearch "github.com/as130232/busy-bee/busy-bee-be/application/search"
@@ -114,6 +115,18 @@ func main() {
 	go worker.NewSweeper(meetingRepo, taskQueue).Run(sweepCtx, sweepInterval)
 	go worker.RunIndexBackfill(sweepCtx, chunkRepo, indexUC, indexBackfillInterval)
 
+	// AI 錄音重新校正（Phase 27, F-CORRECT）：獨立佇列（外部 API bound，併發 1）；重啟由 correction sweeper 復原
+	correctionRepo := db.NewCorrectionRepo(pool)
+	executeCorrection := appcorrection.NewExecuteUC(appcorrection.ExecuteDeps{
+		Repo: correctionRepo, Meetings: meetingRepo, Storage: audioStorage,
+		Clipper: stt.FFmpegClipper{}, Corrector: llmClient, Summarizer: llmClient,
+		Extractor: llmClient, Items: actionItemRepo, Indexer: indexUC, Notifier: hub,
+		Compress: stt.CompressToTempFile,
+	})
+	correctionQueue := queue.NewMemory(64, cfg.Worker.TaskTimeout, queue.DefaultRetryDelays)
+	correctionQueue.Start(ctx, 1, executeCorrection.Execute, executeCorrection.MarkFailed)
+	go worker.NewSweeperFunc(correctionRepo.ListUnfinishedIDs, correctionQueue.EnqueueCorrection).Run(sweepCtx, sweepInterval)
+
 	// 提醒掃描（F-REMIND）：VAPID 未設定則停用。
 	// scale-to-zero 下 instance 常態為 0，進程內 ticker 不可靠（ADR-004）；
 	// 改由 Cloud Scheduler 定時打 /internal/sweep-reminders 喚醒 instance 觸發掃描。
@@ -187,6 +200,7 @@ func main() {
 	// 先停掃描與 worker（等進行中任務收尾），再關 HTTP；未完成任務下次啟動由 Sweeper 復原
 	stopSweeper()
 	taskQueue.Stop(shutdownTimeout)
+	correctionQueue.Stop(shutdownTimeout)
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()

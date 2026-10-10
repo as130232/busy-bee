@@ -57,6 +57,11 @@ func NewMemory(buffer int, taskTimeout time.Duration, retryDelays []time.Duratio
 	}
 }
 
+// EnqueueCorrection 供 AI 校正佇列使用（同一 Memory 型別的另一個實例，各自 handler），語意同 EnqueueProcessMeeting。
+func (m *Memory) EnqueueCorrection(ctx context.Context, correctionID uuid.UUID) error {
+	return m.EnqueueProcessMeeting(ctx, correctionID)
+}
+
 // EnqueueProcessMeeting 排入任務。同會議在排隊/執行/等待重試期間重複排入為冪等 no-op；
 // 佇列滿時回錯誤（背壓，API 端轉 503）。
 func (m *Memory) EnqueueProcessMeeting(_ context.Context, meetingID uuid.UUID) error {

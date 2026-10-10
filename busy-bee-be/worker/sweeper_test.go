@@ -81,3 +81,16 @@ func TestSweeper_StopsOnContextCancel(t *testing.T) {
 		t.Fatal("Run did not stop on cancel")
 	}
 }
+
+func TestSweeperFunc_EnqueuesListed(t *testing.T) {
+	ids := []uuid.UUID{uuid.New(), uuid.New()}
+	var got []uuid.UUID
+	s := NewSweeperFunc(
+		func(context.Context) ([]uuid.UUID, error) { return ids, nil },
+		func(_ context.Context, id uuid.UUID) error { got = append(got, id); return nil },
+	)
+	s.sweep(context.Background())
+	if len(got) != 2 || got[0] != ids[0] || got[1] != ids[1] {
+		t.Errorf("enqueued = %v", got)
+	}
+}
