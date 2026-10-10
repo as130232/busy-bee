@@ -23,7 +23,8 @@
 | # | 決策 |
 |---|------|
 | D1 | 同一場紀錄最多校正 **2 次**；按下即計次，與是否還原無關 |
-| D2 | 還原：逐字稿、摘要區塊、AI 標籤、一句話摘要回到校正前；**行動項不動** |
+| D2 | 還原：逐字稿、摘要區塊、一句話摘要回到校正前；**行動項不動** |
+| D2a | **校正不動標籤**：AI 標籤與手動標籤共用 `tags` 欄位、無法區分，重產會覆蓋使用者手動標籤；且標籤屬主題層級，校正錯字幾乎不影響（2026-10-10 撰寫計畫時修正） |
 | D3 | 被改段落顯示「AI 已校正」標籤，點開看校正前原文；整份還原為單一按鈕 |
 | D4 | 已完成紀錄一律顯示校正按鈕；低信心比例 ≥ 5% 時加建議提示 |
 | D4a | 按下前的確認文案需說明「每場最多 2 次，失敗也會計次」 |
@@ -47,7 +48,6 @@
 | `original_segments` | jsonb | 校正前 `transcript_segments` 快照 |
 | `original_transcript` | text | 校正前攤平逐字稿 |
 | `original_summary_sections` | jsonb | 校正前摘要區塊 |
-| `original_tags` | text[] | 校正前 AI 標籤 |
 | `original_summary` | text | 校正前一句話摘要 |
 | `error_message` | text | 僅存可對使用者顯示的訊息；原始 cause 只進 log |
 | `created_at` / `completed_at` / `reverted_at` | timestamptz | |
@@ -67,10 +67,10 @@
 - `edited boolean NOT NULL DEFAULT false`：`UpdateActionItemDescription` 時設 true。
 - 舊資料回填：`UPDATE action_items SET edited = true WHERE updated_at > created_at`（保守：提醒寄送、勾選後取消也算改過 → 多保留不誤刪）。
 
-### 3.4 API 回傳（Meeting schema 擴充）
+### 3.4 API 回傳
 
-- `correction`：`{ status, attemptsUsed, attemptsMax: 2, canRevert, errorMessage }`，無紀錄時 `attemptsUsed=0`、`status` 為 null。
-- `uncertainRatio`：number，0–1；讀取時由 segments 計算（`〔?…〕` 內字元數 ÷ 總字元數），不落庫。
+- 校正狀態由獨立端點 `GET /api/v1/meetings/{id}/correction` 取得（POST 建立、revert 也回傳同結構）：`{ status, attemptsUsed, attemptsMax: 2, canRevert, errorMessage }`，無紀錄時 `attemptsUsed=0`、`status` 為空字串。不擴充 MeetingDetail，避免既有 GetUC 依賴 correction repo。
+- MeetingDetail 加 `uncertainRatio`：number，0–1；讀取時由 segments 計算（`〔?…〕` 內字元數 ÷ 總字元數），不落庫。
 - `transcriptSegments[]` 加 `manuallyEdited`、`originalText`（`MarkedText` 仍不輸出）。
 
 ## 4. 處理流程
@@ -94,7 +94,7 @@
 5. **全部段完成後**（單一 transaction 內重讀最新 meeting）：
    - 套用 patch：跳過此刻已 `manuallyEdited` 的段（校正期間使用者的編輯優先）；`originalText` 為空才寫入（保留最初原文）；更新 `Text`、清 `MarkedText`；重新攤平 `transcript`。
    - 存逐字稿。
-6. 重產摘要區塊 + AI 標籤（既有 `Summarizer`）。
+6. 重產摘要區塊（既有 `Summarizer`；回傳的 tags 忽略，D2a）。
 7. 行動項合併（§4.3）+ 一句話摘要更新。
 8. 重建該場 embedding 索引（既有 indexer）。
 9. `completed`、`completed_at`，發布事件。
@@ -109,7 +109,7 @@
 
 ### 4.4 還原（`POST /api/v1/meetings/{id}/corrections/revert`）
 
-- 驗證最新一筆為 `completed`；單一 transaction 寫回 segments / transcript / summary_sections / tags / summary，status → `reverted`、`reverted_at`。
+- 驗證最新一筆為 `completed`；單一 transaction 寫回 segments / transcript / summary_sections / summary，status → `reverted`、`reverted_at`。
 - 重建 embedding 索引；行動項不動（D2）。
 
 ### 4.5 事件通知
@@ -120,7 +120,7 @@
 
 | 層 | 新增 / 修改 |
 |----|------------|
-| `api/openapi.yaml` | 兩個 endpoint + Meeting schema 擴充 |
+| `api/openapi.yaml` | 三個 endpoint（GET/POST correction、POST revert）+ MeetingDetail / TranscriptSegment 擴充 |
 | `pkg/consts/errcode/` | `CorrectionLimitReached`、`CorrectionInProgress`、`CorrectionNotAllowed`（未完成/無音檔）、`NothingToRevert` |
 | `domain/correction/` | `Correction` entity、`Status`、`Chunk`、`Patch`、port：`Repository`、`Corrector`（音訊 + segments → patches）、`Queue` |
 | `domain/meeting/stt.go` | `TranscriptSegment` 加兩欄位；`UncertainRatio(segs)` |
