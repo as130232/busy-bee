@@ -66,16 +66,34 @@ func NewGemini(ctx context.Context, apiKey, model string) (*GeminiClient, error)
 // （即使無行動項也回 {"summary":..., "actionItems":[]}），故不會被空回應檢查誤判。
 // now（會議日期）注入 {{TODAY}}，供模型把「下週五」等相對時限推算成絕對日期 dueISO。
 func (c *GeminiClient) Extract(ctx context.Context, transcript string, now time.Time) (domainactionitem.Extraction, error) {
+	return c.ExtractExcluding(ctx, transcript, now, nil)
+}
+
+// ExtractExcluding 同 Extract，但告知模型 existing 中的行動項已存在、不得重複輸出（AI 校正重抽用）。
+func (c *GeminiClient) ExtractExcluding(ctx context.Context, transcript string, now time.Time, existing []string) (domainactionitem.Extraction, error) {
 	prompt, err := buildPrompt(promptActionItems, transcript)
 	if err != nil {
 		return domainactionitem.Extraction{}, err
 	}
 	prompt = strings.ReplaceAll(prompt, "{{TODAY}}", now.Format("2006-01-02"))
+	prompt = strings.ReplaceAll(prompt, "{{EXISTING}}", existingBlock(existing))
 	text, err := c.complete(ctx, promptActionItems, prompt)
 	if err != nil {
 		return domainactionitem.Extraction{}, err
 	}
 	return parseExtraction(text)
+}
+
+// existingBlock 既有行動項清單（每行「- 描述」）；無則回「（無）」。
+func existingBlock(existing []string) string {
+	if len(existing) == 0 {
+		return "（無）"
+	}
+	var b strings.Builder
+	for _, e := range existing {
+		fmt.Fprintf(&b, "- %s\n", e)
+	}
+	return strings.TrimSpace(b.String())
 }
 
 // parseExtraction 解析模型輸出的 JSON 物件，容忍被 ```json fence 包裹的情形。

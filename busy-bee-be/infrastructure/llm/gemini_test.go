@@ -61,3 +61,12 @@ func TestGenerateConfig_ThinkingLevel(t *testing.T) {
 		}
 	}
 }
+
+func TestExistingBlock(t *testing.T) {
+	if existingBlock(nil) != "（無）" {
+		t.Error("空清單應為（無）")
+	}
+	if got := existingBlock([]string{"a", "b"}); got != "- a\n- b" {
+		t.Errorf("got %q", got)
+	}
+}

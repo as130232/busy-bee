@@ -99,4 +99,6 @@ type ReminderRepository interface {
 // now 為相對時限的參考日期（會議日期），供模型把「下週五」推算成絕對日期。
 type Extractor interface {
 	Extract(ctx context.Context, transcript string, now time.Time) (Extraction, error)
+	// ExtractExcluding 同 Extract，existing 為已存在的行動項描述，模型不得重複輸出（AI 校正重抽用）。
+	ExtractExcluding(ctx context.Context, transcript string, now time.Time, existing []string) (Extraction, error)
 }

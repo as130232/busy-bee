@@ -486,6 +486,10 @@ func (f *fakeExtractor) Extract(_ context.Context, _ string, _ time.Time) (domai
 	return domainactionitem.Extraction{Summary: f.summary, Items: f.items}, f.err
 }
 
+func (f *fakeExtractor) ExtractExcluding(ctx context.Context, tr string, now time.Time, _ []string) (domainactionitem.Extraction, error) {
+	return f.Extract(ctx, tr, now)
+}
+
 const artifactTypeActionItemsTest = domainartifact.Type("action_items")
 
 func TestProcess_ExtractsActionItems(t *testing.T) {
