@@ -49,6 +49,7 @@ func (uc *EditSegmentUC) Execute(ctx context.Context, userID, meetingID uuid.UUI
 	segs := m.TranscriptSegments
 	segs[index].Text = text
 	segs[index].MarkedText = "" // 使用者已人工校正，原 STT 低信心標記失效
+	segs[index].ManuallyEdited = true // AI 校正時不得覆蓋人工修正
 	transcript := domainmeeting.FlattenSegments(segs)
 
 	updated, err := uc.repo.UpdateTranscriptSegments(ctx, meetingID, userID, segs, transcript)

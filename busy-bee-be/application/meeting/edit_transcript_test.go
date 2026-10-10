@@ -47,6 +47,9 @@ func TestEditSegment_UpdatesTextAndReflattens(t *testing.T) {
 	if repo.savedSegs[0].Text != "情緒價值" {
 		t.Errorf("segment text = %q, want trimmed 情緒價值", repo.savedSegs[0].Text)
 	}
+	if !repo.savedSegs[0].ManuallyEdited {
+		t.Error("人工編輯後應標記 ManuallyEdited")
+	}
 	if repo.savedSegs[0].MarkedText != "" {
 		t.Errorf("人工編輯後應清除過期的低信心標記，got %q", repo.savedSegs[0].MarkedText)
 	}

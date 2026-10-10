@@ -100,6 +100,10 @@ type segmentResponse struct {
 	Text    string `json:"text"`
 	StartMs int    `json:"startMs"`
 	EndMs   int    `json:"endMs"`
+	// ManuallyEdited 使用者手動修正過（AI 校正不會覆蓋）。
+	ManuallyEdited bool `json:"manuallyEdited"`
+	// OriginalText AI 校正前的文字；有值即代表此段被 AI 校正修改過。
+	OriginalText string `json:"originalText,omitempty"`
 }
 
 // summaryPointResponse 區塊內一個重點：text 必填，heading/speaker 有值才附。
@@ -126,12 +130,17 @@ type meetingDetailResponse struct {
 	SpeakerNames map[string]string `json:"speakerNames"`
 	// SummarySections 依情境產生的結構化摘要區塊；未處理時為空陣列。
 	SummarySections []summarySectionResponse `json:"summarySections"`
+	// UncertainRatio 逐字稿低信心字元比例（0–1），前端據以提示是否建議 AI 校正。
+	UncertainRatio float64 `json:"uncertainRatio"`
 }
 
 func toMeetingDetailResponse(m domainmeeting.Meeting) meetingDetailResponse {
 	segments := make([]segmentResponse, len(m.TranscriptSegments))
 	for i, s := range m.TranscriptSegments {
-		segments[i] = segmentResponse{Speaker: s.Speaker, Text: s.Text, StartMs: s.StartMs, EndMs: s.EndMs}
+		segments[i] = segmentResponse{
+			Speaker: s.Speaker, Text: s.Text, StartMs: s.StartMs, EndMs: s.EndMs,
+			ManuallyEdited: s.ManuallyEdited, OriginalText: s.OriginalText,
+		}
 	}
 	names := m.SpeakerNames
 	if names == nil {
@@ -151,6 +160,7 @@ func toMeetingDetailResponse(m domainmeeting.Meeting) meetingDetailResponse {
 		TranscriptSegments: segments,
 		SpeakerNames:       names,
 		SummarySections:    sections,
+		UncertainRatio:     domainmeeting.UncertainRatio(m.TranscriptSegments),
 	}
 }
 

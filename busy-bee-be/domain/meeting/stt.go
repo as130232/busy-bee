@@ -16,6 +16,34 @@ type TranscriptSegment struct {
 	// MarkedText 與 Text 同內容，但 STT 低信心字詞以「〔?…〕」包住，僅供 LLM 分析時知道哪裡不可靠；
 	// 段落無低信心字詞、或使用者手動編輯過該段時為空（此時以 Text 為準）。不對前端輸出。
 	MarkedText string `json:"markedText,omitempty"`
+	// ManuallyEdited 使用者手動修正過此段；AI 校正時只讀不改。
+	ManuallyEdited bool `json:"manuallyEdited,omitempty"`
+	// OriginalText AI 校正修改此段時保存的校正前文字；空代表未被校正修改。
+	OriginalText string `json:"originalText,omitempty"`
+}
+
+// UncertainRatio 回傳逐字稿中低信心字元（MarkedText 內「〔?…〕」包住者）佔總字元比例（0–1）。
+// 以 Text 的 rune 數為分母；無段落或無文字回 0。
+func UncertainRatio(segs []TranscriptSegment) float64 {
+	total, uncertain := 0, 0
+	for _, s := range segs {
+		total += len([]rune(s.Text))
+		in := false
+		for _, r := range s.MarkedText {
+			switch {
+			case r == '〔':
+				in = true
+			case r == '〕':
+				in = false
+			case in && r != '?':
+				uncertain++
+			}
+		}
+	}
+	if total == 0 {
+		return 0
+	}
+	return float64(uncertain) / float64(total)
 }
 
 // AnalysisText 回傳供 LLM 分析用的段落文字：有低信心標記時用 MarkedText，否則用 Text。

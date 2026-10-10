@@ -47,3 +47,16 @@ func TestFlattenSegments(t *testing.T) {
 		})
 	}
 }
+
+func TestUncertainRatio(t *testing.T) {
+	segs := []TranscriptSegment{
+		{Text: "預算三百萬", MarkedText: "預算〔?三百萬〕"}, // 3/5 不確定
+		{Text: "好的好的好"},                       // 0/5
+	}
+	if got := UncertainRatio(segs); got < 0.299 || got > 0.301 {
+		t.Errorf("UncertainRatio = %v, want 0.3", got)
+	}
+	if got := UncertainRatio(nil); got != 0 {
+		t.Errorf("nil = %v, want 0", got)
+	}
+}

@@ -1059,12 +1059,14 @@ components:
 
     TranscriptSegment:
       type: object
-      required: [speaker, text, startMs, endMs]
+      required: [speaker, text, startMs, endMs, manuallyEdited]
       properties:
         speaker: { type: string, description: 講者代號（A/B/C…），限本場會議內 }
         text: { type: string }
         startMs: { type: integer, description: 起始毫秒 }
         endMs: { type: integer, description: 結束毫秒 }
+        manuallyEdited: { type: boolean, description: 使用者手動修正過（AI 校正不會覆蓋） }
+        originalText: { type: string, description: AI 校正前的文字；有值代表此段被 AI 校正修改過 }
 
     SummaryPoint:
       type: object
@@ -1089,7 +1091,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/Meeting"
         - type: object
-          required: [transcript, transcriptSegments, speakerNames, summarySections]
+          required: [transcript, transcriptSegments, speakerNames, summarySections, uncertainRatio]
           properties:
             transcript: { type: string }
             transcriptSegments:
@@ -1103,6 +1105,10 @@ components:
               type: array
               items: { $ref: "#/components/schemas/SummarySection" }
               description: 依情境產生的結構化摘要區塊；未處理時為空陣列
+            uncertainRatio:
+              type: number
+              format: double
+              description: 逐字稿低信心字元比例（0–1）；≥0.05 時前端建議 AI 校正
 
     Artifact:
       type: object

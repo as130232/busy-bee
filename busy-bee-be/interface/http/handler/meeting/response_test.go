@@ -1,6 +1,10 @@
 package meeting
 
-import "testing"
+import (
+	"testing"
+
+	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
+)
 
 func TestApplySpeakerNames(t *testing.T) {
 	names := map[string]string{"A": "Ben", "B": "王小明"}
@@ -26,5 +30,18 @@ func TestApplySpeakerNames(t *testing.T) {
 				t.Errorf("applySpeakerNames(%q) = %q, want %q", c.snippet, got, c.want)
 			}
 		})
+	}
+}
+
+func TestToMeetingDetailResponse_CorrectionFields(t *testing.T) {
+	m := domainmeeting.Meeting{TranscriptSegments: []domainmeeting.TranscriptSegment{
+		{Speaker: "A", Text: "好", MarkedText: "〔?好〕", ManuallyEdited: true, OriginalText: "號"},
+	}}
+	r := toMeetingDetailResponse(m)
+	if !r.TranscriptSegments[0].ManuallyEdited || r.TranscriptSegments[0].OriginalText != "號" {
+		t.Errorf("segment = %+v", r.TranscriptSegments[0])
+	}
+	if r.UncertainRatio != 1 {
+		t.Errorf("UncertainRatio = %v, want 1", r.UncertainRatio)
 	}
 }
