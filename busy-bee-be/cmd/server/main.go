@@ -27,6 +27,7 @@ import (
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/webpush"
 	httpserver "github.com/as130232/busy-bee/busy-bee-be/interface/http"
 	actionitemhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/actionitem"
+	correctionhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/correction"
 	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
 	opshandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/ops"
 	pushhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/push"
@@ -152,6 +153,11 @@ func main() {
 		Verifier:    verifier,
 		UserRepo:    userRepo,
 		UserHandler: userhandler.NewHandler(appuser.NewSyncUC(userRepo)),
+		CorrectionHandler: correctionhandler.NewHandler(
+			appcorrection.NewGetUC(meetingRepo, correctionRepo),
+			appcorrection.NewStartUC(meetingRepo, correctionRepo, correctionQueue),
+			appcorrection.NewRevertUC(correctionRepo, indexUC),
+		),
 		MeetingHandler: meetinghandler.NewHandler(meetinghandler.HandlerUCs{
 			Create:         appmeeting.NewCreateUC(meetingRepo, audioStorage),
 			Import:         appmeeting.NewImportUC(meetingRepo, taskQueue),

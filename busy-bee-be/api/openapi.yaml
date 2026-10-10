@@ -726,6 +726,120 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
 
+  /api/v1/meetings/{id}/correction:
+    get:
+      tags: [meetings]
+      summary: 取得最新一次 AI 校正狀態
+      operationId: getCorrection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 校正狀態；未校正過時 status 為空字串
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [correction]
+                        properties:
+                          correction:
+                            $ref: "#/components/schemas/CorrectionState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 紀錄不存在或非本人
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+    post:
+      tags: [meetings]
+      summary: 建立 AI 錄音重新校正（背景處理）
+      operationId: startCorrection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 已建立並排入（status=queued）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [correction]
+                        properties:
+                          correction:
+                            $ref: "#/components/schemas/CorrectionState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 紀錄不存在或非本人
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "409":
+          description: |
+            40902 已達每場校正上限（2 次，失敗也計次）；40903 已有進行中的校正；
+            40904 紀錄未完成或無音檔/逐字稿；40905 無可還原的已完成校正
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+
+  /api/v1/meetings/{id}/correction/revert:
+    post:
+      tags: [meetings]
+      summary: 整份還原最新一次已完成的 AI 校正（逐字稿/摘要回到校正前；行動項不動）
+      operationId: revertCorrection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 已還原（status=reverted）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [correction]
+                        properties:
+                          correction:
+                            $ref: "#/components/schemas/CorrectionState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 紀錄不存在或非本人
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "409":
+          description: |
+            40902 已達每場校正上限（2 次，失敗也計次）；40903 已有進行中的校正；
+            40904 紀錄未完成或無音檔/逐字稿；40905 無可還原的已完成校正
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+
   /api/v1/meetings/{id}/complete-upload:
     post:
       tags: [meetings]
@@ -1056,6 +1170,19 @@ components:
         createdAt: { type: string, format: date-time }
         matchSnippet: { type: string, description: "搜尋命中的逐字稿片段（僅 search 非空且語意命中時出現）" }
         matchType: { type: string, enum: [semantic, literal], description: "命中類型" }
+
+    CorrectionState:
+      type: object
+      required: [status, attemptsUsed, attemptsMax, canRevert, errorMessage]
+      properties:
+        status:
+          type: string
+          enum: ["", queued, running, completed, failed, reverted]
+          description: 空字串代表尚未校正過
+        attemptsUsed: { type: integer, description: 已使用次數（含失敗） }
+        attemptsMax: { type: integer, description: 每場上限（2） }
+        canRevert: { type: boolean, description: 最新一筆為 completed 時可還原 }
+        errorMessage: { type: string, description: 失敗時給使用者看的訊息 }
 
     TranscriptSegment:
       type: object

@@ -9,6 +9,7 @@ import (
 	domainuser "github.com/as130232/busy-bee/busy-bee-be/domain/user"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/config"
 	actionitemhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/actionitem"
+	correctionhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/correction"
 	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
 	opshandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/ops"
 	pushhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/push"
@@ -34,6 +35,8 @@ type Deps struct {
 	UserHandler       *userhandler.Handler
 	MeetingHandler    *meetinghandler.Handler
 	ActionItemHandler *actionitemhandler.Handler
+	// CorrectionHandler AI 錄音重新校正（F-CORRECT）；nil 時不掛路由。
+	CorrectionHandler *correctionhandler.Handler
 	QAHandler         *qahandler.Handler
 	PushHandler       *pushhandler.Handler
 	InternalHandler   *opshandler.Handler
@@ -97,6 +100,11 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 		authed.POST("/meetings/:id/complete-upload", deps.MeetingHandler.CompleteUpload)
 		authed.PATCH("/meetings/:id/schedule", deps.MeetingHandler.UpdateSchedule)
 		authed.POST("/meetings/:id/retry", deps.MeetingHandler.Retry)
+		if deps.CorrectionHandler != nil {
+			authed.GET("/meetings/:id/correction", deps.CorrectionHandler.Get)
+			authed.POST("/meetings/:id/correction", deps.CorrectionHandler.Start)
+			authed.POST("/meetings/:id/correction/revert", deps.CorrectionHandler.Revert)
+		}
 		authed.GET("/meetings/:id/artifacts", deps.MeetingHandler.ListArtifacts)
 
 		if deps.ActionItemHandler != nil {
