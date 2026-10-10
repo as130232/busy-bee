@@ -13,6 +13,7 @@ import { Loader } from '../components/Loader'
 import { MeetingTodoForm } from '../components/MeetingTodoForm'
 import { Sheet } from '../components/Sheet'
 import { StatusBadge } from '../components/StatusBadge'
+import { CorrectionPanel } from '../components/CorrectionPanel'
 import { SummarySections } from '../components/SummarySections'
 import { TagEditor } from '../components/TagEditor'
 import { TranscriptEditor } from '../components/TranscriptEditor'
@@ -59,6 +60,7 @@ export function MeetingDetailPage() {
   const {
     meeting,
     setMeeting,
+    reload,
     artifacts,
     actionItems,
     setActionItems,
@@ -211,6 +213,8 @@ export function MeetingDetailPage() {
           <ExportBar content={exportContent} filename={`${meeting.title}-${tab}`} />
         </div>
       )}
+
+      <CorrectionPanel meeting={meeting} onChanged={() => void reload()} />
 
       <article key={tab} className="animate-fade-in rounded-xl border border-border bg-surface px-5 py-4">
         {tab === 'summary' ? (

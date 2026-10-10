@@ -275,6 +275,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/meetings/{id}/correction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 取得最新一次 AI 校正狀態 */
+        get: operations["getCorrection"];
+        put?: never;
+        /** 建立 AI 錄音重新校正（背景處理） */
+        post: operations["startCorrection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/meetings/{id}/correction/revert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 整份還原最新一次已完成的 AI 校正（逐字稿/摘要回到校正前；行動項不動） */
+        post: operations["revertCorrection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/meetings/{id}/complete-upload": {
         parameters: {
             query?: never;
@@ -428,6 +463,21 @@ export interface components {
              */
             matchType?: "semantic" | "literal";
         };
+        CorrectionState: {
+            /**
+             * @description 空字串代表尚未校正過
+             * @enum {string}
+             */
+            status: "" | "queued" | "running" | "completed" | "failed" | "reverted";
+            /** @description 已使用次數（含失敗） */
+            attemptsUsed: number;
+            /** @description 每場上限（2） */
+            attemptsMax: number;
+            /** @description 最新一筆為 completed 時可還原 */
+            canRevert: boolean;
+            /** @description 失敗時給使用者看的訊息 */
+            errorMessage: string;
+        };
         TranscriptSegment: {
             /** @description 講者代號（A/B/C…），限本場會議內 */
             speaker: string;
@@ -436,6 +486,10 @@ export interface components {
             startMs: number;
             /** @description 結束毫秒 */
             endMs: number;
+            /** @description 使用者手動修正過（AI 校正不會覆蓋） */
+            manuallyEdited: boolean;
+            /** @description AI 校正前的文字；有值代表此段被 AI 校正修改過 */
+            originalText?: string;
         };
         SummaryPoint: {
             /** @description 重點內容（純條列即內容，卡片則為說明） */
@@ -463,6 +517,11 @@ export interface components {
             };
             /** @description 依情境產生的結構化摘要區塊；未處理時為空陣列 */
             summarySections: components["schemas"]["SummarySection"][];
+            /**
+             * Format: double
+             * @description 逐字稿低信心字元比例（0–1）；≥0.05 時前端建議 AI 校正
+             */
+            uncertainRatio: number;
         };
         Artifact: {
             /** Format: uuid */
@@ -1274,6 +1333,138 @@ export interface operations {
                 };
             };
             /** @description 非 failed 狀態不可重跑（errCode 40901） */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getCorrection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 校正狀態；未校正過時 status 為空字串 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            correction: components["schemas"]["CorrectionState"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 紀錄不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    startCorrection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已建立並排入（status=queued） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            correction: components["schemas"]["CorrectionState"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 紀錄不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /**
+             * @description 40902 已達每場校正上限（2 次，失敗也計次）；40903 已有進行中的校正；
+             *     40904 紀錄未完成或無音檔/逐字稿；40905 無可還原的已完成校正
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    revertCorrection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已還原（status=reverted） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            correction: components["schemas"]["CorrectionState"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 紀錄不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /**
+             * @description 40902 已達每場校正上限（2 次，失敗也計次）；40903 已有進行中的校正；
+             *     40904 紀錄未完成或無音檔/逐字稿；40905 無可還原的已完成校正
+             */
             409: {
                 headers: {
                     [name: string]: unknown;

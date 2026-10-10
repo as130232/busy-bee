@@ -173,6 +173,23 @@ export function listArtifacts(idToken: string, meetingId: string): Promise<{ art
 }
 
 /** 重跑失敗的會議 */
+export type CorrectionState = components['schemas']['CorrectionState']
+
+/** 取得最新一次 AI 校正狀態（未校正過時 status 為空字串）。 */
+export function getCorrection(idToken: string, meetingId: string): Promise<{ correction: CorrectionState }> {
+  return request<{ correction: CorrectionState }>(`/api/v1/meetings/${meetingId}/correction`, {}, idToken)
+}
+
+/** 建立 AI 錄音重新校正（背景處理；每場最多 2 次，失敗也計次）。 */
+export function startCorrection(idToken: string, meetingId: string): Promise<{ correction: CorrectionState }> {
+  return request<{ correction: CorrectionState }>(`/api/v1/meetings/${meetingId}/correction`, { method: 'POST' }, idToken)
+}
+
+/** 整份還原最新一次已完成的 AI 校正（行動項不動）。 */
+export function revertCorrection(idToken: string, meetingId: string): Promise<{ correction: CorrectionState }> {
+  return request<{ correction: CorrectionState }>(`/api/v1/meetings/${meetingId}/correction/revert`, { method: 'POST' }, idToken)
+}
+
 export function retryMeeting(idToken: string, meetingId: string): Promise<{ meeting: Meeting }> {
   return request<{ meeting: Meeting }>(`/api/v1/meetings/${meetingId}/retry`, { method: 'POST' }, idToken)
 }

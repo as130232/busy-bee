@@ -107,6 +107,7 @@ export function useMeetingDetail(id: string | undefined) {
   return {
     meeting,
     setMeeting,
+    reload: load,
     artifacts,
     actionItems,
     setActionItems,

@@ -109,6 +109,7 @@ function SegmentRow({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(seg.text)
   const [busy, setBusy] = useState(false)
+  const [showOriginal, setShowOriginal] = useState(false)
   const call = useApiCall()
 
   const save = async () => {
@@ -143,6 +144,15 @@ function SegmentRow({
           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${colorClass}`}>{speakerName}</span>
           <Play className="ml-auto size-3.5 shrink-0 text-muted transition-colors group-hover:text-accent" />
         </button>
+        {seg.originalText && (
+          <button
+            type="button"
+            className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] text-accent"
+            onClick={() => setShowOriginal(true)}
+          >
+            AI 已校正
+          </button>
+        )}
       </div>
 
       {editing ? (
@@ -192,6 +202,16 @@ function SegmentRow({
             <Pencil className="size-3.5" />
           </button>
         </p>
+      )}
+
+      {showOriginal && (
+        <Sheet onClose={() => setShowOriginal(false)}>
+          <h2 className="m-0 text-base font-semibold">校正前原文</h2>
+          <p className="mt-2 text-sm leading-7 text-muted">{seg.originalText}</p>
+          <button type="button" className="btn btn-secondary mt-3 h-10 w-full" onClick={() => setShowOriginal(false)}>
+            關閉
+          </button>
+        </Sheet>
       )}
     </div>
   )
