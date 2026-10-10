@@ -7,25 +7,34 @@ import "net/http"
 type ErrCode int
 
 const (
-	Success         ErrCode = 0
-	Param           ErrCode = 40001
-	Unauthorized    ErrCode = 40101
-	Forbidden       ErrCode = 40301
-	NotFound        ErrCode = 40401
-	Conflict        ErrCode = 40901
-	TooManyRequests ErrCode = 42901
-	Internal        ErrCode = 50001
+	Success      ErrCode = 0
+	Param        ErrCode = 40001
+	Unauthorized ErrCode = 40101
+	Forbidden    ErrCode = 40301
+	NotFound     ErrCode = 40401
+	Conflict     ErrCode = 40901
+	// AI 錄音重新校正（F-CORRECT）
+	CorrectionLimitReached ErrCode = 40902 // 已達每場校正上限
+	CorrectionInProgress   ErrCode = 40903 // 已有進行中的校正
+	CorrectionNotAllowed   ErrCode = 40904 // 紀錄未完成或無音檔/逐字稿
+	NothingToRevert        ErrCode = 40905 // 最新一筆不是可還原的完成校正
+	TooManyRequests        ErrCode = 42901
+	Internal               ErrCode = 50001
 )
 
 var httpStatus = map[ErrCode]int{
-	Success:         http.StatusOK,
-	Param:           http.StatusBadRequest,
-	Unauthorized:    http.StatusUnauthorized,
-	Forbidden:       http.StatusForbidden,
-	NotFound:        http.StatusNotFound,
-	Conflict:        http.StatusConflict,
-	TooManyRequests: http.StatusTooManyRequests,
-	Internal:        http.StatusInternalServerError,
+	Success:                http.StatusOK,
+	Param:                  http.StatusBadRequest,
+	Unauthorized:           http.StatusUnauthorized,
+	Forbidden:              http.StatusForbidden,
+	NotFound:               http.StatusNotFound,
+	Conflict:               http.StatusConflict,
+	CorrectionLimitReached: http.StatusConflict,
+	CorrectionInProgress:   http.StatusConflict,
+	CorrectionNotAllowed:   http.StatusConflict,
+	NothingToRevert:        http.StatusConflict,
+	TooManyRequests:        http.StatusTooManyRequests,
+	Internal:               http.StatusInternalServerError,
 }
 
 // HTTPStatus 回傳錯誤碼對應的 HTTP status；未知錯誤碼一律視為 500。

@@ -18,6 +18,10 @@ func TestHTTPStatus(t *testing.T) {
 		{"not found maps to 404", NotFound, http.StatusNotFound},
 		{"conflict maps to 409", Conflict, http.StatusConflict},
 		{"too many requests maps to 429", TooManyRequests, http.StatusTooManyRequests},
+		{"correction limit maps to 409", CorrectionLimitReached, http.StatusConflict},
+		{"correction in progress maps to 409", CorrectionInProgress, http.StatusConflict},
+		{"correction not allowed maps to 409", CorrectionNotAllowed, http.StatusConflict},
+		{"nothing to revert maps to 409", NothingToRevert, http.StatusConflict},
 		{"internal maps to 500", Internal, http.StatusInternalServerError},
 		{"unknown code maps to 500", ErrCode(99999), http.StatusInternalServerError},
 	}
