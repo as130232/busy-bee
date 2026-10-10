@@ -2,6 +2,7 @@ package meeting
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 )
@@ -84,4 +85,35 @@ func FlattenSegments(segs []TranscriptSegment) string {
 		lines = append(lines, s.Speaker+": "+text)
 	}
 	return strings.Join(lines, "\n")
+}
+
+// TimestampedTranscript 將分講者片段組成帶時間錨點的逐字稿，供摘要 LLM 標註每個重點的音檔位置。
+// 每行格式：[t=<起始毫秒>] <講者>: <內容>。內容用 AnalysisText（含低信心「〔?…〕」標記）。
+// 無片段（未 diarize）時退回純逐字稿 fallback。
+func TimestampedTranscript(segs []TranscriptSegment, fallback string) string {
+	if len(segs) == 0 {
+		return fallback
+	}
+	var b strings.Builder
+	for _, s := range segs {
+		if s.Speaker != "" {
+			fmt.Fprintf(&b, "[t=%d] %s: %s\n", s.StartMs, s.Speaker, s.AnalysisText())
+		} else {
+			fmt.Fprintf(&b, "[t=%d] %s\n", s.StartMs, s.AnalysisText())
+		}
+	}
+	return b.String()
+}
+
+// AnalysisTranscript 將分講者片段攤平成「講者: 內容」逐字稿，內容用 AnalysisText（含低信心標記）；
+// 無片段時退回純逐字稿 fallback。
+func AnalysisTranscript(segs []TranscriptSegment, fallback string) string {
+	if len(segs) == 0 {
+		return fallback
+	}
+	marked := make([]TranscriptSegment, len(segs))
+	for i, s := range segs {
+		marked[i] = TranscriptSegment{Speaker: s.Speaker, Text: s.AnalysisText()}
+	}
+	return FlattenSegments(marked)
 }

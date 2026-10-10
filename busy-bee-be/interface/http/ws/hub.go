@@ -31,6 +31,8 @@ type statusMessage struct {
 	MeetingID    string `json:"meetingId"`
 	Status       string `json:"status"`
 	ErrorMessage string `json:"errorMessage"`
+	// CorrectionStatus AI 校正狀態（僅校正事件帶值）；前端收到即重抓該紀錄。
+	CorrectionStatus string `json:"correctionStatus,omitempty"`
 }
 
 type simpleMessage struct {
@@ -78,6 +80,8 @@ func (h *Hub) NotifyStatus(ctx context.Context, e domainmeeting.StatusEvent) {
 		MeetingID:    e.MeetingID.String(),
 		Status:       string(e.Status),
 		ErrorMessage: e.ErrorMessage,
+
+		CorrectionStatus: e.CorrectionStatus,
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "ws.notify.marshal", "err", err)

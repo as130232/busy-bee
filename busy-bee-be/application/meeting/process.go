@@ -20,37 +20,6 @@ import (
 // 存在即代表本場已抽取過，retry 不重複呼叫 LLM。
 const artifactTypeActionItems = domainartifact.Type("action_items")
 
-// timestampedTranscript 將分講者片段組成帶時間錨點的逐字稿，供摘要 LLM 標註每個重點的音檔位置。
-// 每行格式：[t=<起始毫秒>] <講者>: <內容>。內容用 AnalysisText（含低信心「〔?…〕」標記）。
-// 無片段（未 diarize）時退回純逐字稿 fallback。
-func timestampedTranscript(segs []domainmeeting.TranscriptSegment, fallback string) string {
-	if len(segs) == 0 {
-		return fallback
-	}
-	var b strings.Builder
-	for _, s := range segs {
-		if s.Speaker != "" {
-			fmt.Fprintf(&b, "[t=%d] %s: %s\n", s.StartMs, s.Speaker, s.AnalysisText())
-		} else {
-			fmt.Fprintf(&b, "[t=%d] %s\n", s.StartMs, s.AnalysisText())
-		}
-	}
-	return b.String()
-}
-
-// analysisTranscript 將分講者片段攤平成「講者: 內容」逐字稿，內容用 AnalysisText（含低信心標記）；
-// 無片段時退回純逐字稿 fallback。
-func analysisTranscript(segs []domainmeeting.TranscriptSegment, fallback string) string {
-	if len(segs) == 0 {
-		return fallback
-	}
-	marked := make([]domainmeeting.TranscriptSegment, len(segs))
-	for i, s := range segs {
-		marked[i] = domainmeeting.TranscriptSegment{Speaker: s.Speaker, Text: s.AnalysisText()}
-	}
-	return domainmeeting.FlattenSegments(marked)
-}
-
 // countSpeakers 計算片段中不重複的講者數（觀測用）。
 func countSpeakers(segs []domainmeeting.TranscriptSegment) int {
 	set := make(map[string]struct{}, len(segs))
@@ -291,7 +260,7 @@ func (uc *ProcessUC) generateSummarySections(ctx context.Context, m domainmeetin
 		return nil // 已產生
 	}
 	// 餵帶時間錨點的逐字稿（[t=毫秒]），讓 LLM 為每個重點標 startMs 供跳轉音檔。
-	res, err := uc.summarizer.Summarize(ctx, timestampedTranscript(m.TranscriptSegments, m.Transcript), m.Scenario)
+	res, err := uc.summarizer.Summarize(ctx, domainmeeting.TimestampedTranscript(m.TranscriptSegments, m.Transcript), m.Scenario)
 	if err != nil {
 		return fmt.Errorf("process summarize: %w", err)
 	}
@@ -358,7 +327,7 @@ func (uc *ProcessUC) extractActionItems(ctx context.Context, m domainmeeting.Mee
 	// 同一次呼叫產出摘要 + 行動項（A 方案：不增加額外 LLM 呼叫）。
 	// 以會議建立時間為參考日期，供模型把相對時限推算成絕對日期。
 	// 用帶低信心標記的逐字稿，讓模型知道哪些字詞可能聽錯（無片段時退回純逐字稿）。
-	result, err := uc.extractor.Extract(ctx, analysisTranscript(m.TranscriptSegments, m.Transcript), m.CreatedAt)
+	result, err := uc.extractor.Extract(ctx, domainmeeting.AnalysisTranscript(m.TranscriptSegments, m.Transcript), m.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("process extract: %w", err)
 	}

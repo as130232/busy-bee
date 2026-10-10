@@ -146,6 +146,17 @@ func TestWS_AuthOkAndReceivesOwnEvents(t *testing.T) {
 	if msg["type"] != "meetingStatus" || msg["status"] != "transcribing" || msg["meetingId"] != meetingID.String() {
 		t.Errorf("event = %v", msg)
 	}
+
+	hub.NotifyStatus(context.Background(), domainmeeting.StatusEvent{
+		MeetingID: meetingID, UserID: me.ID, Status: domainmeeting.StatusCompleted, CorrectionStatus: "running",
+	})
+	msg, err = readMsg(t, conn, 2*time.Second)
+	if err != nil {
+		t.Fatalf("read correction event: %v", err)
+	}
+	if msg["correctionStatus"] != "running" {
+		t.Errorf("correction event = %v", msg)
+	}
 }
 
 func TestWS_DoesNotReceiveOthersEvents(t *testing.T) {

@@ -12,6 +12,8 @@ type StatusEvent struct {
 	UserID       uuid.UUID
 	Status       Status
 	ErrorMessage string
+	// CorrectionStatus AI 校正狀態變更時帶值（queued/running/completed/failed/reverted）；一般狀態事件為空。
+	CorrectionStatus string
 }
 
 // StatusNotifier 狀態事件發布 port（單機 in-process WS hub 實作，ADR-010/ADR-002）。

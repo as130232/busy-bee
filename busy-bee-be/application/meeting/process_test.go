@@ -742,19 +742,3 @@ func TestFetchStage_KeepsUserTitle(t *testing.T) {
 		t.Errorf("user title should be kept, got %q", out.Title)
 	}
 }
-
-func TestAnalysisTranscripts_PreferMarkedText(t *testing.T) {
-	segs := []domainmeeting.TranscriptSegment{
-		{Speaker: "A", Text: "預算三百萬", MarkedText: "預算〔?三百萬〕", StartMs: 0},
-		{Speaker: "B", Text: "好", StartMs: 1500},
-	}
-	if got, want := timestampedTranscript(segs, "fallback"), "[t=0] A: 預算〔?三百萬〕\n[t=1500] B: 好\n"; got != want {
-		t.Errorf("timestampedTranscript = %q, want %q", got, want)
-	}
-	if got, want := analysisTranscript(segs, "fallback"), "A: 預算〔?三百萬〕\nB: 好"; got != want {
-		t.Errorf("analysisTranscript = %q, want %q", got, want)
-	}
-	if got := analysisTranscript(nil, "純文字稿"); got != "純文字稿" {
-		t.Errorf("無片段應退回 fallback，got %q", got)
-	}
-}

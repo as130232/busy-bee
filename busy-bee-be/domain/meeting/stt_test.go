@@ -60,3 +60,19 @@ func TestUncertainRatio(t *testing.T) {
 		t.Errorf("nil = %v, want 0", got)
 	}
 }
+
+func TestAnalysisTranscripts_PreferMarkedText(t *testing.T) {
+	segs := []TranscriptSegment{
+		{Speaker: "A", Text: "預算三百萬", MarkedText: "預算〔?三百萬〕", StartMs: 0},
+		{Speaker: "B", Text: "好", StartMs: 1500},
+	}
+	if got, want := TimestampedTranscript(segs, "fallback"), "[t=0] A: 預算〔?三百萬〕\n[t=1500] B: 好\n"; got != want {
+		t.Errorf("TimestampedTranscript = %q, want %q", got, want)
+	}
+	if got, want := AnalysisTranscript(segs, "fallback"), "A: 預算〔?三百萬〕\nB: 好"; got != want {
+		t.Errorf("AnalysisTranscript = %q, want %q", got, want)
+	}
+	if got := AnalysisTranscript(nil, "純文字稿"); got != "純文字稿" {
+		t.Errorf("無片段應退回 fallback，got %q", got)
+	}
+}
