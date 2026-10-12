@@ -85,7 +85,7 @@ func main() {
 	hub := ws.NewHub()
 	defer hub.Close()
 
-	llmClient, err := llm.NewGemini(ctx, cfg.Gemini.APIKey, cfg.Gemini.Model)
+	llmClient, err := llm.NewGemini(ctx, cfg.Gemini.APIKey, cfg.Gemini.Model, llm.WithFallbackModel(cfg.Gemini.FallbackModel))
 	if err != nil {
 		slog.Error("gemini init failed", "err", err)
 		os.Exit(1)

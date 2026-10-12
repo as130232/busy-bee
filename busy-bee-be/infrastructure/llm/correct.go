@@ -44,16 +44,11 @@ func (c *GeminiClient) CorrectChunk(ctx context.Context, in correction.Corrector
 		return nil, fmt.Errorf("llm.CorrectChunk: file processing failed")
 	}
 
-	cfg := generateConfig(c.model)
-	if cfg == nil {
-		cfg = &genai.GenerateContentConfig{}
-	}
-	cfg.ResponseMIMEType = "application/json"
 	contents := []*genai.Content{genai.NewContentFromParts([]*genai.Part{
 		genai.NewPartFromText(buildCorrectionPrompt(in)),
 		genai.NewPartFromURI(file.URI, file.MIMEType),
 	}, genai.RoleUser)}
-	resp, err := c.client.Models.GenerateContent(ctx, c.model, contents, cfg)
+	resp, err := c.generateContent(ctx, "correct_transcript", contents, true)
 	if err != nil {
 		return nil, fmt.Errorf("llm.CorrectChunk generate: %w", err)
 	}

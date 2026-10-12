@@ -42,6 +42,8 @@ type DeepgramConfig struct {
 type GeminiConfig struct {
 	APIKey string
 	Model  string
+	// FallbackModel 主模型不存在（404，例如 Preview 下架）時自動改用的模型；空字串停用備援。
+	FallbackModel string
 }
 
 type PushConfig struct {
@@ -121,7 +123,9 @@ func Load() (*Config, error) {
 		},
 		Gemini: GeminiConfig{
 			APIKey: lookup("GEMINI_API_KEY", ""),
-			Model:  lookup("GEMINI_MODEL", "gemini-flash-latest"),
+			// 固定版本：gemini-3-flash-preview 實測長會議細節最完整（3.x Lite 會漏決議）；見 ADR-015/017
+			Model:         lookup("GEMINI_MODEL", "gemini-3-flash-preview"),
+			FallbackModel: lookup("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash"),
 		},
 		Deepgram: DeepgramConfig{
 			APIKey: lookup("DEEPGRAM_API_KEY", ""),

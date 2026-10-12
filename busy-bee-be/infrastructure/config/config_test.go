@@ -23,6 +23,10 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.Log.Level != "info" {
 		t.Errorf("Log.Level = %q, want %q", cfg.Log.Level, "info")
 	}
+	// 固定版本而非浮動別名（gemini-flash-latest 可能自動指到更貴/更弱的模型）；備援用 GA 版
+	if cfg.Gemini.Model != "gemini-3-flash-preview" || cfg.Gemini.FallbackModel != "gemini-3.5-flash" {
+		t.Errorf("Gemini = %q / fallback %q", cfg.Gemini.Model, cfg.Gemini.FallbackModel)
+	}
 }
 
 func TestLoad_OSEnvOverridesDefault(t *testing.T) {

@@ -6,7 +6,9 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -43,7 +45,17 @@ func buildPrompt(templatePath, transcript string) (string, error) {
 type GeminiClient struct {
 	client *genai.Client
 	model  string
+	// fallback 主模型回 404/NOT_FOUND（如 Preview 模型下架）時改用的模型；空字串代表不備援。
+	fallback string
+	// gen 實際呼叫 Gemini 的函式（預設 client.Models.GenerateContent；測試可替換）。
+	gen func(ctx context.Context, model string, contents []*genai.Content, cfg *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error)
 }
+
+// Option GeminiClient 選項。
+type Option func(*GeminiClient)
+
+// WithFallbackModel 主模型不存在（404/NOT_FOUND，例如 Preview 下架）時自動改用的模型。
+func WithFallbackModel(model string) Option { return func(c *GeminiClient) { c.fallback = model } }
 
 var (
 	_ domainactionitem.Extractor = (*GeminiClient)(nil)
@@ -51,7 +63,7 @@ var (
 	_ domainsearch.Answerer      = (*GeminiClient)(nil)
 )
 
-func NewGemini(ctx context.Context, apiKey, model string) (*GeminiClient, error) {
+func NewGemini(ctx context.Context, apiKey, model string, opts ...Option) (*GeminiClient, error) {
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:  apiKey,
 		Backend: genai.BackendGeminiAPI,
@@ -59,7 +71,12 @@ func NewGemini(ctx context.Context, apiKey, model string) (*GeminiClient, error)
 	if err != nil {
 		return nil, fmt.Errorf("llm.NewGemini: %w", err)
 	}
-	return &GeminiClient{client: client, model: model}, nil
+	c := &GeminiClient{client: client, model: model}
+	c.gen = client.Models.GenerateContent
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c, nil
 }
 
 // Extract 於同一次呼叫產出一句話摘要與行動項。prompt 要求輸出 JSON 物件
@@ -196,9 +213,41 @@ func generateConfig(model string) *genai.GenerateContentConfig {
 	}
 }
 
+// generateContent 以主模型生成；主模型不存在（404/NOT_FOUND，如 Preview 下架）且有設定備援時改用備援模型。
+// 其他錯誤（含 429/5xx）原樣回傳，交由佇列 retry。jsonOut 時要求 application/json 輸出。
+func (c *GeminiClient) generateContent(ctx context.Context, label string, contents []*genai.Content, jsonOut bool) (*genai.GenerateContentResponse, error) {
+	resp, err := c.gen(ctx, c.model, contents, buildConfig(c.model, jsonOut))
+	if err == nil || c.fallback == "" || c.fallback == c.model || !isModelNotFound(err) {
+		return resp, err
+	}
+	slog.WarnContext(ctx, "llm.model_fallback", "label", label, "model", c.model, "fallback", c.fallback, "err", err)
+	return c.gen(ctx, c.fallback, contents, buildConfig(c.fallback, jsonOut))
+}
+
+// buildConfig 依模型組生成設定（thinking 等級見 generateConfig），jsonOut 時加上 JSON 輸出。
+func buildConfig(model string, jsonOut bool) *genai.GenerateContentConfig {
+	cfg := generateConfig(model)
+	if jsonOut {
+		if cfg == nil {
+			cfg = &genai.GenerateContentConfig{}
+		}
+		cfg.ResponseMIMEType = "application/json"
+	}
+	return cfg
+}
+
+// isModelNotFound 判斷是否為「模型不存在／不支援」（Gemini API 回 404 NOT_FOUND）。
+func isModelNotFound(err error) bool {
+	var apiErr genai.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Code == 404 || apiErr.Status == "NOT_FOUND"
+	}
+	return false
+}
+
 // complete 送出已組好的 prompt 並回傳非空文字回應（空回應視為錯誤）。
 func (c *GeminiClient) complete(ctx context.Context, label, prompt string) (string, error) {
-	resp, err := c.client.Models.GenerateContent(ctx, c.model, genai.Text(prompt), generateConfig(c.model))
+	resp, err := c.generateContent(ctx, label, genai.Text(prompt), false)
 	if err != nil {
 		return "", fmt.Errorf("llm.generate %s: %w", label, err)
 	}
