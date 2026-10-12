@@ -7,6 +7,8 @@
 
 ## 當前焦點
 
+**2026-10-12 Phase 28 摘要細節化 + 模型備援**：使用者回報改用 3.5-flash-lite 後報告過度簡略；實測確認主因為 Lite 模型。改回 gemini-3-flash-preview（thinking LOW）+ 404 自動備援 gemini-3.5-flash；會議 prompt 改為保留可執行細節並新增「流程與規範細節」「待確認事項」區塊（ADR-017）。待使用者以原會議重跑 AI 校正驗收。
+
 **2026-10-10 Phase 27 AI 錄音重新校正（F-CORRECT）程式完成（分支 `feat/ai-correction`）**：詳情頁「AI 校正」→ Gemini 聽已上傳錄音逐段修正逐字稿 → 重產摘要、合併行動項；每場 2 次、整份還原、手動修改段落不覆蓋（ADR-016）。後端 vet/test（含整合測試）全綠、前端 typecheck/lint/test/build 全綠、本地 migration 000017 已套用。剩使用者裝置端 e2e（27.12）+ merge/部署（prod migration 由 CI 自動套用）。
 
 **2026-10-10 Phase 26 收音不佳時的報告完整度程式完成**：STT 低信心字詞標記給 LLM、prompt 加 ASR 容錯與「（語音不清，待確認）」註記、nova-3 改用 `keyterm`（ADR-015）。後端 vet/test 全綠；剩真實低品質錄音驗證（26.5）+ merge/部署。
@@ -524,12 +526,22 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 - 27.11 ✅ 前端 `CorrectionPanel`、段落「AI 已校正」標籤與原文 Sheet — `efa2627`
 - 27.12 ⬜ 使用者裝置端 e2e（嘈雜錄音、還原、校正中手動編輯、行動項保留、≥ 40 分鐘長錄音）+ merge/部署
 
+## Phase 28：摘要細節化 + 模型自動備援
+> 里程碑：post-MVP | 🔄 待使用者驗收
+> 見 `docs/ARCHITECTURE.md` ADR-017。
+
+- 28.1 ✅ `GeminiClient` 主模型 404/NOT_FOUND 自動改用 `GEMINI_FALLBACK_MODEL`（預設 gemini-3.5-flash）；預設主模型固定 gemini-3-flash-preview
+- 28.2 ✅ 會議 prompt：具體性規則 + `details` / `open_questions` 區塊 + 放寬字數；閒聊/面試套用具體性規則
+- 28.3 ⬜ prod `GEMINI_MODEL` 改回 gemini-3-flash-preview（使用者執行 gcloud）
+- 28.4 ⬜ 使用者以原 40 分鐘會議重跑 AI 校正驗收；閒聊/面試以真實錄音確認
+
 ---
 
 ## Session Log
 
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
+| 2026-10-12 | **Phase 28 摘要細節化 + 模型備援**：使用者回報報告過度簡略 → 以 prod 實際 40 分鐘會議 A/B（模型 × thinking、各 2 次）確認主因為 3.5-flash-lite；改回 3-flash-preview + 404 自動備援；會議 prompt 改為保留可執行細節並新增兩區塊（實測 ~560 → ~1670 字）。後端全綠 | — |
 | 2026-10-10 | **Phase 27 AI 錄音重新校正程式完成**：brainstorming → spec → plan → inline 執行 12 tasks（TDD）。新增 `transcript_corrections` 表與獨立校正佇列/sweeper；逐段（~12 分鐘、重疊 30 秒、帶上文）Gemini 聽音訊修正、patch 驗證（越界/鎖定/長度比）、校正期間人工編輯優先、行動項保留規則、整份還原；前端校正面板與「AI 已校正」標籤。後端 vet/test + integration 全綠、前端全綠。剩使用者 e2e + merge/部署 | `a5f9e19..efa2627` |
 | 2026-10-10 | **Phase 26 收音不佳時的報告完整度程式完成**：Deepgram 低信心字詞「〔?…〕」標記（`MarkedText`，僅供 LLM）＋摘要/行動項改吃標記版＋五個 prompt 加 ASR 容錯與「待確認」規則＋nova-3 改用 `keyterm`。多模態（音檔直送 Gemini）評估後暫不做（ADR-015）。後端 vet/test 全綠。剩真實低品質錄音驗證（26.5）+ merge/部署 | — |
 | 2026-09-30 | **降 Cloud Run 閒置費用**：8 月 Cloud Run 159.5 TWD 主因＝以執行個體計費（`cpu-throttling=false`）＋前端 WS 斷線 1s 自動重連（Cloud Run 300s timeout 切斷後立即重連），分頁/PWA 開著 instance 就永不縮到 0。`useMeetingStatusSocket` 改為閒置斷線：背景 >60s 或可見但無操作 >10 分 → 關 WS 且不重連；回前景/有操作 → 重連並 `onResync` 重載補漏事件（`useMeetings`/`useMeetingDetail` 已接）。新增 8 例 hook 測試；前端 test/typecheck 綠。待部署前端後觀察 billable_instance_time | — |

@@ -37,7 +37,7 @@
 | Logger | slog（stdlib） | 結構化，無額外依賴 |
 | 設定管理 | env-based（.env.local） | 同 sport-hub，無 YAML |
 | STT | Deepgram nova-2（`language=zh-TW`、diarize=true） | 聲學語者分離（分講者逐字稿）；Groq/Gemini client 保留未 wire，換供應商只動 `infrastructure/stt/`（ADR-011） |
-| LLM | Gemini（`google.golang.org/genai`；預設 gemini-flash-latest，prod 為 gemini-3-flash-preview；`gemini-3*` 固定 thinkingLevel=LOW 控成本，ADR-015） | 已有 key；interface 隔離可抽換（ADR-007） |
+| LLM | Gemini（`google.golang.org/genai`；預設 gemini-3-flash-preview + thinkingLevel=LOW；404 時自動備援 `GEMINI_FALLBACK_MODEL`（預設 gemini-3.5-flash），ADR-017） | 已有 key；interface 隔離可抽換（ADR-007） |
 | 音訊儲存 | GCS | 與 Cloud Run 同區低延遲 |
 | 身份驗證 | Firebase Auth（Google Login） | 小團隊快速落地 |
 | 前端 | React + Vite（PWA） | |
@@ -356,6 +356,22 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
   7. 跨表原子寫入沿用 `ProcessRepo` 模式（repo 內 `pgx.BeginFunc`）。狀態以 `StatusEvent.CorrectionStatus` 經 WS 推送，前端收到即重抓。
 - **後果**：一小時錄音約 US$0.05–0.07、約 2 分鐘；新版前手動修改過的段落無 `manuallyEdited` 標記，可能被校正（標籤 + 還原緩解）。
 - **替代方案**：每場自動多模態 → 否決（成本）；錄音中邊錄邊處理 → 否決（跨段講者代號無法對齊、iOS 背景上傳不穩）；同步 API 處理 → 否決（逾時、無斷點）；欄位全加在 meetings → 否決（只能留一份快照）。
+
+#### ADR-017: 摘要保留可執行細節；模型固定 gemini-3-flash-preview + 自動備援
+
+- **狀態**：採納（Phase 28）
+- **背景**：Phase 26 依短逐字稿（4 行）A/B 改用 gemini-3.5-flash-lite，上線後使用者回報長會議報告「只知道大概討論什麼、細節全沒了」（例：「16:00 snapshot、隔日 11:00 發佈」被概括成「QA 測試與每日車次安排」）。
+- **實測**（同一場 40 分鐘會議、校正後逐字稿、各跑兩次）：
+  - 舊 prompt：3.5-flash-lite 決議 0–2 項、505–818 字（thinking high 亦同）；3-flash-preview 決議 3 項、870–1000 字；thinking low 與 high 細節相當 → **主因是 Lite 模型，不是 thinking**。
+  - 新 prompt + 3-flash-preview（low）：5 區塊、約 1500–1670 字，保留時間/步驟/人員/工具；每次約 US$0.008–0.009（舊約 0.006）。
+  - gemini-3.5-flash（GA）細節相當但成本 3–5 倍、兩次結果差異大；3.1-flash-lite 不遵守待確認規則 → 皆不採為主模型。
+- **決策**：
+  1. 主模型固定 `gemini-3-flash-preview`（不用浮動別名 gemini-flash-latest），`gemini-3*` 維持 thinkingLevel=LOW。
+  2. Preview 可能下架：`GeminiClient.generateContent` 遇 404/NOT_FOUND 自動改用 `GEMINI_FALLBACK_MODEL`（預設 GA `gemini-3.5-flash`）並記 `llm.model_fallback` warn；其他錯誤照常交由佇列重試。摘要、行動項、AI 校正共用此路徑。
+  3. 會議 prompt 目標由「掌握全貌」改為「讓沒參加的人能照著做事」：新增 `details`（流程與規範細節）、`open_questions`（待確認事項）區塊；具體性規則（必留時間/數字/人名/工具/步驟/條件，禁止空泛句）；`text` 上限 50 → 約 150 字、依會議長度增加條目；禁止自創 `[?…]` 等不確定標記。閒聊/面試 prompt 套用具體性規則與放寬字數（未新增區塊，尚未以真實錄音驗證）。
+  4. 前端為通用渲染器（ADR-012 B-lite），新區塊不需改前端。
+- **後果**：既有紀錄需重新處理或 AI 校正才會套用新 prompt；摘要約長 2.5 倍。
+- **教訓**：模型/prompt 的 A/B 必須用真實長度（≥ 30 分鐘）的逐字稿，短樣本看不出概括與漏項。
 
 ---
 

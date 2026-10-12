@@ -3,6 +3,8 @@ package llm
 import (
 	"strings"
 	"testing"
+
+	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 )
 
 func TestBuildPrompt_ReplacesTranscriptPlaceholder(t *testing.T) {
@@ -39,5 +41,22 @@ func TestPrompts_ExplainLowConfidenceMarkers(t *testing.T) {
 		if !strings.Contains(s, "〔?…〕") || !strings.Contains(s, "（語音不清，待確認）") {
 			t.Errorf("%s 缺少低信心標記說明", p)
 		}
+	}
+}
+
+// 會議摘要須保留細節（2026-10 使用者回饋：舊版過度概括），並獨立列出流程細節與待確認事項。
+func TestMeetingPrompt_RequiresDetailSections(t *testing.T) {
+	raw, err := promptFS.ReadFile(scenarioPrompts[domainmeeting.ScenarioMeeting])
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(raw)
+	for _, want := range []string{`"details"`, `"open_questions"`, "具體性規則", "禁止"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("會議 prompt 缺少 %q", want)
+		}
+	}
+	if strings.Contains(s, "≤50 字") {
+		t.Error("會議 prompt 不應再以 50 字上限壓縮細節")
 	}
 }
