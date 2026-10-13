@@ -129,9 +129,9 @@ func main() {
 	go worker.NewSweeperFunc(correctionRepo.ListUnfinishedIDs, correctionQueue.EnqueueCorrection).Run(sweepCtx, sweepInterval)
 
 	// 提醒掃描（F-REMIND）：VAPID 未設定則停用。
-	// scale-to-zero 下 instance 常態為 0，進程內 ticker 不可靠（ADR-004）；
-	// 改由 Cloud Scheduler 定時打 /internal/sweep-reminders 喚醒 instance 觸發掃描。
-	// 進程內 ticker 保留作為 instance 存活時的即時保障（與端點掃描冪等，reminded_at 防重複）。
+	// scale-to-zero 下 instance 常態為 0，進程內 ticker 只在 instance 存活時觸發（ADR-004）；
+	// 成本考量未啟用 Cloud Scheduler（2026-10-13 決策），提醒會延到 instance 被喚醒後才補發。
+	// /internal/sweep-reminders 端點保留，日後要準時提醒時由外部排程呼叫即可（與 ticker 冪等，reminded_at 防重複）。
 	pushRepo := db.NewPushRepo(pool)
 	var pushHandler *pushhandler.Handler
 	var reminderUC *appmeeting.ReminderUC
