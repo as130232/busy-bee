@@ -5,9 +5,9 @@ import ReactMarkdown from 'react-markdown'
 
 import { askCrossMeetingQA, type QAResult, type QASource } from '../services/api/client'
 import { useApiCall } from '../hooks/useApiCall'
+import { QA_STORAGE_KEY } from '../services/localData'
 import { formatDateTime } from '../utils/format'
 
-const STORAGE_KEY = 'busybee.qa.last'
 
 /** 上次問答（存本地端，不進 DB）：切頁回來仍可看到，重新整理也保留。 */
 interface StoredQA {
@@ -18,7 +18,7 @@ interface StoredQA {
 
 function loadStored(): StoredQA | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(QA_STORAGE_KEY)
     return raw ? (JSON.parse(raw) as StoredQA) : null
   } catch {
     return null
@@ -61,7 +61,7 @@ export function AskPage() {
       const record: StoredQA = { question: trimmed, result: res, askedAt: new Date().toISOString() }
       setAsked(record)
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(record))
+        localStorage.setItem(QA_STORAGE_KEY, JSON.stringify(record))
       } catch {
         // localStorage 滿或不可用時忽略：不影響本次顯示
       }

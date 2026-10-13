@@ -15,6 +15,7 @@ import {
 } from 'firebase/auth'
 
 import { auth, googleProvider } from '../services/firebase'
+import { clearLocalUserData } from '../services/localData'
 import { syncUser, setUnauthorizedHandler, ApiError, type User } from '../services/api/client'
 
 interface AuthState {
@@ -59,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 任一 API 回 401/token 過期 → 集中登出並提示重新登入（RequireAuth 隨即導回 /login）。
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      clearLocalUserData()
       void firebaseSignOut(auth)
       setUser(null)
       setError('登入已過期，請重新登入。')
@@ -79,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signOut = useCallback(async () => {
+    clearLocalUserData()
     await firebaseSignOut(auth)
     setUser(null)
   }, [])
