@@ -1,40 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
-import { importMeeting } from '../services/api/client'
-import { getIdToken } from '../services/token'
 import { extractURL } from '../services/url'
 
-export type ShareImportState = 'idle' | 'importing' | 'error'
-
 /**
- * 處理由分享/捷徑帶進來的連結：`?import=<url>`，或 PWA share_target 的 `url` / `text` 參數。
- * 抓到連結即自動匯入並導向紀錄頁；先清掉 query 避免重整重複匯入。
+ * 讀取由分享/捷徑帶進來的連結：`?import=<url>`，或 PWA share_target 的 `url` / `text` 參數。
+ * 只抽出連結並清掉 query（避免重整重複觸發），**不自動匯入**——匯入會產生抓取與 AI 費用，
+ * 外部網頁可構造此連結，故由呼叫端預填匯入表單，使用者按下確認才送出。
  */
-export function useShareImport(): ShareImportState {
-  const navigate = useNavigate()
+export function useShareImport(): string {
   const [params, setParams] = useSearchParams()
-  const [state, setState] = useState<ShareImportState>('idle')
-  const handled = useRef(false)
+  const [sharedUrl] = useState(() =>
+    extractURL(params.get('import') || params.get('url') || params.get('text') || ''),
+  )
 
   useEffect(() => {
-    if (handled.current) return
-    const raw = params.get('import') || params.get('url') || params.get('text') || ''
-    const url = extractURL(raw)
-    if (!url) return
+    if (sharedUrl) setParams({}, { replace: true })
+  }, [sharedUrl, setParams])
 
-    handled.current = true
-    setParams({}, { replace: true }) // 清掉 query，避免重整/返回時重複匯入
-    setState('importing')
-    void (async () => {
-      try {
-        await importMeeting(await getIdToken(), { url })
-        navigate('/meetings')
-      } catch {
-        setState('error')
-      }
-    })()
-  }, [params, setParams, navigate])
-
-  return state
+  return sharedUrl
 }

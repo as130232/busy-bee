@@ -45,10 +45,10 @@ export function RecordPage() {
   const [scenario, setScenario] = useState<Scenario>('meeting')
   // 錄音/上傳前先選語言；預設中文。決定 STT 辨識語言。
   const [language, setLanguage] = useState<Language>('zh-TW')
-  const [sheet, setSheet] = useState<SheetKind>(null)
 
-  // 分享/捷徑帶進來的連結（?import= 或 PWA share_target）自動匯入
-  const shareImport = useShareImport()
+  // 分享/捷徑帶進來的連結（?import= 或 PWA share_target）：開啟貼連結視窗預填，使用者確認才匯入
+  const sharedUrl = useShareImport()
+  const [sheet, setSheet] = useState<SheetKind>(sharedUrl ? 'link' : null)
 
   // 由提醒推播深連結（/?record=1）進入時高亮錄音鈕，3 秒後清除 query
   const [searchParams, setSearchParams] = useSearchParams()
@@ -73,17 +73,6 @@ export function RecordPage() {
         aria-hidden
         className={`pointer-events-none absolute top-1/2 left-1/2 -z-10 size-[28rem] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-70 blur-3xl transition-colors duration-500 ${theme.tint}`}
       />
-
-      {shareImport === 'importing' && (
-        <div className="mx-3 mt-3 rounded-xl border border-accent/30 bg-accent/5 px-4 py-2 text-center text-sm text-accent">
-          正在匯入分享的連結…
-        </div>
-      )}
-      {shareImport === 'error' && (
-        <div className="mx-3 mt-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-2 text-center text-sm text-red-500">
-          匯入失敗，請改用「貼連結」
-        </div>
-      )}
 
       <div className="flex flex-wrap items-center justify-center gap-2 pt-3">
         <ScenarioToggle value={scenario} onChange={setScenario} />
@@ -114,7 +103,12 @@ export function RecordPage() {
       {sheet === 'link' && (
         <Sheet onClose={() => setSheet(null)}>
           <SheetHeader title="貼連結匯入" onClose={() => setSheet(null)} />
-          <ImportLinkForm onImported={toMeetings} scenario={scenario} language={language} />
+          <ImportLinkForm
+            onImported={toMeetings}
+            scenario={scenario}
+            language={language}
+            initialUrl={sharedUrl}
+          />
         </Sheet>
       )}
     </div>

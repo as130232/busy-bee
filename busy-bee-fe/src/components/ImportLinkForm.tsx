@@ -16,12 +16,15 @@ export function ImportLinkForm({
   scenario = 'meeting',
   language = 'zh-TW',
   onImported,
+  initialUrl = '',
 }: {
   scenario?: Scenario
   language?: Language
   onImported?: (m: Meeting) => void
+  /** 預填連結（分享/捷徑帶入）；仍需使用者按下匯入才送出。 */
+  initialUrl?: string
 }) {
-  const [url, setUrl] = useState('')
+  const [url, setUrl] = useState(initialUrl)
   const [state, setState] = useState<State>({ phase: 'idle' })
 
   // iOS 無標準分享目標：改用「貼上剪貼簿」——使用者手勢觸發讀取剪貼簿並填入連結。
