@@ -28,15 +28,38 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
   unauthorizedHandler = handler
 }
 
-async function request<T>(path: string, init: RequestInit, idToken?: string): Promise<T> {
+/** 一般請求逾時；斷網或伺服器卡住時中止，避免畫面永遠轉圈。 */
+export const REQUEST_TIMEOUT_MS = 30_000
+/** 同步呼叫 LLM 的請求（跨會議問答）需要較長時間。 */
+const LLM_REQUEST_TIMEOUT_MS = 90_000
+
+async function request<T>(
+  path: string,
+  init: RequestInit,
+  idToken?: string,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<T> {
   const headers = new Headers(init.headers)
   if (idToken) headers.set('Authorization', `Bearer ${idToken}`)
 
-  const res = await fetch(path, { ...init, headers })
+  // 逾時只代表前端放棄等待，伺服器端的副作用不一定已回滾。
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  let res: Response
+  let raw: string
+  try {
+    res = await fetch(path, { ...init, headers, signal: ctrl.signal })
+    raw = await res.text()
+  } catch (e) {
+    if (ctrl.signal.aborted) throw new ApiError(0, '連線逾時，請檢查網路後重試', 0)
+    if (e instanceof TypeError) throw new ApiError(0, '網路連線失敗，請檢查網路後重試', 0)
+    throw e
+  } finally {
+    clearTimeout(timer)
+  }
 
   // 容忍空 body / 非 JSON 回應（如 proxy 502、後端崩潰）：不硬解析，改回可讀的狀態訊息，
   // 避免掩蓋真實錯誤（例：502 空 body 會讓 res.json() 拋「Unexpected end of JSON input」）。
-  const raw = await res.text()
   let body: Envelope
   try {
     body = raw ? (JSON.parse(raw) as Envelope) : ({ errCode: res.status, msg: '' } as Envelope)
@@ -441,5 +464,6 @@ export function askCrossMeetingQA(idToken: string, question: string): Promise<QA
       body: JSON.stringify({ question }),
     },
     idToken,
+    LLM_REQUEST_TIMEOUT_MS,
   )
 }

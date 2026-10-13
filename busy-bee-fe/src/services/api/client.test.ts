@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { ApiError, setUnauthorizedHandler, syncUser } from './client'
+import { ApiError, REQUEST_TIMEOUT_MS, setUnauthorizedHandler, syncUser } from './client'
 
 /** 以指定 status/body 造一個假 fetch 回應。 */
 function mockFetch(status: number, body: string) {
@@ -9,6 +9,7 @@ function mockFetch(status: number, body: string) {
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   setUnauthorizedHandler(null)
 })
@@ -57,5 +58,30 @@ describe('request（透過 syncUser）', () => {
     mockFetch(401, JSON.stringify({ errCode: 40100, msg: 'unauthorized' }))
     await expect(syncUser('t')).rejects.toBeInstanceOf(ApiError)
     expect(onUnauth).toHaveBeenCalledTimes(1)
+  })
+})
+
+// 稽核 F4：請求無逾時時，斷網會永遠轉圈
+describe('request 逾時與網路錯誤', () => {
+  it('超過 REQUEST_TIMEOUT_MS 中止並拋可讀的逾時錯誤', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+          }),
+      ),
+    )
+    const p = syncUser('t')
+    const assertion = expect(p).rejects.toThrow('連線逾時，請檢查網路後重試')
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS)
+    await assertion
+  })
+
+  it('網路失敗（fetch reject）轉為可讀錯誤', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))))
+    await expect(syncUser('t')).rejects.toThrow('網路連線失敗，請檢查網路後重試')
   })
 })
