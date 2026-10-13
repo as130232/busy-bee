@@ -32,3 +32,9 @@ const dateTimeFmt: Intl.DateTimeFormatOptions = {
 export function formatDateTime(value: string | number | Date): string {
   return new Date(value).toLocaleString('zh-TW', dateTimeFmt)
 }
+
+/** Date → 本地時間「YYYY-MM-DD HH:mm」（錄音檔名用；勿用 toISOString，那是 UTC）。 */
+export function formatFileStamp(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}

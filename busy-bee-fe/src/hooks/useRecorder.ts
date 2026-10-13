@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { formatFileStamp } from '../utils/format'
+
 export type RecorderPhase = 'idle' | 'recording' | 'paused' | 'interrupted' | 'unsupported'
 
 interface RecorderState {
@@ -116,7 +118,7 @@ export function useRecorder() {
       setState({ phase: 'idle', elapsedSec: 0, error: null })
       if (blob.size === 0) return null
       // 檔名前綴中性（「錄音」）；情境前綴（會議/閒聊）由上層依所選情境組合標題。
-      const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ')
+      const stamp = formatFileStamp(new Date())
       return new File([blob], `錄音 ${stamp}.${extFor(mimeType)}`, { type: mimeType })
     },
     [stopTimer, releaseWakeLock],

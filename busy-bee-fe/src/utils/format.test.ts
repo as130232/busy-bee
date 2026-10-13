@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatClock, formatDateTime, formatDuration } from './format'
+import { formatClock, formatDateTime, formatDuration, formatFileStamp } from './format'
 
 describe('formatClock', () => {
   it('格式化為 m:ss，秒補零', () => {
@@ -45,5 +45,13 @@ describe('formatDateTime', () => {
   it('接受時間戳與 Date 物件', () => {
     const ts = Date.parse('2024-03-05T08:09:00Z')
     expect(formatDateTime(ts)).toBe(formatDateTime(new Date(ts)))
+  })
+})
+
+describe('formatFileStamp', () => {
+  // 稽核 F1：錄音檔名曾用 toISOString（UTC），台灣時間會少 8 小時
+  it('以本地時間輸出 YYYY-MM-DD HH:mm', () => {
+    expect(formatFileStamp(new Date(2026, 9, 13, 6, 5))).toBe('2026-10-13 06:05')
+    expect(formatFileStamp(new Date(2026, 0, 1, 23, 59))).toBe('2026-01-01 23:59')
   })
 })
