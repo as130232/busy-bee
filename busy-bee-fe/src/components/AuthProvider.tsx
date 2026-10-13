@@ -1,7 +1,5 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
@@ -14,21 +12,10 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth'
 
+import { AuthContext } from '../hooks/useAuth'
 import { auth, googleProvider } from '../services/firebase'
 import { clearLocalUserData } from '../services/localData'
 import { syncUser, setUnauthorizedHandler, ApiError, type User } from '../services/api/client'
-
-interface AuthState {
-  /** Firebase 登入狀態尚未確定時為 true（避免閃現登入頁） */
-  initializing: boolean
-  /** 已通過後端同步（含白名單檢查）的用戶；null = 未登入 */
-  user: User | null
-  error: string | null
-  signIn: () => Promise<void>
-  signOut: () => Promise<void>
-}
-
-const AuthContext = createContext<AuthState | null>(null)
 
 async function syncWithBackend(fbUser: FirebaseUser): Promise<User> {
   const idToken = await fbUser.getIdToken()
@@ -100,10 +87,4 @@ function toMessage(e: unknown): string {
   }
   if (e instanceof Error && e.message.includes('popup-closed')) return ''
   return '登入失敗，請再試一次。'
-}
-
-export function useAuth(): AuthState {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
-  return ctx
 }

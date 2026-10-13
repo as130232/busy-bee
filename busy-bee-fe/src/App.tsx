@@ -4,7 +4,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Loader } from './components/Loader'
 import { RequireAuth } from './components/RequireAuth'
 import { TabLayout } from './components/TabLayout'
-import { AuthProvider } from './hooks/useAuth'
+import { AuthProvider } from './components/AuthProvider'
 import { RecordPage } from './pages/RecordPage'
 
 // RecordPage 是首屏關鍵路徑（start_url='/'），靜態載入；其餘頁面按路由動態切分，
