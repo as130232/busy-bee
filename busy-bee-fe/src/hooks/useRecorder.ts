@@ -20,6 +20,9 @@ function pickMimeType(): string | null {
   return null
 }
 
+/** 人聲錄音位元率：32 kbps 足以辨識，檔案約為瀏覽器預設的 1/3～1/4（省上傳與 GCS 費用）。 */
+const AUDIO_BITS_PER_SECOND = 32_000
+
 function extFor(mimeType: string): string {
   return mimeType.startsWith('audio/mp4') ? 'm4a' : 'webm'
 }
@@ -132,7 +135,7 @@ export function useRecorder() {
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream, { mimeType })
+      const recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: AUDIO_BITS_PER_SECOND })
       chunksRef.current = []
       userStoppingRef.current = false
       recorder.ondataavailable = (e) => {
