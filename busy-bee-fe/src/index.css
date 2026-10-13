@@ -185,7 +185,7 @@
   }
 
   .input {
-    @apply h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm text-fg transition outline-none placeholder:text-muted focus:border-accent;
+    @apply h-11 w-full rounded-lg border border-border bg-surface px-3 text-base text-fg transition sm:text-sm outline-none placeholder:text-muted focus:border-accent;
   }
 
   .progress {

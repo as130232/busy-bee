@@ -158,7 +158,7 @@ function SegmentRow({
       {editing ? (
         <div className="flex flex-col gap-2">
           <textarea
-            className="input min-h-[4.5rem] text-sm leading-7"
+            className="input min-h-[4.5rem] leading-7"
             value={draft}
             disabled={busy}
             autoFocus

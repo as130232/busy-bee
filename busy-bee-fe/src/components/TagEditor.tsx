@@ -55,7 +55,7 @@ export function TagEditor({
         </span>
       ))}
       <input
-        className="w-20 border-b border-border bg-transparent text-xs outline-none focus:border-accent disabled:opacity-50"
+        className="w-20 border-b border-border bg-transparent text-base outline-none sm:text-xs focus:border-accent disabled:opacity-50"
         placeholder="加標籤"
         value={input}
         maxLength={30}

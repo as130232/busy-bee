@@ -131,7 +131,7 @@ function ActionItemRow({
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <input
             type="text"
-            className="input text-sm"
+            className="input"
             value={draft}
             disabled={busy}
             autoFocus
