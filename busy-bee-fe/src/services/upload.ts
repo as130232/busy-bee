@@ -17,6 +17,9 @@ const supportedTypes = new Set([
   'audio/wav',
 ])
 
+/** 上傳大小上限，與後端 signed URL 的 content-length-range 一致（PRODUCT.md F-UPLOAD）。 */
+export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024
+
 export function resolveContentType(file: File): string | null {
   // 錄音 blob 可能帶 codec 參數（audio/webm;codecs=opus），取分號前主類型
   const base = file.type.split(';')[0].trim()
@@ -54,6 +57,7 @@ export async function uploadAudio(
 ): Promise<Meeting> {
   const contentType = resolveContentType(file)
   if (!contentType) throw new Error('不支援的音訊格式（支援 mp3 / m4a / webm / wav）')
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error('檔案超過 200MB，請壓縮或改用 mp3 / m4a 後再上傳')
 
   const { meeting, upload } = await createMeeting(idToken, { title, contentType, scenario, language })
   await putWithProgress(upload.url, upload.headers, file, onProgress)
