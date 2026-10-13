@@ -58,12 +58,16 @@ describe('CorrectionPanel', () => {
     expect(screen.queryByText(/建議校正/)).not.toBeInTheDocument()
   })
 
-  it('completed 時可還原，還原後通知父層重抓', async () => {
+  // 稽核 F7：還原不可復原（次數不退），需先確認
+  it('completed 時可還原：先確認，確認後才呼叫 API 並通知父層重抓', async () => {
     getMock.mockResolvedValue({ correction: state({ status: 'completed', attemptsUsed: 1, canRevert: true }) })
     revertMock.mockResolvedValue({ correction: state({ status: 'reverted', attemptsUsed: 1 }) })
     const onChanged = vi.fn()
     render(<CorrectionPanel meeting={meeting()} onChanged={onChanged} />)
     await userEvent.click(await screen.findByRole('button', { name: '還原' }))
+    expect(screen.getByText(/已用掉的校正次數不會退回/)).toBeInTheDocument()
+    expect(revertMock).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: '確認還原' }))
     expect(revertMock).toHaveBeenCalledWith('tok', 'm1')
     expect(onChanged).toHaveBeenCalled()
   })
@@ -108,6 +112,7 @@ describe('CorrectionPanel', () => {
     const onChanged = vi.fn()
     render(<CorrectionPanel meeting={meeting()} onChanged={onChanged} />)
     await userEvent.click(await screen.findByRole('button', { name: '還原' }))
+    await userEvent.click(screen.getByRole('button', { name: '確認還原' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('nothing to revert')
     expect(onChanged).not.toHaveBeenCalled()
   })

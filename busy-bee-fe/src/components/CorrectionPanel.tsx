@@ -20,7 +20,7 @@ const SUGGEST_THRESHOLD = 0.05
 export function CorrectionPanel({ meeting, onChanged }: { meeting: MeetingDetail; onChanged: () => void }) {
   const call = useApiCall()
   const [state, setState] = useState<CorrectionState | null>(null)
-  const [confirming, setConfirming] = useState(false)
+  const [confirming, setConfirming] = useState<null | 'start' | 'revert'>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -47,7 +47,7 @@ export function CorrectionPanel({ meeting, onChanged }: { meeting: MeetingDetail
       setError(e instanceof Error ? e.message : '無法開始校正')
       void refresh()
     } finally {
-      setConfirming(false)
+      setConfirming(null)
       setBusy(false)
     }
   }, [call, meeting.id, refresh])
@@ -62,6 +62,7 @@ export function CorrectionPanel({ meeting, onChanged }: { meeting: MeetingDetail
       setError(e instanceof Error ? e.message : '無法還原')
       void refresh()
     } finally {
+      setConfirming(null)
       setBusy(false)
     }
   }, [call, meeting.id, onChanged, refresh])
@@ -84,7 +85,7 @@ export function CorrectionPanel({ meeting, onChanged }: { meeting: MeetingDetail
         </span>
         <div className="flex gap-2">
           {state.canRevert && (
-            <button type="button" className="btn btn-secondary h-9" disabled={busy} onClick={() => void revert()}>
+            <button type="button" className="btn btn-secondary h-9" disabled={busy} onClick={() => setConfirming('revert')}>
               還原
             </button>
           )}
@@ -92,7 +93,7 @@ export function CorrectionPanel({ meeting, onChanged }: { meeting: MeetingDetail
             type="button"
             className="btn btn-primary h-9"
             disabled={busy || running || exhausted}
-            onClick={() => setConfirming(true)}
+            onClick={() => setConfirming('start')}
           >
             AI 校正
           </button>
@@ -103,8 +104,8 @@ export function CorrectionPanel({ meeting, onChanged }: { meeting: MeetingDetail
           {error}
         </p>
       )}
-      {confirming && (
-        <Sheet onClose={() => setConfirming(false)}>
+      {confirming === 'start' && (
+        <Sheet onClose={() => setConfirming(null)}>
           <h2 className="m-0 text-base font-semibold">AI 重新聽錄音校正</h2>
           <p className="mt-2 text-sm leading-6">
             AI 會重新聽錄音修正逐字稿並更新摘要。每場最多 2 次，失敗也會計次；你手動修改過的段落與行動項不會被覆蓋，完成後可一鍵還原。
@@ -112,6 +113,17 @@ export function CorrectionPanel({ meeting, onChanged }: { meeting: MeetingDetail
           <p className="mt-1 text-xs leading-5 text-muted">新版之前手動修改過的段落無法辨識，可能會被校正。</p>
           <button type="button" className="btn btn-primary mt-3 h-10 w-full" disabled={busy} onClick={() => void start()}>
             開始校正
+          </button>
+        </Sheet>
+      )}
+      {confirming === 'revert' && (
+        <Sheet onClose={() => setConfirming(null)}>
+          <h2 className="m-0 text-base font-semibold">還原 AI 校正</h2>
+          <p className="mt-2 text-sm leading-6">
+            逐字稿與摘要會恢復成校正前的版本（行動項不變），校正後你手動修改的段落會保留。已用掉的校正次數不會退回。
+          </p>
+          <button type="button" className="btn btn-primary mt-3 h-10 w-full" disabled={busy} onClick={() => void revert()}>
+            確認還原
           </button>
         </Sheet>
       )}
