@@ -1,7 +1,7 @@
 # Busy Bee 開發計畫與進度追蹤
 
 > 依 `docs/PRODUCT.md` 的 F-ID 與優先序切分 Phase，記錄任務狀態與進度。
-> 更新日期：2026-07-27
+> 最後更新：2026-10-16
 
 ---
 
@@ -27,6 +27,8 @@
 | ⏸ | 暫緩（等待前置依賴） |
 | 🔁 | 重做中（原已 ✅ 但發現問題需要修復） |
 | ❌ | 取消（保留紀錄，永不刪除） |
+
+> 舊編號沿用，新編號照新格式。PRODUCT 舊驗收條件附的 commit hash 為歷史紀錄，之後 hash 只寫在 PLAN。
 
 ---
 
@@ -59,6 +61,12 @@
 | 🔄 | Phase 22 — 紀錄整理（情境/來源篩選 + 手動標籤，F-TAG） | post-MVP |
 | 🔄 | Phase 23 — 分享匯入（剪貼簿 + ?import + Android 分享目標） | post-MVP |
 | 🔄 | Phase 24 — AI 自動標籤（F-TAG 擴充） | post-MVP |
+| 🔄 | Phase 25 — per-meeting STT 語言選擇（F-LANGUAGE） | post-MVP |
+| 🔄 | Phase 26 — 收音不佳時的報告完整度（F-DOCGEN） | post-MVP |
+| 🔄 | Phase 27 — AI 錄音重新校正（F-CORRECT） | post-MVP |
+| 🔄 | Phase 28 — 摘要細節化 + 模型自動備援 | post-MVP |
+| 🔄 | Phase 29 — 前端上線前稽核修正 | post-MVP |
+| 🔄 | Phase 30 — 即時會議助理（F-LIVE） | post-MVP |
 
 > Phase 18–24 已 merge（`59ec949`）+ 部署（2026-07-27）；標 🔄 僅因各留最後一項裝置端 e2e 人工驗收待跑。
 
@@ -114,7 +122,7 @@
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
 | ✅ | 4.1 | Dockerfile | `busy-bee-be/Dockerfile` | multi-stage、非 root、含 ffmpeg；交叉編譯避開 QEMU panic | `d1ed1ce, f4fb15d` |
-| ✅ | 4.2 | Cloud Run 部署 + Secret Manager | — | Neon migration v3；三 secrets；min-instances=1 + no-cpu-throttling；runtime SA = busy-bee-storage（self signBlob） | — |
+| ✅ | 4.2 | Cloud Run 部署 + Secret Manager | — | Neon migration v3；三 secrets；min-instances=1 + no-cpu-throttling；runtime SA = busy-bee-storage（self signBlob） | `f4fb15d` |
 | ✅ | 4.3 | Firebase Hosting 部署 | `busy-bee-fe/firebase.json` | /api rewrite → Cloud Run；WS 直連（VITE_WS_BASE）；bucket CORS 加 hosting domains | `f4fb15d` |
 | ✅ | 4.4 | GitHub Actions CI/CD | `.github/workflows/deploy.yml` | WIF 零金鑰；PR 跑測試（真實 PG + ffmpeg）；main 自動 migration + 雙部署；首次執行全綠 | `88742a1` |
 
@@ -156,9 +164,9 @@
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ✅ | 6R.1 | 記憶體佇列 | `busy-bee-be/infrastructure/queue/memory.go` | in-flight 去重、backoff retry、背壓、graceful drain；含 -race 測試 | — |
-| ✅ | 6R.2 | Sweeper 復原掃描 | `busy-bee-be/worker/sweeper.go` | 啟動 + 每 2 分鐘掃未完成會議重新入列 | — |
-| ✅ | 6R.3 | 清除 Redis 依賴 | `docker-compose.yml`, `busy-bee-be/cmd/server/main.go` | 移除 asynq/redis/cmd-enqueue；config 移除 RedisConfig | — |
+| ✅ | 6R.1 | 記憶體佇列 | `busy-bee-be/infrastructure/queue/memory.go` | in-flight 去重、backoff retry、背壓、graceful drain；含 -race 測試 | `b64bcb2` |
+| ✅ | 6R.2 | Sweeper 復原掃描 | `busy-bee-be/worker/sweeper.go` | 啟動 + 每 2 分鐘掃未完成會議重新入列 | `b64bcb2` |
+| ✅ | 6R.3 | 清除 Redis 依賴 | `docker-compose.yml`, `busy-bee-be/cmd/server/main.go` | 移除 asynq/redis/cmd-enqueue；config 移除 RedisConfig | `b64bcb2` |
 
 ## Phase 7：WebSocket 通知（F-STATUS）
 > 里程碑：M1-B | ✅ 完成於 2026-07-18
@@ -243,8 +251,8 @@
 |------|---|------|------|------|--------|
 | ✅ | 12.1 | rate limiting middleware | `busy-bee-be/interface/http/middleware/ratelimit.go` | 每 IP 10rps/burst30；閒置清理；429 envelope | `383adc6` |
 | ✅ | 12.2 | error state UI 梳理 | `busy-bee-fe/src/` | 列表載入失敗提示 + 重載；常見錯誤碼友善訊息 | `38a229d` |
-| ✅ | 12.3 | Cloud Run 參數調整 | — | 併入 Phase 4：scale-to-zero + no-cpu-throttling（ADR-004 修訂） | — |
-| ✅ | 12.4 | README + .env.example 收尾 | `README.md`, `.env.example` | 架構亮點 + ADR 導覽 + 本地開發指南 | — |
+| ✅ | 12.3 | Cloud Run 參數調整 | — | 併入 Phase 4：scale-to-zero + no-cpu-throttling（ADR-004 修訂） | 不明 |
+| ✅ | 12.4 | README + .env.example 收尾 | `README.md`, `.env.example` | 架構亮點 + ADR 導覽 + 本地開發指南 | `88426d4` |
 
 ---
 
@@ -307,12 +315,12 @@
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
 |------|---|------|------|------|--------|
-| ✅ | 16.1 | domain/port | `domain/meeting/stt.go`, `meeting.go` | `TranscriptSegment`、`TranscribeResult.Segments`、`FlattenSegments`（TDD）；`Meeting.TranscriptSegments/SpeakerNames`；`SaveTranscript` 加 segments、`ManageRepository.UpdateSpeakerNames` | — |
-| ✅ | 16.2 | DB schema | `db/migrations/000007_*`, `db/query/meetings.sql`, `infrastructure/db/meeting_repo.go` | 加 `transcript_segments`/`speaker_names` jsonb；sqlc；repo jsonb round-trip（整合測試） | — |
-| ✅ | 16.3 | STT 供應商 | `infrastructure/stt/deepgram.go`, `config`, `cmd/server/main.go` | Deepgram diarize=true、words 依 speaker 聚合成 A/B/C；`DEEPGRAM_*` config（含 keywords 術語加權）；wiring。Gemini/Groq client 保留未 wire | — |
-| ✅ | 16.4 | 改名 + 空結果保護 | `application/meeting/manage.go`, `process.go` | `UpdateSpeakerNames` use case（清洗+owner）；STT 空稿標失敗可重試、log 片段/講者數 | — |
-| ✅ | 16.5 | HTTP + 音檔播放端點 | `interface/http/...`, `application/meeting/audio.go`, `gcs/storage.go` | `PATCH /meetings/:id/speakers`；`GET /meetings/:id/audio-url`（`SignedDownloadURL`）；detail 回 segments/speakerNames；openapi | — |
-| ✅ | 16.6 | 前端 | `busy-bee-fe/.../MeetingDetailPage.tsx`, `MeetingList.tsx`, `index.css` | 分講者顯示（晶片配色+時間碼靠左，可點跳播）、改名 bottom-sheet、音檔播放器（±10s/進度條）、匯出用顯示名、列表時長「分秒」tag、返回回列表、標題跑馬燈 | — |
+| ✅ | 16.1 | domain/port | `domain/meeting/stt.go`, `meeting.go` | `TranscriptSegment`、`TranscribeResult.Segments`、`FlattenSegments`（TDD）；`Meeting.TranscriptSegments/SpeakerNames`；`SaveTranscript` 加 segments、`ManageRepository.UpdateSpeakerNames` | `f53fb6c` |
+| ✅ | 16.2 | DB schema | `db/migrations/000007_*`, `db/query/meetings.sql`, `infrastructure/db/meeting_repo.go` | 加 `transcript_segments`/`speaker_names` jsonb；sqlc；repo jsonb round-trip（整合測試） | `f53fb6c` |
+| ✅ | 16.3 | STT 供應商 | `infrastructure/stt/deepgram.go`, `config`, `cmd/server/main.go` | Deepgram diarize=true、words 依 speaker 聚合成 A/B/C；`DEEPGRAM_*` config（含 keywords 術語加權）；wiring。Gemini/Groq client 保留未 wire | `f53fb6c` |
+| ✅ | 16.4 | 改名 + 空結果保護 | `application/meeting/manage.go`, `process.go` | `UpdateSpeakerNames` use case（清洗+owner）；STT 空稿標失敗可重試、log 片段/講者數 | `f53fb6c` |
+| ✅ | 16.5 | HTTP + 音檔播放端點 | `interface/http/...`, `application/meeting/audio.go`, `gcs/storage.go` | `PATCH /meetings/:id/speakers`；`GET /meetings/:id/audio-url`（`SignedDownloadURL`）；detail 回 segments/speakerNames；openapi | `f53fb6c` |
+| ✅ | 16.6 | 前端 | `busy-bee-fe/.../MeetingDetailPage.tsx`, `MeetingList.tsx`, `index.css` | 分講者顯示（晶片配色+時間碼靠左，可點跳播）、改名 bottom-sheet、音檔播放器（±10s/進度條）、匯出用顯示名、列表時長「分秒」tag、返回回列表、標題跑馬燈 | `f53fb6c` |
 | ✅ | 16.7 | merge + 部署 | — | merge `1da9020`；`DEEPGRAM_API_KEY` 已掛 Cloud Run（secret `busy-bee-deepgram-key:1`，runtime SA busy-bee-storage）；migration 000007 已隨 CI 自動套用；prod serving `687d52f`（2026-07-22 實測驗證） | `1da9020` |
 
 ---
@@ -529,7 +537,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 ---
 
 ## Phase 30：即時會議助理（F-LIVE）
-> 里程碑：post-MVP | 🔄 待部署與實機驗收
+> 里程碑：post-MVP | 🔄 已部署（`779c0eb`），待實機驗收
 > 設計：`docs/superpowers/specs/2026-10-15-live-meeting-assistant-design.md`、ADR-018
 
 - 30.1 ✅ 設計 spec（使用者確認：Meet 先行、Teams 留洞、A/C/D 功能、省錢版＋麥克風開關、會前資料、錄音救回）`a634051`
@@ -540,7 +548,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 - 30.6 ✅ 會前資料帶入會後流程（整批 STT 術語、摘要、行動項、AI 校正）`d9d2de4`
 - 30.7 ✅ 真實 Gemini 冒煙測試：即時重點 1.8 秒、提問 4.6 秒（正確標來源、查無依據時明說）
 - 30.8 ✅ 文件：PRODUCT F-LIVE、ADR-018、CLAUDE.md
-- 30.9 ⬜ **部署前**：Deepgram 主金鑰需 Member 以上權限（現有金鑰 grant 回 403）→ 於 Deepgram console 建新金鑰並更新 Secret Manager `DEEPGRAM_API_KEY`（或另設專用金鑰）
+- 30.9 ✅ **部署前**：Deepgram 主金鑰需 Member 以上權限（現有金鑰 grant 回 403）→ 於 Deepgram console 建新金鑰並更新 Secret Manager `DEEPGRAM_API_KEY`（或另設專用金鑰）
 - 30.10 ⬜ 實機驗收：真實 Meet 30 分鐘以上、多人發言、分頁關閉救回、麥克風開關各一場；確認即時延遲與費用
 - 30.11 ⬜ 下一階段：面試助理（履歷、即時建議回答、中英翻譯）另開 spec
 
