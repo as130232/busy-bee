@@ -14,6 +14,7 @@ import (
 	domainactionitem "github.com/as130232/busy-bee/busy-bee-be/domain/actionitem"
 	domainartifact "github.com/as130232/busy-bee/busy-bee-be/domain/artifact"
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
+	domainmc "github.com/as130232/busy-bee/busy-bee-be/domain/meetingcontext"
 )
 
 // artifactTypeActionItems：抽取階段以此類型的 artifact（原始 JSON）作為冪等標記，
@@ -58,6 +59,12 @@ type ProcessDeps struct {
 	Fetcher    domainmeeting.AudioFetcher // 選填；匯入來源（SourceURL）抓取音訊，nil 時跳過抓取階段
 	Renamer    TitleRenamer               // 選填；匯入抓取後以來源標題更新會議標題
 	TagWriter  TagWriter                  // 選填；分析階段寫入 AI 自動標籤
+	Contexts   ContextLister              // 選填；會前資料（F-LIVE）→ STT 術語與摘要/行動項背景資料
+}
+
+// ContextLister 列出紀錄的會前資料（domain/meetingcontext.Repository 子集）。
+type ContextLister interface {
+	List(ctx context.Context, meetingID, userID uuid.UUID) ([]domainmc.Context, error)
 }
 
 // TitleRenamer 匯入抓取後以來源標題（如 YouTube 影片名）更新會議標題（ISP，*db.MeetingRepo 滿足）。
@@ -83,6 +90,7 @@ type ProcessUC struct {
 	fetcher    domainmeeting.AudioFetcher
 	renamer    TitleRenamer
 	tagWriter  TagWriter
+	contexts   ContextLister
 }
 
 func NewProcessUC(d ProcessDeps) *ProcessUC {
@@ -91,6 +99,7 @@ func NewProcessUC(d ProcessDeps) *ProcessUC {
 		artifacts: d.Artifacts, summarizer: d.Summarizer, notifier: d.Notifier,
 		extractor: d.Extractor, saver: d.Saver,
 		indexer: d.Indexer, fetcher: d.Fetcher, renamer: d.Renamer, tagWriter: d.TagWriter,
+		contexts: d.Contexts,
 	}
 }
 
@@ -238,7 +247,11 @@ func (uc *ProcessUC) transcribe(ctx context.Context, m domainmeeting.Meeting) (d
 	}
 	defer audio.Close()
 
-	result, err := uc.stt.Transcribe(ctx, audio, size, path.Base(m.AudioGCSPath), m.Language)
+	cs, err := uc.meetingContexts(ctx, m)
+	if err != nil {
+		return domainmeeting.TranscribeResult{}, err
+	}
+	result, err := uc.stt.Transcribe(ctx, audio, size, path.Base(m.AudioGCSPath), m.Language, domainmc.MergeKeyterms(nil, cs, 100))
 	if err != nil {
 		return domainmeeting.TranscribeResult{}, fmt.Errorf("process transcribe: %w", err)
 	}
@@ -259,8 +272,12 @@ func (uc *ProcessUC) generateSummarySections(ctx context.Context, m domainmeetin
 	if len(m.SummarySections) > 0 {
 		return nil // 已產生
 	}
+	bg, err := uc.background(ctx, m)
+	if err != nil {
+		return err
+	}
 	// 餵帶時間錨點的逐字稿（[t=毫秒]），讓 LLM 為每個重點標 startMs 供跳轉音檔。
-	res, err := uc.summarizer.Summarize(ctx, domainmeeting.TimestampedTranscript(m.TranscriptSegments, m.Transcript), m.Scenario)
+	res, err := uc.summarizer.Summarize(ctx, domainmeeting.TimestampedTranscript(m.TranscriptSegments, m.Transcript), m.Scenario, bg)
 	if err != nil {
 		return fmt.Errorf("process summarize: %w", err)
 	}
@@ -327,7 +344,11 @@ func (uc *ProcessUC) extractActionItems(ctx context.Context, m domainmeeting.Mee
 	// 同一次呼叫產出摘要 + 行動項（A 方案：不增加額外 LLM 呼叫）。
 	// 以會議建立時間為參考日期，供模型把相對時限推算成絕對日期。
 	// 用帶低信心標記的逐字稿，讓模型知道哪些字詞可能聽錯（無片段時退回純逐字稿）。
-	result, err := uc.extractor.Extract(ctx, domainmeeting.AnalysisTranscript(m.TranscriptSegments, m.Transcript), m.CreatedAt)
+	bg, err := uc.background(ctx, m)
+	if err != nil {
+		return err
+	}
+	result, err := uc.extractor.Extract(ctx, domainmeeting.AnalysisTranscript(m.TranscriptSegments, m.Transcript), m.CreatedAt, bg)
 	if err != nil {
 		return fmt.Errorf("process extract: %w", err)
 	}
@@ -343,6 +364,27 @@ func (uc *ProcessUC) extractActionItems(ctx context.Context, m domainmeeting.Mee
 	slog.InfoContext(ctx, "meeting.process.extracted", "meeting_id", m.ID,
 		"action_items", len(items), "has_summary", result.Summary != "")
 	return nil
+}
+
+// meetingContexts 讀會前資料；未注入 Contexts 時視為無。
+func (uc *ProcessUC) meetingContexts(ctx context.Context, m domainmeeting.Meeting) ([]domainmc.Context, error) {
+	if uc.contexts == nil {
+		return nil, nil
+	}
+	cs, err := uc.contexts.List(ctx, m.ID, m.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("process list contexts: %w", err)
+	}
+	return cs, nil
+}
+
+// background 會前資料 prompt 段落；無資料回空字串（prompt 與原本相同）。
+func (uc *ProcessUC) background(ctx context.Context, m domainmeeting.Meeting) (string, error) {
+	cs, err := uc.meetingContexts(ctx, m)
+	if err != nil {
+		return "", err
+	}
+	return domainmc.PromptBlock(cs), nil
 }
 
 // failedUserMessage 寫入 error_message 並經 API / WS 回給前端；

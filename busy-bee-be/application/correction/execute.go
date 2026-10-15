@@ -15,6 +15,7 @@ import (
 	"github.com/as130232/busy-bee/busy-bee-be/domain/actionitem"
 	"github.com/as130232/busy-bee/busy-bee-be/domain/correction"
 	"github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
+	domainmc "github.com/as130232/busy-bee/busy-bee-be/domain/meetingcontext"
 )
 
 // failedMessage 使用者可見的失敗訊息；原始 cause 只進 log。
@@ -32,6 +33,8 @@ type ExecuteDeps struct {
 	Items      ActionItemLister
 	Indexer    Indexer
 	Notifier   meeting.StatusNotifier
+	// Contexts 會前資料（F-LIVE）；選填，nil 時無背景資料。
+	Contexts ContextLister
 	// Compress 將下載的音檔壓成本機暫存檔（stt.CompressToTempFile），供 Clipper 剪片段。
 	Compress func(ctx context.Context, r io.Reader) (path string, cleanup func(), err error)
 	// OpenClip 開啟剪好的片段檔；nil 時用 os.Open。
@@ -77,9 +80,14 @@ func (uc *ExecuteUC) Execute(ctx context.Context, id uuid.UUID) error {
 		return fmt.Errorf("correction get meeting: %w", err)
 	}
 
+	bg, err := uc.background(ctx, m)
+	if err != nil {
+		return err
+	}
+
 	// 切段以快照 segments 為準（索引穩定）；套用時才讀最新 segments。
 	base := c.Original.Segments
-	all, err := uc.correctAll(ctx, &c, m.AudioGCSPath, base)
+	all, err := uc.correctAll(ctx, &c, m.AudioGCSPath, base, bg)
 	if err != nil {
 		return err
 	}
@@ -91,11 +99,11 @@ func (uc *ExecuteUC) Execute(ctx context.Context, id uuid.UUID) error {
 	segs := correction.ApplyPatches(m.TranscriptSegments, all)
 
 	// 摘要回傳的 tags 忽略：tags 與手動標籤共用欄位，重寫會蓋掉使用者標籤（spec D2a）
-	sum, err := uc.d.Summarizer.Summarize(ctx, meeting.TimestampedTranscript(segs, m.Transcript), m.Scenario)
+	sum, err := uc.d.Summarizer.Summarize(ctx, meeting.TimestampedTranscript(segs, m.Transcript), m.Scenario, bg)
 	if err != nil {
 		return fmt.Errorf("correction summarize: %w", err)
 	}
-	plan, summary, err := uc.planActionItems(ctx, m, segs)
+	plan, summary, err := uc.planActionItems(ctx, m, segs, bg)
 	if err != nil {
 		return err
 	}
@@ -117,7 +125,7 @@ func (uc *ExecuteUC) Execute(ctx context.Context, id uuid.UUID) error {
 }
 
 // correctAll 逐段校正，回傳全部通過驗證的 patches；progress 已有的段直接沿用。
-func (uc *ExecuteUC) correctAll(ctx context.Context, c *correction.Correction, audioPath string, base []meeting.TranscriptSegment) ([]correction.Patch, error) {
+func (uc *ExecuteUC) correctAll(ctx context.Context, c *correction.Correction, audioPath string, base []meeting.TranscriptSegment, bg string) ([]correction.Patch, error) {
 	chunks := PlanChunks(base)
 	var all []correction.Patch
 	var fullAudio string
@@ -135,7 +143,7 @@ func (uc *ExecuteUC) correctAll(ctx context.Context, c *correction.Correction, a
 			defer cleanup()
 			fullAudio = p
 		}
-		patches, err := uc.correctChunk(ctx, fullAudio, base, all, ch)
+		patches, err := uc.correctChunk(ctx, fullAudio, base, all, ch, bg)
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +171,7 @@ func (uc *ExecuteUC) prepareAudio(ctx context.Context, objectPath string) (strin
 
 // correctChunk 剪片段 → 組上下文（上一段結尾，已套用先前 patch）與待校正段 → 呼叫模型 → 驗證。
 // 模型輸出無法解析時視為該段無修改（不重試）；其他錯誤回傳讓佇列重試。
-func (uc *ExecuteUC) correctChunk(ctx context.Context, audioPath string, base []meeting.TranscriptSegment, prior []correction.Patch, ch correction.Chunk) ([]correction.Patch, error) {
+func (uc *ExecuteUC) correctChunk(ctx context.Context, audioPath string, base []meeting.TranscriptSegment, prior []correction.Patch, ch correction.Chunk, bg string) ([]correction.Patch, error) {
 	clipPath, cleanup, err := uc.d.Clipper.CutClip(ctx, audioPath, ch.ClipFromMs, ch.ClipToMs)
 	if err != nil {
 		return nil, fmt.Errorf("correction cut clip %d: %w", ch.Index, err)
@@ -181,6 +189,7 @@ func (uc *ExecuteUC) correctChunk(ctx context.Context, audioPath string, base []
 		Filename:    "clip.mp3",
 		ClipStartMs: ch.ClipFromMs,
 		Context:     patched[max(0, ch.First-contextSegments):ch.First],
+		Background:  bg,
 	}
 	for i := ch.First; i <= ch.Last; i++ {
 		in.Segments = append(in.Segments, correction.IndexedSegment{I: i, Segment: base[i], Locked: base[i].ManuallyEdited})
@@ -197,7 +206,7 @@ func (uc *ExecuteUC) correctChunk(ctx context.Context, audioPath string, base []
 }
 
 // planActionItems 以校正後逐字稿重抽行動項（告知模型保留項已存在），回傳合併計畫與新一句話摘要。
-func (uc *ExecuteUC) planActionItems(ctx context.Context, m meeting.Meeting, segs []meeting.TranscriptSegment) (MergePlan, string, error) {
+func (uc *ExecuteUC) planActionItems(ctx context.Context, m meeting.Meeting, segs []meeting.TranscriptSegment, bg string) (MergePlan, string, error) {
 	items, err := uc.d.Items.ListByMeeting(ctx, m.ID)
 	if err != nil {
 		return MergePlan{}, "", fmt.Errorf("correction list items: %w", err)
@@ -207,11 +216,23 @@ func (uc *ExecuteUC) planActionItems(ctx context.Context, m meeting.Meeting, seg
 	for i, k := range kept {
 		existing[i] = k.Description
 	}
-	ext, err := uc.d.Extractor.ExtractExcluding(ctx, meeting.AnalysisTranscript(segs, m.Transcript), m.CreatedAt, existing)
+	ext, err := uc.d.Extractor.ExtractExcluding(ctx, meeting.AnalysisTranscript(segs, m.Transcript), m.CreatedAt, existing, bg)
 	if err != nil {
 		return MergePlan{}, "", fmt.Errorf("correction extract: %w", err)
 	}
 	return PlanMerge(kept, repl, ext.Items), strings.TrimSpace(ext.Summary), nil
+}
+
+// background 會前資料 prompt 段落；未注入 Contexts 或無資料時為空字串。
+func (uc *ExecuteUC) background(ctx context.Context, m meeting.Meeting) (string, error) {
+	if uc.d.Contexts == nil {
+		return "", nil
+	}
+	cs, err := uc.d.Contexts.List(ctx, m.ID, m.UserID)
+	if err != nil {
+		return "", fmt.Errorf("correction list contexts: %w", err)
+	}
+	return domainmc.PromptBlock(cs), nil
 }
 
 // MarkFailed 佇列重試用盡後呼叫：標 failed（使用者可見訊息不含 cause）並發布事件。

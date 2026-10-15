@@ -71,7 +71,7 @@ func buildCorrectionPrompt(in correction.CorrectorInput) string {
 		fmt.Fprintf(&segB, "[%d] %s(%02d:%02d) %s: %s\n", s.I, lock, sec/60, sec%60, s.Segment.Speaker, s.Segment.AnalysisText())
 	}
 	p := strings.ReplaceAll(correctPrompt, "{{CONTEXT}}", orNone(ctxB.String()))
-	return strings.ReplaceAll(p, "{{SEGMENTS}}", strings.TrimSpace(segB.String()))
+	return withBackground(in.Background, strings.ReplaceAll(p, "{{SEGMENTS}}", strings.TrimSpace(segB.String())))
 }
 
 // parsePatches 解析模型輸出的 JSON 陣列（容忍 ```json fence）；無法解析時包 correction.ErrBadOutput。

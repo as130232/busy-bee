@@ -135,8 +135,9 @@ type SummarySection struct {
 
 // Summarizer 依情境產生結構化摘要區塊的 port（Gemini 實作在 infrastructure/llm）。
 // 與行動項抽取（actionitem.Extractor）分離，各自一次 LLM 呼叫。
+// background 為會前資料段落（meetingcontext.PromptBlock，F-LIVE）；空字串＝無，prompt 與原本相同。
 type Summarizer interface {
-	Summarize(ctx context.Context, transcript string, scenario Scenario) (SummaryResult, error)
+	Summarize(ctx context.Context, transcript string, scenario Scenario, background string) (SummaryResult, error)
 }
 
 // SummaryResult 摘要結果：結構化區塊 + AI 建議的主題標籤（自動分類，與手動標籤共用同一欄位）。

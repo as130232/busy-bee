@@ -97,8 +97,9 @@ type ReminderRepository interface {
 
 // Extractor 逐字稿分析 port（Gemini 實作在 infrastructure/llm）：一次呼叫產出摘要 + 行動項。
 // now 為相對時限的參考日期（會議日期），供模型把「下週五」推算成絕對日期。
+// background 為會前資料段落（F-LIVE）；空字串＝無，prompt 與原本相同。
 type Extractor interface {
-	Extract(ctx context.Context, transcript string, now time.Time) (Extraction, error)
+	Extract(ctx context.Context, transcript string, now time.Time, background string) (Extraction, error)
 	// ExtractExcluding 同 Extract，existing 為已存在的行動項描述，模型不得重複輸出（AI 校正重抽用）。
-	ExtractExcluding(ctx context.Context, transcript string, now time.Time, existing []string) (Extraction, error)
+	ExtractExcluding(ctx context.Context, transcript string, now time.Time, existing []string, background string) (Extraction, error)
 }

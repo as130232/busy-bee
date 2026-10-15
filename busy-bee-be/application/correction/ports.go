@@ -8,6 +8,7 @@ import (
 
 	"github.com/as130232/busy-bee/busy-bee-be/domain/actionitem"
 	"github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
+	domainmc "github.com/as130232/busy-bee/busy-bee-be/domain/meetingcontext"
 )
 
 // Queue 校正背景佇列。
@@ -28,6 +29,11 @@ type ActionItemLister interface {
 // Indexer 重建紀錄的語意搜尋索引（application/search.IndexUC）。
 type Indexer interface {
 	Execute(ctx context.Context, meetingID uuid.UUID) error
+}
+
+// ContextLister 列出紀錄的會前資料（domain/meetingcontext.Repository 子集）。
+type ContextLister interface {
+	List(ctx context.Context, meetingID, userID uuid.UUID) ([]domainmc.Context, error)
 }
 
 // AudioDownloader 讀取已上傳音檔（domain/meeting.AudioStorage 的子集）。

@@ -105,11 +105,14 @@ func main() {
 	sttClient := stt.NewDeepgram(cfg.Deepgram.APIKey, cfg.Deepgram.Model, cfg.Deepgram.Language, cfg.Deepgram.Keywords)
 	// 匯入來源音訊抓取（貼連結：直接音檔/Podcast 走 HTTP，YouTube 走 yt-dlp）
 	audioFetcher := fetch.New()
+	// 會前資料（F-LIVE）：處理管線、AI 校正與即時會議共用
+	contextRepo := db.NewMeetingContextRepo(pool)
 	processUC := appmeeting.NewProcessUC(appmeeting.ProcessDeps{
 		Meetings: meetingRepo, Storage: audioStorage, STT: sttClient,
 		Artifacts: artifactRepo, Summarizer: llmClient, Notifier: hub,
 		Extractor: llmClient, Saver: db.NewProcessRepo(pool),
 		Indexer: indexUC, Fetcher: audioFetcher, Renamer: meetingRepo, TagWriter: meetingRepo,
+		Contexts: contextRepo,
 	})
 	taskQueue := queue.NewMemory(256, cfg.Worker.TaskTimeout, queue.DefaultRetryDelays)
 	taskQueue.Start(ctx, 2, processUC.Execute, processUC.MarkFailed) // 外部 API bound，低併發
@@ -125,7 +128,7 @@ func main() {
 		Repo: correctionRepo, Meetings: meetingRepo, Storage: audioStorage,
 		Clipper: stt.FFmpegClipper{}, Corrector: llmClient, Summarizer: llmClient,
 		Extractor: llmClient, Items: actionItemRepo, Indexer: indexUC, Notifier: hub,
-		Compress: stt.CompressToTempFile,
+		Contexts: contextRepo, Compress: stt.CompressToTempFile,
 	})
 	correctionQueue := queue.NewMemory(64, cfg.Worker.TaskTimeout, queue.DefaultRetryDelays)
 	correctionQueue.Start(ctx, 1, executeCorrection.Execute, executeCorrection.MarkFailed)
@@ -148,7 +151,6 @@ func main() {
 	}
 
 	// 即時會議（Phase 30, F-LIVE）：瀏覽器以短效金鑰直連 Deepgram 串流，後端只負責 Gemini、用量與狀態（ADR-018）
-	contextRepo := db.NewMeetingContextRepo(pool)
 	liveUC := applive.New(applive.Deps{
 		Meetings: meetingRepo, Repo: meetingRepo, Contexts: contextRepo, Storage: audioStorage,
 		Tokens: stt.NewDeepgramGrant(cfg.Deepgram.APIKey), Assistant: llmClient,

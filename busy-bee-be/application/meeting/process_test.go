@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	domainactionitem "github.com/as130232/busy-bee/busy-bee-be/domain/actionitem"
 	domainartifact "github.com/as130232/busy-bee/busy-bee-be/domain/artifact"
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
+	domainmc "github.com/as130232/busy-bee/busy-bee-be/domain/meetingcontext"
 )
 
 // processFakeRepo 模擬 repo 狀態流轉，記錄呼叫軌跡。
@@ -101,7 +103,7 @@ func (f *processFakeStorage) Upload(_ context.Context, _ string, _ io.Reader, _ 
 func (f *processFakeStorage) SignedDownloadURL(_ context.Context, _ string) (string, error) {
 	return "https://signed-download", nil
 }
-func (f *processFakeStorage) Delete(_ context.Context, _ string) error         { return nil }
+func (f *processFakeStorage) Delete(_ context.Context, _ string) error { return nil }
 func (f *processFakeStorage) Exists(_ context.Context, _ string) (bool, error) {
 	return !f.existsFalse, nil
 }
@@ -119,12 +121,14 @@ type fakeSTT struct {
 	called      bool
 	gotFilename string
 	gotLanguage domainmeeting.Language
+	gotKeyterms []string
 }
 
-func (f *fakeSTT) Transcribe(_ context.Context, _ io.Reader, _ int64, filename string, language domainmeeting.Language) (domainmeeting.TranscribeResult, error) {
+func (f *fakeSTT) Transcribe(_ context.Context, _ io.Reader, _ int64, filename string, language domainmeeting.Language, keyterms []string) (domainmeeting.TranscribeResult, error) {
 	f.called = true
 	f.gotFilename = filename
 	f.gotLanguage = language
+	f.gotKeyterms = keyterms
 	return f.result, f.err
 }
 
@@ -360,16 +364,18 @@ func (f *fakeArtifactRepo) ListByMeeting(_ context.Context, _ uuid.UUID) ([]doma
 
 // fakeSummarizer 記錄呼叫次數與收到的情境，回傳預設區塊（與 AI 標籤）。
 type fakeSummarizer struct {
-	sections    []domainmeeting.SummarySection
-	tags        []string
-	err         error
-	called      int
-	gotScenario domainmeeting.Scenario
+	sections      []domainmeeting.SummarySection
+	tags          []string
+	err           error
+	called        int
+	gotScenario   domainmeeting.Scenario
+	gotBackground string
 }
 
-func (f *fakeSummarizer) Summarize(_ context.Context, _ string, scenario domainmeeting.Scenario) (domainmeeting.SummaryResult, error) {
+func (f *fakeSummarizer) Summarize(_ context.Context, _ string, scenario domainmeeting.Scenario, background string) (domainmeeting.SummaryResult, error) {
 	f.called++
 	f.gotScenario = scenario
+	f.gotBackground = background
 	return domainmeeting.SummaryResult{Sections: f.sections, Tags: f.tags}, f.err
 }
 
@@ -479,15 +485,17 @@ type fakeExtractor struct {
 	summary string
 	err     error
 	called  int
+	gotBg   string
 }
 
-func (f *fakeExtractor) Extract(_ context.Context, _ string, _ time.Time) (domainactionitem.Extraction, error) {
+func (f *fakeExtractor) Extract(_ context.Context, _ string, _ time.Time, background string) (domainactionitem.Extraction, error) {
 	f.called++
+	f.gotBg = background
 	return domainactionitem.Extraction{Summary: f.summary, Items: f.items}, f.err
 }
 
-func (f *fakeExtractor) ExtractExcluding(ctx context.Context, tr string, now time.Time, _ []string) (domainactionitem.Extraction, error) {
-	return f.Extract(ctx, tr, now)
+func (f *fakeExtractor) ExtractExcluding(ctx context.Context, tr string, now time.Time, _ []string, background string) (domainactionitem.Extraction, error) {
+	return f.Extract(ctx, tr, now, background)
 }
 
 const artifactTypeActionItemsTest = domainartifact.Type("action_items")
@@ -740,5 +748,46 @@ func TestFetchStage_KeepsUserTitle(t *testing.T) {
 	}
 	if out.Title != "我自己取的標題" {
 		t.Errorf("user title should be kept, got %q", out.Title)
+	}
+}
+
+type fakeContextLister struct{ list []domainmc.Context }
+
+func (f *fakeContextLister) List(context.Context, uuid.UUID, uuid.UUID) ([]domainmc.Context, error) {
+	return f.list, nil
+}
+
+// 會前資料（F-LIVE）帶入會後流程：STT 術語、摘要與行動項的背景資料。
+func TestProcess_UsesMeetingContexts(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusPending, "")}
+	stt := &fakeSTT{result: domainmeeting.TranscribeResult{Text: "會議逐字稿", DurationSeconds: 65}}
+	sum := &fakeSummarizer{sections: defaultSections()}
+	ext := &fakeExtractor{}
+	uc := NewProcessUC(ProcessDeps{
+		Meetings: repo, Storage: &processFakeStorage{content: "a"}, STT: stt,
+		Artifacts: &fakeArtifactRepo{}, Summarizer: sum, Notifier: &fakeNotifier{},
+		Extractor: ext, Saver: &fakeSaver{},
+		Contexts: &fakeContextLister{list: []domainmc.Context{{Title: "規格", Content: "Stage 驗證", Keyterms: []string{"Stage", "Jenkins"}}}},
+	})
+	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(stt.gotKeyterms, []string{"Stage", "Jenkins"}) {
+		t.Errorf("stt keyterms = %v", stt.gotKeyterms)
+	}
+	if !strings.Contains(sum.gotBackground, "### 規格\nStage 驗證") || ext.gotBg != sum.gotBackground {
+		t.Errorf("background summary=%q extract=%q", sum.gotBackground, ext.gotBg)
+	}
+}
+
+func TestProcess_NoContextsMeansEmptyBackground(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusPending, "")}
+	stt := &fakeSTT{result: domainmeeting.TranscribeResult{Text: "會議逐字稿", DurationSeconds: 65}}
+	uc := newTestProcessUC(repo, &processFakeStorage{content: "a"}, stt, &fakeNotifier{})
+	if err := uc.Execute(context.Background(), repo.meeting.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(stt.gotKeyterms) != 0 {
+		t.Errorf("keyterms = %v, want none", stt.gotKeyterms)
 	}
 }

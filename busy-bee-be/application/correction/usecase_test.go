@@ -15,6 +15,7 @@ import (
 	"github.com/as130232/busy-bee/busy-bee-be/domain/actionitem"
 	"github.com/as130232/busy-bee/busy-bee-be/domain/correction"
 	"github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
+	domainmc "github.com/as130232/busy-bee/busy-bee-be/domain/meetingcontext"
 	"github.com/as130232/busy-bee/busy-bee-be/pkg/apperr"
 	"github.com/as130232/busy-bee/busy-bee-be/pkg/consts/errcode"
 )
@@ -163,23 +164,35 @@ func (f *fakeCorrector) CorrectChunk(_ context.Context, in correction.CorrectorI
 	return f.byFirst[in.Segments[0].I], nil
 }
 
-type fakeSummarizer struct{ sections []meeting.SummarySection }
+type fakeSummarizer struct {
+	sections []meeting.SummarySection
+	gotBg    string
+}
 
-func (f *fakeSummarizer) Summarize(context.Context, string, meeting.Scenario) (meeting.SummaryResult, error) {
+func (f *fakeSummarizer) Summarize(_ context.Context, _ string, _ meeting.Scenario, background string) (meeting.SummaryResult, error) {
+	f.gotBg = background
 	return meeting.SummaryResult{Sections: f.sections, Tags: []string{"不應寫入"}}, nil
 }
 
 type fakeExtractor struct {
 	out         actionitem.Extraction
 	gotExisting []string
+	gotBg       string
 }
 
-func (f *fakeExtractor) Extract(ctx context.Context, tr string, now time.Time) (actionitem.Extraction, error) {
-	return f.ExtractExcluding(ctx, tr, now, nil)
+func (f *fakeExtractor) Extract(ctx context.Context, tr string, now time.Time, background string) (actionitem.Extraction, error) {
+	return f.ExtractExcluding(ctx, tr, now, nil, background)
 }
-func (f *fakeExtractor) ExtractExcluding(_ context.Context, _ string, _ time.Time, existing []string) (actionitem.Extraction, error) {
+func (f *fakeExtractor) ExtractExcluding(_ context.Context, _ string, _ time.Time, existing []string, background string) (actionitem.Extraction, error) {
 	f.gotExisting = existing
+	f.gotBg = background
 	return f.out, nil
+}
+
+type fakeContextLister struct{ list []domainmc.Context }
+
+func (f *fakeContextLister) List(context.Context, uuid.UUID, uuid.UUID) ([]domainmc.Context, error) {
+	return f.list, nil
 }
 
 type fakeItems struct{ items []actionitem.ActionItem }
@@ -334,6 +347,8 @@ type execFixture struct {
 	corrector *fakeCorrector
 	clipper   *fakeClipper
 	extractor *fakeExtractor
+	summarize *fakeSummarizer
+	contexts  *fakeContextLister
 	items     *fakeItems
 	indexer   *fakeIndexer
 	notifier  *fakeNotifier
@@ -349,6 +364,8 @@ func newExecFixture(segs []meeting.TranscriptSegment) *execFixture {
 		repo: newFakeRepo(), meetings: &fakeMeetings{m: m},
 		corrector: &fakeCorrector{byFirst: map[int][]correction.Patch{}}, clipper: &fakeClipper{},
 		extractor: &fakeExtractor{}, items: &fakeItems{}, indexer: &fakeIndexer{}, notifier: &fakeNotifier{},
+		summarize: &fakeSummarizer{sections: []meeting.SummarySection{{Type: "summary", Title: "新"}}},
+		contexts:  &fakeContextLister{},
 	}
 	f.c = correction.Correction{
 		ID: uuid.New(), MeetingID: mid, UserID: uid, Attempt: 1, Status: correction.StatusQueued,
@@ -364,7 +381,7 @@ func newExecFixture(segs []meeting.TranscriptSegment) *execFixture {
 	}
 	f.uc = NewExecuteUC(ExecuteDeps{
 		Repo: f.repo, Meetings: f.meetings, Storage: fakeStorage{}, Clipper: f.clipper,
-		Corrector: f.corrector, Summarizer: &fakeSummarizer{sections: []meeting.SummarySection{{Type: "summary", Title: "新"}}},
+		Corrector: f.corrector, Summarizer: f.summarize, Contexts: f.contexts,
 		Extractor: f.extractor, Items: f.items, Indexer: f.indexer, Notifier: f.notifier,
 		Compress: func(context.Context, io.Reader) (string, func(), error) { return "full.mp3", func() {}, nil },
 		OpenClip: func(string) (io.ReadCloser, error) { return io.NopCloser(strings.NewReader("clip")), nil },
@@ -379,6 +396,24 @@ func thirtyMinSegs() []meeting.TranscriptSegment {
 		segs[i] = meeting.TranscriptSegment{Speaker: "A", Text: fmt.Sprintf("原文%d", i), StartMs: i * 300_000, EndMs: (i + 1) * 300_000}
 	}
 	return segs
+}
+
+// 會前資料（F-LIVE）：校正每段、重產摘要與重抽行動項都帶入背景資料。
+func TestExecute_PassesMeetingContextsAsBackground(t *testing.T) {
+	f := newExecFixture(thirtyMinSegs())
+	f.contexts.list = []domainmc.Context{{Title: "名詞表", Content: "Stage、Jenkins"}}
+	if err := f.uc.Execute(ctx, f.c.ID); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	want := domainmc.PromptBlock(f.contexts.list)
+	for i, call := range f.corrector.calls {
+		if call.Background != want {
+			t.Errorf("chunk %d background = %q", i, call.Background)
+		}
+	}
+	if f.summarize.gotBg != want || f.extractor.gotBg != want {
+		t.Errorf("summary bg=%q extract bg=%q", f.summarize.gotBg, f.extractor.gotBg)
+	}
 }
 
 func TestExecute_SkipsTerminal(t *testing.T) {

@@ -125,3 +125,33 @@ func TestExtractContext(t *testing.T) {
 		t.Error("unsupported mime must error")
 	}
 }
+
+// 會前資料帶入會後流程：背景資料放 prompt 最前面並附「只用來理解」規則；無背景資料時 prompt 與原本完全相同。
+func TestPostMeetingPrompts_Background(t *testing.T) {
+	bg := "## 背景資料（會前提供，非會議內容）\n\n### 規格\nStage 驗證"
+	r := &replyGen{reply: `{"sections":[],"tags":[],"summary":"","actionItems":[]}`}
+	c := &GeminiClient{model: "m", gen: r.gen}
+
+	if _, err := c.Summarize(context.Background(), "A: 逐字稿", domainmeeting.ScenarioMeeting, bg); err != nil {
+		t.Fatal(err)
+	}
+	p := r.promptText()
+	if !strings.HasPrefix(p, bg) || !strings.Contains(p, backgroundRule) {
+		t.Errorf("summary prompt 背景資料需在最前面並附規則：%q", p[:80])
+	}
+
+	if _, err := c.Summarize(context.Background(), "A: 逐字稿", domainmeeting.ScenarioMeeting, ""); err != nil {
+		t.Fatal(err)
+	}
+	want, _ := buildPrompt(scenarioPrompts[domainmeeting.ScenarioMeeting], "A: 逐字稿")
+	if r.promptText() != want {
+		t.Error("無背景資料時 summary prompt 應與原本完全相同")
+	}
+
+	if _, err := c.ExtractExcluding(context.Background(), "A: 逐字稿", time.Now(), nil, bg); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(r.promptText(), bg) {
+		t.Error("action items prompt 背景資料需在最前面")
+	}
+}

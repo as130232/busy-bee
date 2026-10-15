@@ -93,6 +93,8 @@ type CorrectorInput struct {
 	ClipStartMs int
 	Context     []meeting.TranscriptSegment // 上一段結尾（唯讀上下文）
 	Segments    []IndexedSegment
+	// Background 會前資料段落（F-LIVE）；幫助辨認專有名詞，空字串＝無。
+	Background string
 }
 
 // Corrector 聽音訊片段修正逐字稿，只回傳有修改的段落（未驗證，由 application 層過濾）。

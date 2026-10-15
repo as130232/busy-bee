@@ -94,7 +94,7 @@ type errorResponse struct {
 
 // Transcribe 的 language 參數目前未使用：Groq Whisper 未 wire 進 main（見 cmd/server/main.go），
 // 靠 transcribePrompt 引導繁中輸出，不支援依語言切換。
-func (c *Client) Transcribe(ctx context.Context, audio io.Reader, sizeBytes int64, filename string, language domainmeeting.Language) (domainmeeting.TranscribeResult, error) {
+func (c *Client) Transcribe(ctx context.Context, audio io.Reader, sizeBytes int64, filename string, language domainmeeting.Language, _ []string) (domainmeeting.TranscribeResult, error) {
 	if sizeBytes > c.maxUploadBytes {
 		compressed, compressedSize, err := CompressToMP3(ctx, audio)
 		if err != nil {

@@ -57,3 +57,13 @@ func TestBuildCorrectionPrompt_TimesRelativeToClip(t *testing.T) {
 		t.Errorf("時間應相對片段起點，prompt:\n%s", p)
 	}
 }
+
+func TestBuildCorrectionPrompt_Background(t *testing.T) {
+	in := correction.CorrectorInput{Segments: []correction.IndexedSegment{{I: 0, Segment: meeting.TranscriptSegment{Speaker: "A", Text: "史得anchor"}}}}
+	plain := buildCorrectionPrompt(in)
+	in.Background = "## 背景資料（會前提供，非會議內容）\n\n### 名詞\nStage"
+	got := buildCorrectionPrompt(in)
+	if !strings.HasPrefix(got, in.Background) || !strings.HasSuffix(got, plain) {
+		t.Errorf("背景資料需放最前面、原 prompt 不變：%q", got[:60])
+	}
+}

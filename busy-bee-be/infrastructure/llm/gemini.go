@@ -82,16 +82,17 @@ func NewGemini(ctx context.Context, apiKey, model string, opts ...Option) (*Gemi
 // Extract 於同一次呼叫產出一句話摘要與行動項。prompt 要求輸出 JSON 物件
 // （即使無行動項也回 {"summary":..., "actionItems":[]}），故不會被空回應檢查誤判。
 // now（會議日期）注入 {{TODAY}}，供模型把「下週五」等相對時限推算成絕對日期 dueISO。
-func (c *GeminiClient) Extract(ctx context.Context, transcript string, now time.Time) (domainactionitem.Extraction, error) {
-	return c.ExtractExcluding(ctx, transcript, now, nil)
+func (c *GeminiClient) Extract(ctx context.Context, transcript string, now time.Time, background string) (domainactionitem.Extraction, error) {
+	return c.ExtractExcluding(ctx, transcript, now, nil, background)
 }
 
 // ExtractExcluding 同 Extract，但告知模型 existing 中的行動項已存在、不得重複輸出（AI 校正重抽用）。
-func (c *GeminiClient) ExtractExcluding(ctx context.Context, transcript string, now time.Time, existing []string) (domainactionitem.Extraction, error) {
+func (c *GeminiClient) ExtractExcluding(ctx context.Context, transcript string, now time.Time, existing []string, background string) (domainactionitem.Extraction, error) {
 	prompt, err := buildPrompt(promptActionItems, transcript)
 	if err != nil {
 		return domainactionitem.Extraction{}, err
 	}
+	prompt = withBackground(background, prompt)
 	prompt = strings.ReplaceAll(prompt, "{{TODAY}}", now.Format("2006-01-02"))
 	prompt = strings.ReplaceAll(prompt, "{{EXISTING}}", existingBlock(existing))
 	text, err := c.complete(ctx, promptActionItems, prompt)
@@ -135,12 +136,16 @@ func stripJSONFence(text string) string {
 
 // Summarize 依情境選 prompt，一次呼叫產出結構化摘要區塊。
 // 情境無對應模板時回退會議模板（ParseScenario 已保證有效值，此處為雙保險）。
-func (c *GeminiClient) Summarize(ctx context.Context, transcript string, scenario domainmeeting.Scenario) (domainmeeting.SummaryResult, error) {
+func (c *GeminiClient) Summarize(ctx context.Context, transcript string, scenario domainmeeting.Scenario, background string) (domainmeeting.SummaryResult, error) {
 	tmpl, ok := scenarioPrompts[scenario]
 	if !ok {
 		tmpl = scenarioPrompts[domainmeeting.ScenarioMeeting]
 	}
-	text, err := c.generate(ctx, tmpl, transcript)
+	prompt, err := buildPrompt(tmpl, transcript)
+	if err != nil {
+		return domainmeeting.SummaryResult{}, err
+	}
+	text, err := c.complete(ctx, tmpl, withBackground(background, prompt))
 	if err != nil {
 		return domainmeeting.SummaryResult{}, err
 	}
@@ -185,20 +190,23 @@ func (c *GeminiClient) Answer(ctx context.Context, question string, sources []do
 	return c.complete(ctx, promptCrossMeetingQA, prompt)
 }
 
+// backgroundRule 會後流程使用會前資料時附加的規則：背景只用來理解，內容只能來自逐字稿。
+const backgroundRule = "（以上背景資料只用來理解專有名詞、術語與脈絡、修正同音錯字；整理出的內容只能來自逐字稿，不得把背景資料寫成會議中說過的內容。）"
+
+// withBackground 把會前資料放在 prompt 最前面（前綴相同利於隱性快取）並附規則；無背景資料時原樣回傳。
+func withBackground(background, prompt string) string {
+	if strings.TrimSpace(background) == "" {
+		return prompt
+	}
+	return strings.TrimSpace(background) + "\n\n" + backgroundRule + "\n\n---\n\n" + prompt
+}
+
 // orNone 空白內容以「（無）」代入，讓 prompt 讀起來完整。
 func orNone(s string) string {
 	if strings.TrimSpace(s) == "" {
 		return "（無）"
 	}
 	return strings.TrimSpace(s)
-}
-
-func (c *GeminiClient) generate(ctx context.Context, templatePath, transcript string) (string, error) {
-	prompt, err := buildPrompt(templatePath, transcript)
-	if err != nil {
-		return "", err
-	}
-	return c.complete(ctx, templatePath, prompt)
 }
 
 // generateConfig 依模型決定生成設定。gemini-3 系列預設 thinking=high，思考 token 以輸出價計費，

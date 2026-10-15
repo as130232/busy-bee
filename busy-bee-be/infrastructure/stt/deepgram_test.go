@@ -99,7 +99,7 @@ func TestTranscribe_AutoDetectedChinese_ConvertsToTraditional(t *testing.T) {
 	defer srv.Close()
 
 	c := NewDeepgram("k", "nova-3", "zh-TW", nil, WithDeepgramBaseURL(srv.URL))
-	result, err := c.Transcribe(context.Background(), strings.NewReader("audio"), 5, "a.wav", domainmeeting.LanguageAuto)
+	result, err := c.Transcribe(context.Background(), strings.NewReader("audio"), 5, "a.wav", domainmeeting.LanguageAuto, nil)
 	if err != nil {
 		t.Fatalf("Transcribe() error = %v", err)
 	}
@@ -126,7 +126,7 @@ func TestTranscribe_ExplicitZhTW_DoesNotConvert(t *testing.T) {
 	defer srv.Close()
 
 	c := NewDeepgram("k", "nova-3", "zh-TW", nil, WithDeepgramBaseURL(srv.URL))
-	result, err := c.Transcribe(context.Background(), strings.NewReader("audio"), 5, "a.wav", domainmeeting.LanguageZhTW)
+	result, err := c.Transcribe(context.Background(), strings.NewReader("audio"), 5, "a.wav", domainmeeting.LanguageZhTW, nil)
 	if err != nil {
 		t.Fatalf("Transcribe() error = %v", err)
 	}
@@ -224,5 +224,23 @@ func TestAggregateDeepgramWords_JoinsEnglishFragmentsInChinese(t *testing.T) {
 	// 英文模式不接合：英文單字本來就時間相連，接起來會黏成一團
 	if got := aggregateDeepgramWords(dr, false)[0].Text; got != "我們用 k er net es 部署， API gateway" {
 		t.Errorf("非中文模式 Text = %q", got)
+	}
+}
+
+func TestTranscribe_MergesMeetingKeyterms(t *testing.T) {
+	var got []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.URL.Query()["keyterm"]
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"metadata":{"duration":1},"results":{"channels":[{"alternatives":[{"words":[{"word":"好","punctuated_word":"好","start":0,"end":0.5,"speaker":0}]}]}]}}`))
+	}))
+	defer srv.Close()
+
+	c := NewDeepgram("k", "nova-3", "zh-TW", []string{"Kubernetes:2", "Stage"}, WithDeepgramBaseURL(srv.URL))
+	if _, err := c.Transcribe(context.Background(), strings.NewReader("a"), 1, "a.webm", domainmeeting.LanguageZhTW, []string{"stage", "Jenkins"}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(got, ",") != "Kubernetes,Stage,Jenkins" {
+		t.Errorf("keyterm = %v（全域優先、不分大小寫去重）", got)
 	}
 }

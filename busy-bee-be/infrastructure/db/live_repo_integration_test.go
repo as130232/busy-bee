@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	domainmc "github.com/as130232/busy-bee/busy-bee-be/domain/meetingcontext"
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
+	domainmc "github.com/as130232/busy-bee/busy-bee-be/domain/meetingcontext"
 )
 
 func TestLiveRepo_Lifecycle(t *testing.T) {

@@ -129,12 +129,12 @@ type deepgramWord struct {
 	Confidence *float64 `json:"confidence"`
 }
 
-func (c *DeepgramClient) Transcribe(ctx context.Context, audio io.Reader, sizeBytes int64, filename string, language domainmeeting.Language) (domainmeeting.TranscribeResult, error) {
+func (c *DeepgramClient) Transcribe(ctx context.Context, audio io.Reader, sizeBytes int64, filename string, language domainmeeting.Language, keyterms []string) (domainmeeting.TranscribeResult, error) {
 	lang := string(language)
 	if lang == "" {
 		lang = c.language // 呼叫端未帶語言時，退回 config 注入的 fallback 預設值
 	}
-	q := buildDeepgramQuery(c.model, lang, c.keywords)
+	q := buildDeepgramQuery(c.model, lang, mergeKeywords(c.keywords, keyterms))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"?"+q.Encode(), audio)
 	if err != nil {
@@ -293,4 +293,23 @@ func lastRune(s string) string {
 		return ""
 	}
 	return string(r[len(r)-1])
+}
+
+// mergeKeywords 全域術語（可帶權重）＋該場會前資料術語：不分大小寫去重、全域優先、上限 100。
+func mergeKeywords(global, extra []string) []string {
+	const limit = 100
+	seen := map[string]bool{}
+	out := make([]string, 0, len(global)+len(extra))
+	for _, list := range [][]string{global, extra} {
+		for _, kw := range list {
+			kw = strings.TrimSpace(kw)
+			k := strings.ToLower(stripKeywordWeight(kw))
+			if kw == "" || seen[k] || len(out) >= limit {
+				continue
+			}
+			seen[k] = true
+			out = append(out, kw)
+		}
+	}
+	return out
 }
