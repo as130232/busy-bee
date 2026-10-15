@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import { StatusBadge } from './StatusBadge'
+import { displayStatus } from '../utils/meetingStatus'
 import { scenarioLabels, type Meeting } from '../services/api/client'
 import { formatDateTime, formatDuration } from '../utils/format'
 
@@ -21,7 +22,7 @@ function ScenarioTag({ scenario }: { scenario: Meeting['scenario'] }) {
 
 /** 副標題：日期時間在前，時長以強調 tag 呈現以區隔。 */
 function Subtitle({ m }: { m: Meeting }) {
-  if (m.status === 'scheduled' && m.scheduledAt) {
+  if (m.status === 'scheduled' && m.scheduledAt && !m.liveStartedAt) {
     return (
       <span className="mt-0.5 block font-mono text-xs text-muted">
         排定 {formatDateTime(m.scheduledAt)}
@@ -83,7 +84,7 @@ export function MeetingList({ meetings, emptyText }: { meetings: Meeting[]; empt
               )}
             </span>
             {/* 完成後不再顯示狀態徽章，列表更簡約；只在處理中/排程/失敗等階段提示 */}
-            {m.status !== 'completed' && <StatusBadge status={m.status} />}
+            {m.status !== 'completed' && <StatusBadge status={displayStatus(m)} />}
           </Link>
         </li>
       ))}

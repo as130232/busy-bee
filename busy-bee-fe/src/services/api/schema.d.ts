@@ -310,6 +310,166 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/meetings/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 開始即時會議（F-LIVE），或從排程開始 */
+        post: operations["startLiveMeeting"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/meetings/{id}/live/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 取得 Deepgram 串流短效金鑰（30 秒）與串流參數
+         * @description 瀏覽器以 Sec-WebSocket-Protocol（bearer, accessToken）直連 Deepgram；金鑰只用於建立連線
+         */
+        post: operations["issueLiveToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/meetings/{id}/live/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 回報距上次心跳的即時辨識秒數（單次最多計 600 秒），回傳本月用量 */
+        post: operations["liveHeartbeat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/meetings/{id}/live/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 更新即時重點（每場每 15 秒最多 1 次） */
+        post: operations["updateLiveNotes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/meetings/{id}/live/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 會議中提問（只依本場即時逐字稿與會前資料，每場每 5 秒最多 1 次） */
+        post: operations["askLive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/meetings/{id}/live/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 結束即時會議：存會議中筆記、live → scheduled，回傳音檔直傳 URL（之後呼叫 complete-upload）
+         * @description 冪等：已結束的即時會議再呼叫會重發上傳 URL，不覆寫筆記
+         */
+        post: operations["finishLive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/meetings/{id}/contexts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 列出會前資料（不含全文） */
+        get: operations["listMeetingContexts"];
+        put?: never;
+        /** 新增會前資料（貼上文字或上傳 .txt/.md/.pdf；PDF 由 Gemini 轉純文字，原檔不保存） */
+        post: operations["addMeetingContext"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/meetings/{id}/contexts/{contextId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 刪除會前資料 */
+        delete: operations["deleteMeetingContext"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 更新使用者偏好（即時辨識麥克風開關） */
+        patch: operations["updatePreferences"];
+        trace?: never;
+    };
     "/api/v1/meetings/{id}/complete-upload": {
         parameters: {
             query?: never;
@@ -423,6 +583,8 @@ export interface components {
             email: string;
             displayName: string;
             avatarUrl: string;
+            /** @description 即時會議是否同時即時辨識麥克風（設定頁開關） */
+            liveMicTranscription?: boolean;
             /** Format: date-time */
             createdAt: string;
         };
@@ -430,8 +592,11 @@ export interface components {
             /** Format: uuid */
             id: string;
             title: string;
-            /** @enum {string} */
-            status: "scheduled" | "pending" | "transcribing" | "analyzing" | "completed" | "failed";
+            /**
+             * @description live = 即時會議進行中；scheduled 且有 liveStartedAt = 即時會議已結束、待上傳錄音
+             * @enum {string}
+             */
+            status: "scheduled" | "live" | "pending" | "transcribing" | "analyzing" | "completed" | "failed";
             /**
              * @description 紀錄情境（會議/閒聊/面試）
              * @enum {string}
@@ -453,6 +618,11 @@ export interface components {
             /** Format: date-time */
             scheduledAt?: string;
             remindBeforeMin: number;
+            /**
+             * Format: date-time
+             * @description 即時會議開始時間；非即時會議不出現
+             */
+            liveStartedAt?: string;
             /** Format: date-time */
             createdAt: string;
             /** @description 搜尋命中的逐字稿片段（僅 search 非空且語意命中時出現） */
@@ -522,6 +692,48 @@ export interface components {
              * @description 逐字稿低信心字元比例（0–1）；≥0.05 時前端建議 AI 校正
              */
             uncertainRatio: number;
+            liveNotes?: components["schemas"]["LiveNotes"];
+        };
+        LiveSummary: {
+            /** @description 目前在討論什麼（一句話） */
+            current: string;
+            /** @description 已談到的重點（≤15） */
+            points: string[];
+        };
+        LiveSource: {
+            /** @enum {string} */
+            type: "transcript" | "context";
+            /** @description transcript 為 HH:MM；context 為會前資料標題 */
+            label: string;
+        };
+        LiveQA: {
+            question: string;
+            answer: string;
+            sources: components["schemas"]["LiveSource"][];
+            /** Format: date-time */
+            askedAt?: string;
+        };
+        /** @description 即時會議的會議中筆記（最後一版重點＋提問紀錄） */
+        LiveNotes: {
+            notes: components["schemas"]["LiveSummary"];
+            qa: components["schemas"]["LiveQA"][];
+        };
+        LiveUsage: {
+            /** @description 本月（台灣時間）已用即時辨識分鐘 */
+            usedMinutes: number;
+            limitMinutes: number;
+            overLimit: boolean;
+        };
+        MeetingContext: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            /** @enum {string} */
+            source: "text" | "file";
+            /** @description 轉換後純文字字數 */
+            chars: number;
+            /** Format: date-time */
+            createdAt: string;
         };
         Artifact: {
             /** Format: uuid */
@@ -1473,6 +1685,566 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
+        };
+    };
+    startLiveMeeting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                    /** @enum {string} */
+                    scenario?: "meeting" | "casual" | "interview" | "idea";
+                    /**
+                     * @description 串流辨識 auto 退回 zh-TW
+                     * @enum {string}
+                     */
+                    language?: "zh-TW" | "en-US" | "auto";
+                    /**
+                     * @description 錄音格式（決定音檔副檔名）
+                     * @enum {string}
+                     */
+                    contentType: "audio/webm" | "audio/mp4";
+                    /**
+                     * Format: uuid
+                     * @description 從此排程開始（沿用其會前資料）
+                     */
+                    scheduledMeetingId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 已建立 live 紀錄 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            meeting?: components["schemas"]["Meeting"];
+                        };
+                    };
+                };
+            };
+            /** @description 參數錯誤 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 排程不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 排程已非 scheduled */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    issueLiveToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 金鑰與參數 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            accessToken: string;
+                            expiresIn: number;
+                            model: string;
+                            language: string;
+                            /** @description 全域＋會前資料術語（已去權重、去重，≤100） */
+                            keyterms: string[];
+                            usage: components["schemas"]["LiveUsage"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 紀錄不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 40906 紀錄不在即時會議中 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 42902 本月即時辨識額度已用完 */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    liveHeartbeat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    seconds: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 本月用量 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            usage?: components["schemas"]["LiveUsage"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 40906 紀錄不在即時會議中 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    updateLiveNotes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    notes: components["schemas"]["LiveSummary"];
+                    /** @description 上次更新後新增的即時逐字稿（≤20000 字，每行「[HH:MM] 對方/我: 內容」） */
+                    newTranscript: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 新版重點 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            notes?: components["schemas"]["LiveSummary"];
+                        };
+                    };
+                };
+            };
+            /** @description 參數錯誤（空白或過長） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 40906 紀錄不在即時會議中 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 42901 呼叫太頻繁 */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    askLive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description ≤500 字 */
+                    question: string;
+                    /** @description 目前完整即時逐字稿（≤120000 字） */
+                    transcript: string;
+                    /** @description 本場先前問答（後端只取最近 5 輪） */
+                    history?: components["schemas"]["LiveQA"][];
+                };
+            };
+        };
+        responses: {
+            /** @description 回答與依據 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            answer: string;
+                            sources: components["schemas"]["LiveSource"][];
+                        };
+                    };
+                };
+            };
+            /** @description 參數錯誤 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 40906 紀錄不在即時會議中 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 42901 呼叫太頻繁 */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    finishLive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    notes?: components["schemas"]["LiveSummary"];
+                    /** @description 最多保存最近 50 輪 */
+                    qa?: components["schemas"]["LiveQA"][];
+                };
+            };
+        };
+        responses: {
+            /** @description 已結束，回傳直傳資訊 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            meeting?: components["schemas"]["Meeting"];
+                            upload?: {
+                                url?: string;
+                                headers?: {
+                                    [key: string]: string;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 紀錄不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 40906 不是即時會議 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listMeetingContexts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 會前資料清單 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            contexts?: components["schemas"]["MeetingContext"][];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 紀錄不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    addMeetingContext: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    text: string;
+                };
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description ≤10MB
+                     */
+                    file: string;
+                    title?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 已新增 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            context?: components["schemas"]["MeetingContext"];
+                        };
+                    };
+                };
+            };
+            /** @description 參數錯誤 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 紀錄不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 41301 超過大小上限（單檔 10MB／單場合計 10 萬字） */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 41501 不支援的檔案格式 */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 42201 檔案轉文字失敗 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    deleteMeetingContext: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                contextId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已刪除 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    updatePreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    liveMicTranscription: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            liveMicTranscription?: boolean;
+                        };
+                    };
+                };
+            };
+            /** @description 參數錯誤 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
         };
     };
     completeMeetingUpload: {

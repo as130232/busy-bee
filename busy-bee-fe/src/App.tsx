@@ -20,6 +20,7 @@ const SchedulePage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 )
+const LivePage = lazy(() => import('./pages/LivePage').then((m) => ({ default: m.LivePage })))
 const MeetingDetailPage = lazy(() =>
   import('./pages/MeetingDetailPage').then((m) => ({ default: m.MeetingDetailPage })),
 )
@@ -44,6 +45,14 @@ export default function App() {
               <Route path="/schedule" element={<SchedulePage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
+            <Route
+              path="/live"
+              element={
+                <RequireAuth>
+                  <LivePage />
+                </RequireAuth>
+              }
+            />
             <Route
               path="/meetings/:id"
               element={

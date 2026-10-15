@@ -1,5 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom'
 
+import { LiveRecoveryPrompt } from './LiveRecoveryPrompt'
 import { TabBar } from './TabBar'
 import { TopBar } from './TopBar'
 
@@ -18,6 +19,7 @@ export function TabLayout() {
         </div>
       </main>
       <TabBar />
+      <LiveRecoveryPrompt />
     </div>
   )
 }

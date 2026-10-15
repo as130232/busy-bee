@@ -86,6 +86,16 @@ function friendlyMessage(errCode: number, msg: string): string {
       return '此帳號沒有使用權限。'
     case 42901:
       return '操作太頻繁，請稍後再試。'
+    case 42902:
+      return '本月即時辨識額度已用完，錄音會照常進行。'
+    case 40906:
+      return '這場會議已不在即時模式中。'
+    case 41301:
+      return '資料太大（單檔上限 10MB，單場合計 10 萬字）。'
+    case 41501:
+      return '只支援 .txt、.md、.pdf 檔案。'
+    case 42201:
+      return '檔案內容讀取失敗，請改用貼上文字。'
     case 50001:
       return '系統忙碌中，請稍後再試。'
     default:
@@ -465,5 +475,141 @@ export function askCrossMeetingQA(idToken: string, question: string): Promise<QA
     },
     idToken,
     LLM_REQUEST_TIMEOUT_MS,
+  )
+}
+
+// ---- 即時會議（F-LIVE）----
+
+export type LiveSummary = components['schemas']['LiveSummary']
+export type LiveSource = components['schemas']['LiveSource']
+export type LiveQA = components['schemas']['LiveQA']
+export type LiveNotes = components['schemas']['LiveNotes']
+export type LiveUsage = components['schemas']['LiveUsage']
+export type MeetingContext = components['schemas']['MeetingContext']
+
+export interface LiveToken {
+  accessToken: string
+  expiresIn: number
+  model: string
+  language: string
+  keyterms: string[]
+  usage: LiveUsage
+}
+
+function postJSON<T>(path: string, idToken: string, body: unknown, timeoutMs?: number): Promise<T> {
+  return request<T>(
+    path,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+    idToken,
+    timeoutMs,
+  )
+}
+
+/** 開始即時會議（或從排程開始）；contentType 為錄音格式（audio/webm 或 audio/mp4）。 */
+export function startLiveMeeting(
+  idToken: string,
+  input: {
+    title: string
+    scenario: Scenario
+    language: Language
+    contentType: string
+    scheduledMeetingId?: string
+  },
+): Promise<{ meeting: Meeting }> {
+  return postJSON('/api/v1/meetings/live', idToken, input)
+}
+
+/** Deepgram 串流短效金鑰（30 秒內需用來建立連線）與串流參數。 */
+export function getLiveToken(idToken: string, meetingId: string): Promise<LiveToken> {
+  return postJSON(`/api/v1/meetings/${meetingId}/live/token`, idToken, {})
+}
+
+export function sendLiveHeartbeat(
+  idToken: string,
+  meetingId: string,
+  seconds: number,
+): Promise<{ usage: LiveUsage }> {
+  return postJSON(`/api/v1/meetings/${meetingId}/live/heartbeat`, idToken, { seconds })
+}
+
+export function updateLiveNotes(
+  idToken: string,
+  meetingId: string,
+  notes: LiveSummary,
+  newTranscript: string,
+): Promise<{ notes: LiveSummary }> {
+  return postJSON(
+    `/api/v1/meetings/${meetingId}/live/notes`,
+    idToken,
+    { notes, newTranscript },
+    LLM_REQUEST_TIMEOUT_MS,
+  )
+}
+
+export function askLive(
+  idToken: string,
+  meetingId: string,
+  input: { question: string; transcript: string; history: LiveQA[] },
+): Promise<{ answer: string; sources: LiveSource[] }> {
+  return postJSON(`/api/v1/meetings/${meetingId}/live/ask`, idToken, input, LLM_REQUEST_TIMEOUT_MS)
+}
+
+/** 結束即時會議：存會議中筆記並取得錄音直傳 URL（之後呼叫 completeUpload）。冪等。 */
+export function finishLive(
+  idToken: string,
+  meetingId: string,
+  notes: LiveNotes,
+): Promise<{ meeting: Meeting; upload: { url: string; headers: Record<string, string> } }> {
+  return postJSON(`/api/v1/meetings/${meetingId}/live/finish`, idToken, notes)
+}
+
+export function listMeetingContexts(
+  idToken: string,
+  meetingId: string,
+): Promise<{ contexts: MeetingContext[] }> {
+  return request(`/api/v1/meetings/${meetingId}/contexts`, { method: 'GET' }, idToken)
+}
+
+/** 新增會前資料：貼上文字。 */
+export function addMeetingContextText(
+  idToken: string,
+  meetingId: string,
+  input: { title?: string; text: string },
+): Promise<{ context: MeetingContext }> {
+  return postJSON(`/api/v1/meetings/${meetingId}/contexts`, idToken, input, LLM_REQUEST_TIMEOUT_MS)
+}
+
+/** 新增會前資料：上傳 .txt / .md / .pdf（PDF 由 AI 轉文字，可能需數十秒）。 */
+export function addMeetingContextFile(
+  idToken: string,
+  meetingId: string,
+  file: File,
+): Promise<{ context: MeetingContext }> {
+  const form = new FormData()
+  form.append('file', file)
+  return request(
+    `/api/v1/meetings/${meetingId}/contexts`,
+    { method: 'POST', body: form },
+    idToken,
+    LLM_REQUEST_TIMEOUT_MS,
+  )
+}
+
+export function deleteMeetingContext(
+  idToken: string,
+  meetingId: string,
+  contextId: string,
+): Promise<void> {
+  return request(`/api/v1/meetings/${meetingId}/contexts/${contextId}`, { method: 'DELETE' }, idToken)
+}
+
+export function updatePreferences(
+  idToken: string,
+  input: { liveMicTranscription: boolean },
+): Promise<{ liveMicTranscription: boolean }> {
+  return request(
+    '/api/v1/users/me/preferences',
+    { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) },
+    idToken,
   )
 }

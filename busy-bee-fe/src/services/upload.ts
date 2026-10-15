@@ -28,7 +28,8 @@ export function resolveContentType(file: File): string | null {
   return extContentType[ext] ?? null
 }
 
-function putWithProgress(
+/** PUT 到 GCS signed URL（XHR 才能取得上傳進度）。 */
+export function putWithProgress(
   url: string,
   headers: Record<string, string>,
   file: Blob,

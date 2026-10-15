@@ -1,8 +1,8 @@
-import { CalendarClock, Check, CircleAlert, Clock, LoaderCircle } from 'lucide-react'
+import { CalendarClock, Check, CircleAlert, Clock, HardDriveUpload, LoaderCircle, Radio } from 'lucide-react'
 
-import type { Meeting } from '../services/api/client'
+import type { DisplayStatus } from '../utils/meetingStatus'
 
-type Status = Meeting['status']
+type Status = DisplayStatus
 
 const config: Record<
   Status,
@@ -12,6 +12,16 @@ const config: Record<
     label: '已排程',
     Icon: CalendarClock,
     cls: 'text-violet-600 bg-violet-600/10 dark:text-violet-400 dark:bg-violet-400/10',
+  },
+  live: {
+    label: '即時會議',
+    Icon: Radio,
+    cls: 'text-rose-600 bg-rose-600/10 dark:text-rose-400 dark:bg-rose-400/10',
+  },
+  awaitingUpload: {
+    label: '待上傳錄音',
+    Icon: HardDriveUpload,
+    cls: 'text-amber-600 bg-amber-600/10 dark:text-amber-400 dark:bg-amber-400/10',
   },
   pending: {
     label: '等待處理',

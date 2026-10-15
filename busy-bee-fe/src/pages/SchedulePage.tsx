@@ -10,7 +10,7 @@ import { useMeetings } from '../hooks/useMeetings'
 export function SchedulePage() {
   const { meetings, reload } = useMeetings()
   // scheduledAt 為空的是上傳流程的暫存記錄（非用戶排程），不顯示
-  const scheduled = meetings.filter((m) => m.status === 'scheduled' && m.scheduledAt)
+  const scheduled = meetings.filter((m) => m.status === 'scheduled' && m.scheduledAt && !m.liveStartedAt)
 
   return (
     <>

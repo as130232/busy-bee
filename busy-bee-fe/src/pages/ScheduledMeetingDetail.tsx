@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { BellRing, CalendarClock, ChevronLeft, Pencil, Trash2 } from 'lucide-react'
+import { BellRing, CalendarClock, ChevronLeft, Pencil, Radio, Trash2 } from 'lucide-react'
 
 import { AppShell } from '../components/AppShell'
+import { MeetingContextsSection } from '../components/MeetingContextsSection'
+import { isLiveSupported } from '../live/audio'
 import { ScheduleSheet } from '../components/ScheduleForm'
 import { Sheet } from '../components/Sheet'
 import { StatusBadge } from '../components/StatusBadge'
@@ -69,6 +71,18 @@ export function ScheduledMeetingDetail({
       </section>
 
       {error && <p className="m-0 text-sm text-red-500">{error}</p>}
+
+      {isLiveSupported() && (
+        <Link to={`/live?scheduled=${meeting.id}`} className="btn btn-primary">
+          <Radio className="size-4" />
+          開始即時會議
+        </Link>
+      )}
+
+      <MeetingContextsSection
+        meetingId={meeting.id}
+        hint="先放議程、規格等背景資料，即時會議時 AI 會參考，專有名詞也辨識得更準。"
+      />
 
       <div className="flex gap-2">
         <button type="button" className="btn btn-secondary flex-1" onClick={() => setEditOpen(true)}>

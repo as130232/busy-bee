@@ -10,6 +10,8 @@ export interface AuthState {
   error: string | null
   signIn: () => Promise<void>
   signOut: () => Promise<void>
+  /** 本地更新使用者欄位（如偏好設定已由 API 寫入後同步畫面）。 */
+  updateUser: (patch: Partial<User>) => void
 }
 
 export const AuthContext = createContext<AuthState | null>(null)

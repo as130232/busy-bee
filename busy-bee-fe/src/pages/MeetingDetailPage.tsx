@@ -20,6 +20,9 @@ import { TranscriptEditor } from '../components/TranscriptEditor'
 import { resolveSpeakerNames } from '../components/speakerColor'
 import { useMeetingDetail } from '../hooks/useMeetingDetail'
 import { scenarioLabels, type MeetingDetail } from '../services/api/client'
+import { LiveNotesSection } from '../components/LiveNotesSection'
+import { MeetingContextsSection } from '../components/MeetingContextsSection'
+import { LiveUnfinishedDetail } from './LiveUnfinishedDetail'
 import { ScheduledMeetingDetail } from './ScheduledMeetingDetail'
 
 type Tab = 'summary' | 'prd' | 'tech_spec' | 'action_items' | 'transcript'
@@ -104,6 +107,11 @@ export function MeetingDetailPage() {
         <Loader className="py-16" />
       </AppShell>
     )
+  }
+
+  // 即時會議進行中／已結束但錄音未上傳
+  if (meeting.status === 'live' || (meeting.status === 'scheduled' && meeting.liveStartedAt)) {
+    return <LiveUnfinishedDetail meeting={meeting} onUploaded={() => void reload()} />
   }
 
   if (meeting.status === 'scheduled') {
@@ -216,6 +224,8 @@ export function MeetingDetailPage() {
 
       <CorrectionPanel meeting={meeting} onChanged={() => void reload()} />
 
+      {meeting.liveNotes && <LiveNotesSection notes={meeting.liveNotes} />}
+
       <article key={tab} className="animate-fade-in rounded-xl border border-border bg-surface px-5 py-4">
         {tab === 'summary' ? (
           hasSummary ? (
@@ -277,6 +287,11 @@ export function MeetingDetailPage() {
           </p>
         )}
       </article>
+
+      <MeetingContextsSection
+        meetingId={meeting.id}
+        hint="背景資料會讓 AI 校正更準（專有名詞、術語），不會被當成會議內容。"
+      />
 
       {/* 讓開貼底 mini-player，避免最後內容被蓋住 */}
       <div aria-hidden className="h-16" />

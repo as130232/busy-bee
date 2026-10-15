@@ -41,7 +41,8 @@ export function MeetingsPage() {
   const [source, setSource] = useState<SourceFilter>('all')
   const [tag, setTag] = useState<string | null>(null)
 
-  const list = useMemo(() => meetings.filter((m) => m.status !== 'scheduled'), [meetings])
+  // 排程（未開始）不列在紀錄；即時會議已結束待上傳（scheduled + liveStartedAt）要列出來提醒上傳
+  const list = useMemo(() => meetings.filter((m) => m.status !== 'scheduled' || m.liveStartedAt), [meetings])
 
   // 現有紀錄用到的標籤（去重，供標籤篩選列）。
   const allTags = useMemo(() => {

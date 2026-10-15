@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Link2, Upload, X } from 'lucide-react'
+import { Link2, Radio, Upload, X } from 'lucide-react'
 
 import { ImportLinkForm } from '../components/ImportLinkForm'
 import { LanguageSelect } from '../components/LanguageSelect'
@@ -10,6 +10,7 @@ import { scenarioThemes } from '../components/scenarioTheme'
 import { Sheet } from '../components/Sheet'
 import { UploadZone } from '../components/UploadZone'
 import { useShareImport } from '../hooks/useShareImport'
+import { isLiveSupported } from '../live/audio'
 import type { Language, Scenario } from '../services/api/client'
 
 type SheetKind = null | 'upload' | 'link'
@@ -92,6 +93,8 @@ export function RecordPage() {
       <div className="flex items-center justify-center gap-3 pb-3">
         <ActionButton icon={Upload} label="上傳" onClick={() => setSheet('upload')} />
         <ActionButton icon={Link2} label="連結" onClick={() => setSheet('link')} />
+        {/* 即時會議只支援電腦版 Chrome（擷取 Meet 分頁聲音），其他環境不顯示 */}
+        {isLiveSupported() && <ActionButton icon={Radio} label="即時會議" onClick={() => navigate('/live')} />}
       </div>
 
       {sheet === 'upload' && (

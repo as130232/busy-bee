@@ -1,5 +1,6 @@
 import { LogOut, Moon, Sun } from 'lucide-react'
 
+import { LiveMicToggle } from '../components/LiveMicToggle'
 import { NotificationToggle } from '../components/NotificationToggle'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
@@ -30,6 +31,10 @@ export function SettingsPage() {
 
       <section className="rounded-xl border border-border bg-surface p-4">
         <NotificationToggle />
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-4">
+        <LiveMicToggle />
       </section>
 
       <button
