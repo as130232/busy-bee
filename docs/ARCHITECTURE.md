@@ -375,13 +375,30 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 
 ---
 
+#### ADR-018: 即時會議由瀏覽器直連 Deepgram 串流，後端無狀態
+
+- **狀態**：採納（Phase 30，F-LIVE）
+- **背景**：要在 Google Meet 網頁版會議中即時轉文字、整理重點與提問；使用者要求維持 scale-to-zero 省成本。Cloud Run 為 instance 計費（`--no-cpu-throttling`）、單一連線最長 60 分鐘。
+- **決策**：
+  1. 瀏覽器以後端簽發的 Deepgram 短效 JWT（`POST /v1/auth/grant`，TTL 30 秒，`Sec-WebSocket-Protocol: bearer, <jwt>`）直連 `wss://api.deepgram.com/v1/listen`；主金鑰只在後端（需 Member 以上權限）。
+  2. 串流音訊用 16kHz 16-bit PCM（linear16，AudioWorklet 擷取），不用 webm：無容器標頭，斷線換新金鑰重連後可直接補送暫存（上限 30 秒）。
+  3. 後端無狀態：即時逐字稿與目前重點存在瀏覽器，`/live/notes`、`/live/ask` 每次帶入；後端只負責 Gemini、月用量（心跳累加 `live_seconds`）、狀態轉換。會議中後端只在呼叫 Gemini 時喚醒。
+  4. 狀態機：`（新建）/scheduled → live → scheduled（結束、待上傳音訊）→ pending → …`；結束後沿用既有 complete-upload 與處理管線，即時逐字稿不保存。
+  5. 會前資料（`meeting_contexts`）轉純文字後放 prompt 最前面（隱性快取），並抽術語合併進 Deepgram keyterm；會後摘要、行動項、AI 校正也帶入，附「只用來理解、內容只能來自逐字稿」規則；無資料時 prompt 不變。
+  6. 錄音另以混音 MediaRecorder（32 kbps）每 10 秒寫入 IndexedDB，分頁意外關閉可救回上傳。
+  7. 音訊來源抽象 `AudioSource`（v1 `MeetTabSource`），之後 Teams 桌面版新增來源即可。
+- **替代方案**：後端 WS 代轉 Deepgram（整場會議 instance 醒著、60 分鐘斷線，否決）；Gemini Live API 直接聽音訊（中文逐字稿與講者標示較差、按音訊 token 計費較貴、難控制更新頻率，否決）；`/live/ask` 用 SSE 串流（Firebase Hosting 轉 Cloud Run 是否緩衝未證實，v1 改一般請求，答案約 2–5 秒）。
+- **實測（2026-10-15）**：nova-3 `language=zh-TW` 串流可用且輸出繁體；nova-2 zh-TW 串流連線失敗 → 串流模型獨立設定 `DEEPGRAM_LIVE_MODEL`（預設 nova-3）。Gemini 即時重點約 1.8 秒、提問約 4.6 秒。
+
+---
+
 ## 10. 已取消 / 暫緩設計
 
 | 項目 | 狀態 | 理由 | 對應 PLAN.md |
 |------|------|------|-------------|
 | Production 部署（Cloud Run / Hosting / CI-CD） | ⏸ 暫緩 | Supabase 免費額度滿，production DB 待定（Neon 或 Supabase 空位）；本機開發不受影響 | Phase 4.2-4.4 ⏸ |
 | OTel tracing / circuit breaker / singleflight / L1L2 快取 | ⏸ 暫緩 | sport-hub 的進階模式，本專案流量不需要，避免過度設計 | — |
-| 即時逐字稿 streaming | ⏸ 暫緩 | WebSocket 架構已預留；等 MVP 驗證後再評估 | — |
+| 即時逐字稿 streaming | ✅ 完成 | Phase 30 F-LIVE：瀏覽器直連 Deepgram 串流（ADR-018）；即時逐字稿不保存，正式版仍走會後管線 | Phase 30 |
 | pgvector 語意搜尋 | ⏸ 暫緩 | post-MVP 升級路徑，見 ADR-006 | — |
 | 說話者分離（diarization，A/B/C 標記） | ✅ 完成 | Phase 16 以 Deepgram nova-2 聲學分離實作（ADR-011）；含講者改名、音檔播放。性別辨識不做（不可靠且無必要，代號＋改名已滿足） | Phase 16 |
 

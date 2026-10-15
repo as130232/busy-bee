@@ -58,6 +58,7 @@ Clean Architecture（對齊 sport-hub），依賴方向由外往內：interface 
 | 新增 HTTP endpoint | `api/openapi.yaml` → handler → route |
 | prompt 調整 | `infrastructure/llm/prompts/`（不動 client 邏輯） |
 | AI 錄音校正（F-CORRECT） | 流程與規則在 `application/correction/`（切段/patch/行動項合併為純函式）；校正 prompt 在 `infrastructure/llm/prompts/correct_transcript.md`；見 `docs/ARCHITECTURE.md` ADR-016 |
+| 即時會議（F-LIVE） | 後端 `application/live/`（無狀態，ADR-018）、會前資料 `application/meetingcontext/`；前端核心邏輯 `busy-bee-fe/src/live/`（不依賴 React，可單元測試）、頁面 `pages/LivePage.tsx`；即時 prompt 在 `infrastructure/llm/prompts/live_*.md` |
 | 新增紀錄情境（如面試） | 新增 `prompts/summary_<scenario>.md` + 註冊 `gemini.go` 的 `scenarioPrompts` + `domain/meeting` 的 `Scenario` 常數與 CHECK migration（不動前端渲染器/管線，B-lite，見 `docs/ARCHITECTURE.md` ADR-012） |
 
 ---

@@ -7,6 +7,8 @@
 
 ## 當前焦點
 
+**2026-10-15 Phase 30 即時會議助理（F-LIVE）程式完成（分支 `feat/live-meeting`）**：Google Meet 網頁版會議中擷取分頁＋麥克風，Deepgram 即時逐字稿、Gemini 即時重點與會議中提問、會前資料（文字/txt/md/pdf）、錄音本機備份救回；會前資料也帶入會後摘要/行動項/AI 校正（ADR-018）。後端 vet/test（含整合測試）全綠、前端 typecheck/lint/test（108）/build 全綠。**上線前需換 Deepgram Member 權限金鑰（30.9）**；剩真實 Meet 驗收（30.10）+ merge/部署。下一階段：面試助理（子專案 B）。
+
 **2026-10-13 Phase 29 前端上線前稽核修正（分支 `fix/fe-audit`）**：修 F1–F10（錄音標題時區、分享連結需確認、上傳大小、請求逾時、登出清本機資料、縮放、還原確認、推播導向、lint），錄音改 32 kbps；F11 排程提醒決定不加 Cloud Scheduler（省成本）。前端 typecheck/lint/test（60）/build 全綠。剩 29.12 未驗證項 + 裝置端驗收 + merge/部署。
 
 **2026-10-12 Phase 28 摘要細節化 + 模型備援**：使用者回報改用 3.5-flash-lite 後報告過度簡略；實測確認主因為 Lite 模型。改回 gemini-3-flash-preview（thinking LOW）+ 404 自動備援 gemini-3.5-flash；會議 prompt 改為保留可執行細節並新增「流程與規範細節」「待確認事項」區塊（ADR-017）。待使用者以原會議重跑 AI 校正驗收。
@@ -558,10 +560,29 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 
 ---
 
+## Phase 30：即時會議助理（F-LIVE）
+> 里程碑：post-MVP | 🔄 待部署與實機驗收
+> 設計：`docs/superpowers/specs/2026-10-15-live-meeting-assistant-design.md`、ADR-018
+
+- 30.1 ✅ 設計 spec（使用者確認：Meet 先行、Teams 留洞、A/C/D 功能、省錢版＋麥克風開關、會前資料、錄音救回）`a634051`
+- 30.2 ✅ Task 0 實測：nova-3 zh-TW 串流可用（繁體輸出）、nova-2 串流不可用；本地 Deepgram 金鑰權限不足無法 grant（見 30.9）；SSE 經 Hosting 未證實 → 提問改一般請求
+- 30.3 ✅ 資料層：migration 000018（`live` 狀態、`live_notes`/`live_seconds`/`live_started_at`、`meeting_contexts`、`users.live_mic_transcription`）＋整合測試 `d5f4e87`
+- 30.4 ✅ 後端 API：開始、短效金鑰、心跳用量上限、即時重點、提問、結束；會前資料 CRUD（PDF 由 Gemini 轉文字）；偏好；OpenAPI `ab663f8`
+- 30.5 ✅ 前端：`src/live/`（音訊來源、PCM 串流 client、重點排程、IndexedDB 備份、session、救回）＋ LivePage、設定開關、排程/詳情整合 `d6fd75f`
+- 30.6 ✅ 會前資料帶入會後流程（整批 STT 術語、摘要、行動項、AI 校正）`d9d2de4`
+- 30.7 ✅ 真實 Gemini 冒煙測試：即時重點 1.8 秒、提問 4.6 秒（正確標來源、查無依據時明說）
+- 30.8 ✅ 文件：PRODUCT F-LIVE、ADR-018、CLAUDE.md
+- 30.9 ⬜ **部署前**：Deepgram 主金鑰需 Member 以上權限（現有金鑰 grant 回 403）→ 於 Deepgram console 建新金鑰並更新 Secret Manager `DEEPGRAM_API_KEY`（或另設專用金鑰）
+- 30.10 ⬜ 實機驗收：真實 Meet 30 分鐘以上、多人發言、分頁關閉救回、麥克風開關各一場；確認即時延遲與費用
+- 30.11 ⬜ 下一階段：面試助理（履歷、即時建議回答、中英翻譯）另開 spec
+
+---
+
 ## Session Log
 
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
+| 2026-10-15 | **Phase 30 即時會議助理程式完成**：brainstorming 拆子專案（A 即時會議／B 面試助理）→ spec → 實測 Deepgram 串流（nova-3 zh-TW 可用）→ 後端資料層/API/會前資料/會後帶入、前端 live 模組與頁面（皆 TDD）。後端全綠、前端 108 測試全綠。發現 Deepgram 金鑰需 Member 權限才能簽短效金鑰 | `a634051..d9d2de4` |
 | 2026-10-13 | **Phase 29 前端稽核修正**：`/frontend-launch-audit` 找出 10 項（無阻斷），全數修正並附測試；確認 WS 閒置/背景會斷線不阻擋 scale-to-zero；F11 排程提醒選擇不加 Cloud Scheduler。前端 60 測試全綠 | — |
 | 2026-10-12 | **Phase 28 摘要細節化 + 模型備援**：使用者回報報告過度簡略 → 以 prod 實際 40 分鐘會議 A/B（模型 × thinking、各 2 次）確認主因為 3.5-flash-lite；改回 3-flash-preview + 404 自動備援；會議 prompt 改為保留可執行細節並新增兩區塊（實測 ~560 → ~1670 字）。後端全綠 | — |
 | 2026-10-10 | **Phase 27 AI 錄音重新校正程式完成**：brainstorming → spec → plan → inline 執行 12 tasks（TDD）。新增 `transcript_corrections` 表與獨立校正佇列/sweeper；逐段（~12 分鐘、重疊 30 秒、帶上文）Gemini 聽音訊修正、patch 驗證（越界/鎖定/長度比）、校正期間人工編輯優先、行動項保留規則、整份還原；前端校正面板與「AI 已校正」標籤。後端 vet/test + integration 全綠、前端全綠。剩使用者 e2e + merge/部署 | `a5f9e19..efa2627` |

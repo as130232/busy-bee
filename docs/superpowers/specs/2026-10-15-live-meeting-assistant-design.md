@@ -371,3 +371,13 @@ live → scheduled   （結束：存筆記、等待上傳音訊；沿用「sched
   - 補充狀態機與資料流。
 - `docs/PLAN.md`：新增 Phase 30。
 - `CLAUDE.md`：在「判斷要動哪個檔案」補一行即時會議與會前資料的位置。
+
+## 11. 實作與設計差異（2026-10-15 實作時決定）
+
+| 設計 | 實作 | 理由 |
+|---|---|---|
+| `/live/ask` 以 SSE 串流回答 | 一般 JSON 請求（約 2–5 秒） | Firebase Hosting 轉 Cloud Run 是否緩衝 SSE 未證實；v1 先求穩定 |
+| 會前資料原檔存 GCS | 不存原檔，只存轉換後純文字（`gcs_path` 保留空字串） | 後續只用純文字；省儲存與刪除同步 |
+| 串流音訊用 MediaRecorder webm/opus（250ms） | AudioWorklet 擷取 16kHz linear16 PCM | webm 只有第一塊有容器標頭，重連後無法補送暫存音訊 |
+| 串流模型沿用 `DEEPGRAM_MODEL` | 獨立 `DEEPGRAM_LIVE_MODEL`（預設 nova-3） | 實測 nova-2 zh-TW 串流連線失敗；會後整批辨識設定不動 |
+| 短效金鑰用現有 `DEEPGRAM_API_KEY` | 同，但金鑰須為 Member 以上權限 | 實測現有金鑰 `/v1/auth/grant` 回 403，部署前需換金鑰（PLAN 30.9） |
