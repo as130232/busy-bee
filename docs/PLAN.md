@@ -74,6 +74,7 @@
 
 ## Phase 1：後端骨架與基建
 > 里程碑：M1-A | ✅ 完成於 2026-07-17
+> 對應：N-3、N-4
 > 建立 Go 專案骨架與橫向基建（apperr / config / response），對齊 sport-hub 模式。
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
@@ -116,6 +117,7 @@
 
 ## Phase 4：部署管線
 > 里程碑：M1-A | ✅ 完成於 2026-07-19
+> 對應：N-2、N-5
 > production DB 採 Neon 免費方案（Singapore）。上線網址 https://busy-bee-502710.web.app；API https://busy-bee-api-897794325314.asia-east1.run.app。
 > scale-to-zero（ADR-004 修訂）；main push = 自動測試 + 部署（WIF 零金鑰）。
 
@@ -160,6 +162,7 @@
 
 ## Phase 6R：佇列簡化（移除 Redis）
 > 里程碑：M1-B | ✅ 完成於 2026-07-18
+> 對應：F-PIPELINE、N-5
 > ADR-010：記憶體佇列 + DB 復原掃描取代 Asynq/Redis；鎖定單 instance。e2e 驗證：關閉 Redis 容器後 Sweeper 自動復原 pending 會議完成 STT。
 
 | 狀態 | # | 項目 | 檔案 | 細節 | Commit |
@@ -244,6 +247,7 @@
 
 ## Phase 12：Production 完善
 > 里程碑：M2-B | ✅ 完成於 2026-07-19
+> 對應：N-2、N-3、N-4
 
 > 里程碑：M2-B
 
@@ -288,6 +292,7 @@
 
 ## Phase 15：RAG 語意搜尋（pgvector + Gemini embedding）
 > 里程碑：post-MVP | 🔄 程式完成，待人工驗收
+> 對應：F-SEARCH
 > Spec：`docs/superpowers/specs/2026-07-20-rag-semantic-search-design.md`
 > 計畫：`docs/superpowers/plans/2026-07-20-rag-semantic-search.md`
 > 語意搜尋先、問答留後；只索引逐字稿；hybrid 同框合併；對齊 ADR-006。
@@ -309,6 +314,7 @@
 
 ## Phase 16：語者辨識 diarization（Deepgram）+ 講者改名 + 音檔播放
 > 里程碑：post-MVP | 🔄 程式完成、本地 e2e 驗收通過，待 merge + 部署
+> 對應：F-DIARIZE
 > 需求：多人會議逐字稿分講者（預設 A/B/C），可改名（A→Ben），限單場會議內（非跨會議聲紋）。
 > 設計：diarization 供應商藏在既有 `domain/meeting.STTClient` port 後，換供應商只動 `infrastructure/stt/`。詳見 `docs/ARCHITECTURE.md`。
 > STT 供應商：**Deepgram nova-2 + zh-TW**（聲學分離）。踩坑：nova-3 + multi 對中文回傳空結果；Gemini 音訊做 diarization 會把一人誤拆多人（LLM 推測非聲學），皆已放棄。
@@ -411,6 +417,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 
 ## Phase 21：貼連結匯入（YouTube / Podcast / 直接音檔）
 > 里程碑：post-MVP | 🔄 已 merge（`59ec949`）+ 部署（2026-07-27，Cloud Run image 已含 yt-dlp），剩裝置端 e2e（21.9）
+> 對應：F-IMPORT
 > 貼影片/音訊連結 → 後端抓取音訊放進 GCS → 接既有轉錄→摘要→待辦→索引管線（全部重用）。對準使用者「摘要線上影片」的真實用法。
 
 - 21.1 ✅ domain：`Meeting.SourceURL`、`AudioStorage.Upload`（後端寫 GCS）、`AudioFetcher` port（`FetchedAudio`）
@@ -508,6 +515,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 
 ## Phase 28：摘要細節化 + 模型自動備援
 > 里程碑：post-MVP | 🔄 待使用者驗收
+> 對應：F-DOCGEN
 > 見 `docs/ARCHITECTURE.md` ADR-017。
 
 - 28.1 ✅ `GeminiClient` 主模型 404/NOT_FOUND 自動改用 `GEMINI_FALLBACK_MODEL`（預設 gemini-3.5-flash）；預設主模型固定 gemini-3-flash-preview
@@ -519,6 +527,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 
 ## Phase 29：前端上線前稽核修正
 > 里程碑：post-MVP | 🔄 待裝置端驗收
+> 對應：N-3、N-6
 > 來源：2026-10-13 `/frontend-launch-audit`（分支 `fix/fe-audit`）。
 
 - 29.1 ✅ F1 錄音檔名改用本地時間（原 `toISOString` 為 UTC，標題少 8 小時）`1116665`
