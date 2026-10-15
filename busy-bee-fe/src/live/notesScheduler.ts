@@ -23,6 +23,8 @@ export class NotesScheduler {
   start(): void {
     this.stop()
     this.timer = setInterval(() => {
+      // 與手動更新共用冷卻：剛手動更新過就跳過這輪（後端也有同樣冷卻）
+      if (Date.now() - this.lastRun < this.opts.manualGapMs) return
       if (this.opts.pendingChars() >= this.opts.minChars) void this.exec()
     }, this.opts.intervalMs)
   }

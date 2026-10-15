@@ -112,6 +112,7 @@ export async function startPcmCapture(
   onFrame: (pcm: ArrayBuffer) => void,
 ): Promise<PcmCapture> {
   const ctx = new AudioContext({ sampleRate })
+  await ctx.resume() // 非使用者手勢內建立時可能是 suspended，會收不到音訊
   const url = URL.createObjectURL(new Blob([PCM_WORKLET], { type: 'application/javascript' }))
   try {
     await ctx.audioWorklet.addModule(url)
@@ -153,6 +154,7 @@ export function pickRecorderMime(): string {
 /** 把多路音訊（分頁＋麥克風）混成一路錄音；每 CHUNK_MS 回呼一塊。 */
 export function startMixedRecorder(streams: MediaStream[], onChunk: (blob: Blob) => void): MixedRecorder {
   const ctx = new AudioContext()
+  void ctx.resume() // 非使用者手勢內建立時可能是 suspended，錄音會是無聲
   const dest = ctx.createMediaStreamDestination()
   const sources = streams.map((s) => {
     const src = ctx.createMediaStreamSource(s)

@@ -168,6 +168,7 @@ function LiveSetup({
       <ol className="m-0 flex flex-col gap-1 pl-5 text-xs text-muted">
         <li>按「開始」後，在 Chrome 視窗選擇 Google Meet 分頁，並勾選「分享分頁音訊」。</li>
         <li>建議把 busy-bee 開在另一個視窗，和 Meet 並排。</li>
+        <li>建議戴耳機：喇叭外放時麥克風會收到對方聲音，錄音會有回音。</li>
         <li>請依公司規範告知與會者本場有錄音與 AI 整理。</li>
       </ol>
 

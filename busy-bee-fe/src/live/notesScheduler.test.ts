@@ -62,3 +62,18 @@ describe('NotesScheduler', () => {
     s.stop()
   })
 })
+
+describe('NotesScheduler 自動與手動共用冷卻', () => {
+  it('手動更新後 15 秒內的自動輪次跳過（避免被後端限流）', async () => {
+    const run = vi.fn(async () => {})
+    const s = new NotesScheduler({ intervalMs: 90_000, minChars: 1, manualGapMs: 15_000, pendingChars: () => 500, run })
+    s.start()
+    await vi.advanceTimersByTimeAsync(80_000)
+    expect(await s.manual()).toBe(true)
+    await vi.advanceTimersByTimeAsync(10_000) // 90 秒自動輪次：距手動只 10 秒
+    expect(run).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(90_000)
+    expect(run).toHaveBeenCalledTimes(2)
+    s.stop()
+  })
+})
