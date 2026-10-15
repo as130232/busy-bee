@@ -308,7 +308,7 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 - **狀態**：採納（Phase 17，F-SCENARIO）
 - **背景**：要把單一「會議」擴充為多情境（會議/閒聊，未來面試等）。若每情境刻一套專屬畫面，維護成本隨情境線性上升、產品分散。
 - **決策（B-lite）**：擷取管線（STT + 分講者）情境無關；情境是 `meetings.scenario` 一個屬性，只決定：(1) 選哪個 LLM prompt 模板（`infrastructure/llm/prompts/summary_{scenario}.md`）、(2) 產出哪些「有型別的結構化區塊」（`SummarySection{type,title,items}`，存 `meetings.summary_sections` jsonb）。前端寫**一套通用區塊渲染器**（`SummarySections.tsx`）依 type 顯示。
-- **情境化擴充點**：新增情境 = 新增一個 prompt 模板 + 在 `scenarioPrompts` map 註冊 + `Scenario` 常數，**不動前端、不動管線、不動 DB schema**。對齊 CLAUDE.md「調 prompt 不動 client 邏輯」。
+- **情境化擴充點**：新增情境 = 新增一個 prompt 模板 + 在 `scenarioPrompts` map 註冊 + `Scenario` 常數，**不動前端、不動管線、不動 DB schema**。對齊 AGENTS.md「調 prompt 不動 client 邏輯」。
 - **後果**：`Summarizer` port 與行動項 `Extractor` 分離、各一次 LLM 呼叫；PRD/Tech Spec 改為選用、不再自動產生（每筆 LLM 呼叫 3→2 次，降成本，符合 scale-to-zero 省費原則）。`generateArtifacts` 保留供日後 on-demand 觸發。
 - **資料流變更**：analyzing 階段 = `generateSummarySections`（依情境 prompt，冪等：已有 sections 則跳過）+ `extractActionItems`（不變）。無效/空 scenario 一律 `ParseScenario` 回退 meeting（容忍舊資料）。
 - **替代方案**：(A) 只換總結模板、畫面全同 → 差異化不足；(B-full) 每情境專屬 UI → 過重、分散。取中間 B-lite。
@@ -415,7 +415,7 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 
 ## 12. 開發指令
 
-（實際指令以 CLAUDE.md「常用指令」與 CI workflow 為準）
+（實際指令以 AGENTS.md「常用指令」與 CI workflow 為準）
 
 ```bash
 # 本地環境
