@@ -59,6 +59,21 @@ type Meeting struct {
 	SourceUrl          string
 	Tags               []string
 	Language           string
+	LiveNotes          []byte
+	LiveSeconds        int32
+	LiveStartedAt      *time.Time
+}
+
+type MeetingContext struct {
+	ID        uuid.UUID
+	MeetingID uuid.UUID
+	UserID    uuid.UUID
+	Title     string
+	Source    string
+	GcsPath   string
+	Content   string
+	Keyterms  []string
+	CreatedAt time.Time
 }
 
 type PushSubscription struct {
@@ -98,11 +113,12 @@ type TranscriptCorrection struct {
 }
 
 type User struct {
-	ID          uuid.UUID
-	FirebaseUid string
-	Email       string
-	DisplayName string
-	AvatarUrl   string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID                   uuid.UUID
+	FirebaseUid          string
+	Email                string
+	DisplayName          string
+	AvatarUrl            string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	LiveMicTranscription bool
 }

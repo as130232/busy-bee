@@ -19,8 +19,10 @@ type User struct {
 	Email       string
 	DisplayName string
 	AvatarURL   string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// LiveMicTranscription 即時會議是否同時即時辨識麥克風（F-LIVE 設定開關；預設關＝省錢版）。
+	LiveMicTranscription bool
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 // Identity 通過身份驗證後的請求者（來自 ID token claims）。
@@ -40,4 +42,9 @@ type TokenVerifier interface {
 type Repository interface {
 	UpsertByFirebaseUID(ctx context.Context, identity Identity) (User, error)
 	GetByFirebaseUID(ctx context.Context, firebaseUID string) (User, error)
+}
+
+// PreferenceWriter 更新使用者偏好。
+type PreferenceWriter interface {
+	SetLiveMicTranscription(ctx context.Context, userID uuid.UUID, enabled bool) (User, error)
 }

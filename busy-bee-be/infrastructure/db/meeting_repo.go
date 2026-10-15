@@ -213,6 +213,11 @@ func toDomainMeeting(ctx context.Context, row sqlcgen.Meeting) domainmeeting.Mee
 	unmarshalJSONB(ctx, row.ID, "speakerNames", row.SpeakerNames, &speakerNames)
 	var sections []domainmeeting.SummarySection
 	unmarshalJSONB(ctx, row.ID, "summarySections", row.SummarySections, &sections)
+	var liveNotes *domainmeeting.LiveNotes
+	if len(row.LiveNotes) > 0 {
+		liveNotes = &domainmeeting.LiveNotes{}
+		unmarshalJSONB(ctx, row.ID, "liveNotes", row.LiveNotes, liveNotes)
+	}
 	return domainmeeting.Meeting{
 		ID:                 row.ID,
 		UserID:             row.UserID,
@@ -233,6 +238,9 @@ func toDomainMeeting(ctx context.Context, row sqlcgen.Meeting) domainmeeting.Mee
 		ScheduledAt:        row.ScheduledAt,
 		RemindBeforeMin:    int(row.RemindBeforeMin),
 		ProcessedAt:        row.ProcessedAt,
+		LiveNotes:          liveNotes,
+		LiveSeconds:        int(row.LiveSeconds),
+		LiveStartedAt:      row.LiveStartedAt,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
 	}

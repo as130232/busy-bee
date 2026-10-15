@@ -10,3 +10,8 @@ RETURNING *;
 
 -- name: GetUserByFirebaseUID :one
 SELECT * FROM users WHERE firebase_uid = $1;
+
+-- name: UpdateUserLiveMicTranscription :one
+UPDATE users SET live_mic_transcription = $2, updated_at = now()
+WHERE id = $1
+RETURNING *;

@@ -7,10 +7,12 @@ package sqlcgen
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const getUserByFirebaseUID = `-- name: GetUserByFirebaseUID :one
-SELECT id, firebase_uid, email, display_name, avatar_url, created_at, updated_at FROM users WHERE firebase_uid = $1
+SELECT id, firebase_uid, email, display_name, avatar_url, created_at, updated_at, live_mic_transcription FROM users WHERE firebase_uid = $1
 `
 
 func (q *Queries) GetUserByFirebaseUID(ctx context.Context, firebaseUid string) (User, error) {
@@ -24,6 +26,34 @@ func (q *Queries) GetUserByFirebaseUID(ctx context.Context, firebaseUid string) 
 		&i.AvatarUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LiveMicTranscription,
+	)
+	return i, err
+}
+
+const updateUserLiveMicTranscription = `-- name: UpdateUserLiveMicTranscription :one
+UPDATE users SET live_mic_transcription = $2, updated_at = now()
+WHERE id = $1
+RETURNING id, firebase_uid, email, display_name, avatar_url, created_at, updated_at, live_mic_transcription
+`
+
+type UpdateUserLiveMicTranscriptionParams struct {
+	ID                   uuid.UUID
+	LiveMicTranscription bool
+}
+
+func (q *Queries) UpdateUserLiveMicTranscription(ctx context.Context, arg UpdateUserLiveMicTranscriptionParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserLiveMicTranscription, arg.ID, arg.LiveMicTranscription)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.FirebaseUid,
+		&i.Email,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LiveMicTranscription,
 	)
 	return i, err
 }
@@ -36,7 +66,7 @@ ON CONFLICT (firebase_uid) DO UPDATE SET
     display_name = EXCLUDED.display_name,
     avatar_url   = EXCLUDED.avatar_url,
     updated_at   = now()
-RETURNING id, firebase_uid, email, display_name, avatar_url, created_at, updated_at
+RETURNING id, firebase_uid, email, display_name, avatar_url, created_at, updated_at, live_mic_transcription
 `
 
 type UpsertUserByFirebaseUIDParams struct {
@@ -62,6 +92,7 @@ func (q *Queries) UpsertUserByFirebaseUID(ctx context.Context, arg UpsertUserByF
 		&i.AvatarUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LiveMicTranscription,
 	)
 	return i, err
 }

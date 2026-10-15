@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -47,14 +48,26 @@ func (r *UserRepo) UpsertByFirebaseUID(ctx context.Context, id domainuser.Identi
 	return toDomainUser(row), nil
 }
 
+func (r *UserRepo) SetLiveMicTranscription(ctx context.Context, userID uuid.UUID, enabled bool) (domainuser.User, error) {
+	row, err := r.q.UpdateUserLiveMicTranscription(ctx, sqlcgen.UpdateUserLiveMicTranscriptionParams{ID: userID, LiveMicTranscription: enabled})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domainuser.User{}, domainuser.ErrNotFound
+		}
+		return domainuser.User{}, fmt.Errorf("db.UpdateUserLiveMicTranscription: %w", err)
+	}
+	return toDomainUser(row), nil
+}
+
 func toDomainUser(row sqlcgen.User) domainuser.User {
 	return domainuser.User{
-		ID:          row.ID,
-		FirebaseUID: row.FirebaseUid,
-		Email:       row.Email,
-		DisplayName: row.DisplayName,
-		AvatarURL:   row.AvatarUrl,
-		CreatedAt:   row.CreatedAt,
-		UpdatedAt:   row.UpdatedAt,
+		ID:                   row.ID,
+		FirebaseUID:          row.FirebaseUid,
+		Email:                row.Email,
+		DisplayName:          row.DisplayName,
+		AvatarURL:            row.AvatarUrl,
+		CreatedAt:            row.CreatedAt,
+		LiveMicTranscription: row.LiveMicTranscription,
+		UpdatedAt:            row.UpdatedAt,
 	}
 }

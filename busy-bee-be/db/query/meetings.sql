@@ -114,3 +114,34 @@ RETURNING *;
 DELETE FROM meetings
 WHERE id = $1 AND user_id = $2
 RETURNING audio_gcs_path;
+
+-- name: CreateLiveMeeting :one
+-- 即時會議（F-LIVE）：建立即為 live，音檔路徑先決定（結束後直傳 GCS）。
+INSERT INTO meetings (user_id, title, audio_gcs_path, status, scenario, language, live_started_at)
+VALUES ($1, $2, $3, 'live', $4, $5, now())
+RETURNING *;
+
+-- name: StartLiveFromScheduled :one
+-- 從排程開始即時會議：補音檔路徑、標記已提醒（避免結束回到 scheduled 後又被提醒）。
+UPDATE meetings
+SET status = 'live', audio_gcs_path = $3, live_started_at = now(), reminded_at = COALESCE(reminded_at, now()), updated_at = now()
+WHERE id = $1 AND user_id = $2 AND status = 'scheduled'
+RETURNING *;
+
+-- name: AddMeetingLiveSeconds :one
+UPDATE meetings
+SET live_seconds = live_seconds + sqlc.arg(seconds)::int, updated_at = now()
+WHERE id = $1 AND user_id = $2 AND status = 'live'
+RETURNING *;
+
+-- name: SumLiveSecondsSince :one
+SELECT COALESCE(SUM(live_seconds), 0)::bigint AS total
+FROM meetings
+WHERE user_id = $1 AND live_started_at >= sqlc.arg(since);
+
+-- name: FinishLiveMeeting :one
+-- 結束即時會議：存會議中筆記，回到 scheduled（待上傳音訊），之後走既有 complete-upload。
+UPDATE meetings
+SET live_notes = $3, status = 'scheduled', updated_at = now()
+WHERE id = $1 AND user_id = $2 AND status = 'live'
+RETURNING *;

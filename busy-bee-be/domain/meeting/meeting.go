@@ -11,10 +11,12 @@ import (
 
 // Status 會議處理狀態機：
 // scheduled → pending → transcribing → analyzing → completed | failed；failed 可 retry 回 pending。
+// 即時會議（F-LIVE）：（新建）或 scheduled → live → scheduled（結束、待上傳音訊）→ pending → …
 type Status string
 
 const (
 	StatusScheduled    Status = "scheduled"
+	StatusLive         Status = "live"
 	StatusPending      Status = "pending"
 	StatusTranscribing Status = "transcribing"
 	StatusAnalyzing    Status = "analyzing"
@@ -23,7 +25,8 @@ const (
 )
 
 var transitions = map[Status][]Status{
-	StatusScheduled:    {StatusPending},
+	StatusScheduled:    {StatusPending, StatusLive},
+	StatusLive:         {StatusScheduled},
 	StatusPending:      {StatusTranscribing, StatusFailed},
 	StatusTranscribing: {StatusAnalyzing, StatusFailed},
 	StatusAnalyzing:    {StatusCompleted, StatusFailed},
@@ -170,8 +173,14 @@ type Meeting struct {
 	ScheduledAt     *time.Time
 	RemindBeforeMin int
 	ProcessedAt     *time.Time
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// LiveNotes 即時會議結束時保存的會議中筆記；非即時會議為 nil。
+	LiveNotes *LiveNotes
+	// LiveSeconds 本場即時辨識累計秒數（月用量上限計算用）。
+	LiveSeconds int
+	// LiveStartedAt 開始即時會議的時間；非即時會議為 nil。
+	LiveStartedAt *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // Repository 會議資料存取 port（pgx 實作在 infrastructure/db）。
