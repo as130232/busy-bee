@@ -7,45 +7,13 @@
 
 ## 當前焦點
 
-**2026-10-15 Phase 30 即時會議助理（F-LIVE）程式完成（分支 `feat/live-meeting`）**：Google Meet 網頁版會議中擷取分頁＋麥克風，Deepgram 即時逐字稿、Gemini 即時重點與會議中提問、會前資料（文字/txt/md/pdf）、錄音本機備份救回；會前資料也帶入會後摘要/行動項/AI 校正（ADR-018）。後端 vet/test（含整合測試）全綠、前端 typecheck/lint/test（108）/build 全綠。**上線前需換 Deepgram Member 權限金鑰（30.9）**；剩真實 Meet 驗收（30.10）+ merge/部署。下一階段：面試助理（子專案 B）。
+**Phase 30 即時會議助理（F-LIVE）已部署 production**（2026-10-15，`779c0eb`；Cloud Run 已改用 Deepgram secret v2）。
 
-**2026-10-13 Phase 29 前端上線前稽核修正（分支 `fix/fe-audit`）**：修 F1–F10（錄音標題時區、分享連結需確認、上傳大小、請求逾時、登出清本機資料、縮放、還原確認、推播導向、lint），錄音改 32 kbps；F11 排程提醒決定不加 Cloud Scheduler（省成本）。前端 typecheck/lint/test（60）/build 全綠。剩 29.12 未驗證項 + 裝置端驗收 + merge/部署。
+下一步：30.10 用真實 Google Meet 驗收（測試清單見 Phase 30）；之後 30.11 面試助理另開 spec。
 
-**2026-10-12 Phase 28 摘要細節化 + 模型備援**：使用者回報改用 3.5-flash-lite 後報告過度簡略；實測確認主因為 Lite 模型。改回 gemini-3-flash-preview（thinking LOW）+ 404 自動備援 gemini-3.5-flash；會議 prompt 改為保留可執行細節並新增「流程與規範細節」「待確認事項」區塊（ADR-017）。待使用者以原會議重跑 AI 校正驗收。
+並行待辦：29.12 未驗證項、各 Phase 留下的裝置端 e2e 人工驗收。
 
-**2026-10-10 Phase 27 AI 錄音重新校正（F-CORRECT）程式完成（分支 `feat/ai-correction`）**：詳情頁「AI 校正」→ Gemini 聽已上傳錄音逐段修正逐字稿 → 重產摘要、合併行動項；每場 2 次、整份還原、手動修改段落不覆蓋（ADR-016）。後端 vet/test（含整合測試）全綠、前端 typecheck/lint/test/build 全綠、本地 migration 000017 已套用。剩使用者裝置端 e2e（27.12）+ merge/部署（prod migration 由 CI 自動套用）。
-
-**2026-10-10 Phase 26 收音不佳時的報告完整度程式完成**：STT 低信心字詞標記給 LLM、prompt 加 ASR 容錯與「（語音不清，待確認）」註記、nova-3 改用 `keyterm`（ADR-015）。後端 vet/test 全綠；剩真實低品質錄音驗證（26.5）+ merge/部署。
-
-**2026-09-19 Phase 25 per-meeting STT 語言選擇程式完成**：STT 語言從全域 config 寫死 `zh-TW` 改成每筆會議可選中文/英文/自動偵測；已用真實 Deepgram API + TTS 測試音檔實測確認 `language=multi` 對純中文音訊仍會壞掉（ADR-011 踩坑至今未修），改用 `detect_language=true` 做自動偵測（正確可用，但中文結果為簡體，已接 OpenCC `longbridgeapp/opencc` 後製轉繁體）。後端 build/vet/test 全綠（新增 domain/STT/application 層測試）、前端 typecheck/lint/test/build 全綠、DB migration 000016 已套用（本地）、sqlc/openapi/TS client 已重生成。詳見 `docs/ARCHITECTURE.md` ADR-014。剩裝置端 e2e 人工驗收（中/英/自動偵測各一段音檔）+ merge/部署。
-
-**2026-08-04 前端首次檢驗與重構（分支 `refactor/fe-first-pass`，進行中）**：三路審查（效能/安全/品質）後分階段清技術債，效能與可維護性並重。已完成並 typecheck/lint/build 全綠：
-- Phase 1（效能）：路由 `React.lazy` code splitting + `vite` manualChunks 切 firebase/markdown → 主 bundle 540KB→262KB；`MeetingDetailPage.speakerOrder` useMemo。
-- Phase 2（消重複）：新增 `utils/format.ts`（formatClock/formatDuration/formatDateTime）與 `hooks/useFileUpload.ts`（RecorderPanel/UploadZone 共用上傳流程）。
-- Phase 3（API 集中化）：`client.ts` `setUnauthorizedHandler` 集中 401→登出（AuthProvider 註冊）；新增 `hooks/useApiCall.ts`（PendingActionItems/AskPage 先行採用）；delete/push 回傳 `Promise<void>`；WS 訊息結構驗證。
-- Phase 5（安全加固）：`extractURL` 協定白名單/長度上限/私有網段阻擋；兩處 ReactMarkdown `skipHtml`。
-- Phase 4（拆大檔）：`MeetingDetailPage` **1040→301 行**，抽出 `components/AudioPlayer`、`TranscriptEditor`（含 SegmentRow/SpeakerRenameSheet）、`MeetingTodoForm`、`EditableMeetingTitle`、`pages/ScheduledMeetingDetail`、`hooks/useMeetingDetail`；一併完成 MeetingDetailPage 的 getIdToken→useApiCall 遷移。純結構重構、不改行為。
-- **測試框架**：新增 Vitest + Testing Library（`vitest.config.ts`、`src/test/setup.ts`、`npm run test:run`），29 例覆蓋 format/url(SSRF)/client(401)/useApiCall/useFileUpload/SummarySections，全綠。
-- **審查誤報排除**：字型冗餘（Vite 已按需切子集）、Markdown XSS（v10 預設不解析 raw HTML）皆不成立；P11 錯誤訊息不 genericize（後端已 curate、raw cause 只進 log）、P12 sw.ts push-debug log 保留、P14 TagEditor aria-label 早已存在。
-- **待辦**：全部 Phase 已完成、typecheck/lint/build/test 全綠、尚未 merge；仍需**裝置端 e2e 回歸**（錄音上傳、檔案上傳、貼連結匯入、詳情頁各頁籤/音檔播放/逐字稿編輯/講者改名、WS 即時狀態、登入過期自動導回）後再 merge/部署。P15（MeetingList 虛擬化）延後至紀錄 >50 筆再評估。
-
-**Phase 19–24 已 merge（`59ec949`）並部署 production（2026-07-27）**：一批六項深化單人工具的功能（RAG 跨會議問答、摘要↔音檔時間戳跳轉、貼連結匯入 YouTube/Podcast/直接音檔、情境/來源篩選+手動標籤、分享匯入、AI 自動標籤）皆已上線；CI 自動套用 migration 000014/000015、Cloud Run image 已含 yt-dlp（Dockerfile `apk add yt-dlp`）。三條功能分支合併後已刪除，本地僅剩 `main`。**剩裝置端 e2e 人工驗收（19.8 / 20.6 / 21.9 / 22.6 / 23.6 / 24.5）**；註：既有紀錄需按「重新處理」才會長出新的 AI 自動標籤與摘要時間戳（舊 prompt 產物無此欄位）。下一個開發功能待定（候選：追問式問答 / 週回顧 Digest / YouTube 播放清單批次匯入）。
-
-**2026-07-29 修正**：iOS 錄音中裝置休眠會切斷麥克風、且結束鈕卡死——已加 Screen Wake Lock 防閒置休眠、`stop()` 對被系統中斷的 recorder 韌性收尾、新增 `interrupted` 狀態保住已錄片段（`useRecorder.ts` / `RecorderPanel.tsx`）。已部署,待真機 e2e 驗收。
-
-Phase 19（RAG 跨會議問答 F-QA）程式完成：使用者對本人全部會議自然語言提問，語意檢索片段 → LLM 生成帶 [n] 引用的答案（單次問答、無狀態、**無新增資料表**、無相關片段不呼叫 LLM 的成本護欄）。八成重用 Phase 15 既有 embedding/檢索/LLM 基礎設施，淨新增僅 `Answerer`/`QARetriever` port + `SearchSimilarForQA` 檢索（top-K 不收斂）+ `QAUC` + `handler/qa` + 前端 AskPage/「問答」Tab。全程 TDD、後端 build/test 全綠（27 packages）、前端 gen:api/typecheck/lint/build 綠。剩裝置端 e2e 人工驗收（19.8）+ merge/部署。
-Phase 17（紀錄情境化 F-SCENARIO：會議/閒聊模板 + 結構化摘要區塊）程式完成：後端 build/vet/test 全綠（24 packages）、前端 typecheck/lint/build 綠、本地 migration 000009 已套用、前後端本地已起。已再擴充第三情境「面試」（interview，17.8 ✅：migration 000010、面試 prompt、翠綠配色）。本 session 另含錄音頁情境配色化（會議黃/閒聊藍/面試綠，含大錄音鈕/光環/背景）、紀錄詳情頁改版（貼底 mini-player + hero 摘要 + meta 行 + 移除品牌列 + 完成狀態隱藏 + 頁籤 sticky）、品牌化載入動畫、確認彈窗改 Portal（修長頁被推到頁尾）。另對標競品 Aimture Shorts 擴充三項（同分支）：17.9 摘要卡片化（SummaryPoint heading/text/speaker＋講者徽章）、Phase 18 行動項到期日解析＋Web Push 到期提醒＋.ics 加入行事曆。全程 TDD、後端 build/vet/test 全綠、前端 typecheck/lint/build 綠、sqlc/openapi/TS client 重生成。剩裝置端 e2e 人工驗收（三情境各看對應區塊、卡片版型/講者徽章、dueISO 解析、Push 到期提醒、iOS 加入行事曆）與本地 migration 000011 套用 + merge/部署。
-Phase 16（語者辨識 diarization：Deepgram + 講者改名 + 音檔播放）已 merge（`1da9020`）並部署 production：2026-07-22 實測 `DEEPGRAM_API_KEY` 已掛 Cloud Run（secret `busy-bee-deepgram-key:1`）、migration 000007 已隨 CI 自動套用、prod serving commit `687d52f`。全數完成（16.7 ✅）。
-Phase 15（RAG 語意搜尋：pgvector + Gemini embedding）已 merge（`805659b`）並部署：migration 000006（含 `CREATE EXTENSION vector`）已隨 CI 套用、prod 已上線。僅剩 prod 裝置端 e2e 人工驗收（搜「定價」找「價格策略」）— 15.9。
-Phase 14.3（錄音/上傳邊角情境）程式已具備，僅待裝置端人工驗收。
-Phase 13 已 merge main（F-ACTION / F-EXPORT / 深連結 / 視覺重設計 / Tab 導覽 / 行動裝置修正，人工驗收通過）。
-Phase 14（F-MANAGE：會議改名、行程編輯/刪除、排程專屬詳情頁）程式完成，待人工驗收。
-✅ **iPhone 推播打通（2026-07-25 實機驗收）**：測試推播與排程會議提醒皆收到（Apple 回 `201`）。
-根因是 **VAPID JWT `sub` 雙重 `mailto:` 前綴**（sender 自行加一次、webpush-go 內部又加一次 → `mailto:mailto:...`）；Chrome/Firefox 容忍但 Apple 嚴格檢查回 `403 BadJwtToken`，故僅 iOS 全數失敗。已修（傳原始 email，函式庫補前綴）+ 回歸測試。
-連帶修正：`403/404/410` 一律視為訂閱失效並清除（先前 403 當可重試 → 殭屍訂閱每分鐘重送把 Apple 打到 `429` 限流）。
-排程會議提醒（F-REMIND）demo 觸發採**內建計時器**（`RunReminderSweep` 每分鐘；VAPID 已設即啟用）：零外部觸發、維持 scale-to-zero，限 instance 存活時觸發（demo 足夠）；production 精準/可靠方案（Cloud Tasks / 免費外部 cron）列 ARCHITECTURE 備註。
-線上 Cloud Run 已設 VAPID_PUBLIC_KEY / VAPID_SUBSCRIBER_EMAIL（env）+ VAPID_PRIVATE_KEY（Secret，已驗證與公鑰配對）。
-debug 工具（保留）：`POST /api/v1/push/test`（JWT，對自己訂閱即送）+ NotificationToggle「發送測試通知」鈕 + `sw.ts` `[push-debug]` log。
+> 較早的焦點紀錄見 [archive/PLAN-FOCUS-HISTORY.md](archive/PLAN-FOCUS-HISTORY.md)。
 
 ---
 
@@ -592,37 +560,8 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 | 2026-07-29 | **修正 iOS 錄音休眠中斷 + 結束鈕卡死**：`useRecorder` 加 Screen Wake Lock（錄音中防螢幕閒置休眠、`visibilitychange` 回前景重取）；`stop()` 對已被系統停成 inactive 的 recorder 也能用既有 chunks 收尾（不再卡死、不整段丟失）；新增 `interrupted` 狀態（系統中斷時停計時器、`RecorderPanel` 顯示提示仍可上傳已錄部分）。前端無測試框架，驗證＝typecheck/lint/build 綠；剩真機 e2e。平台限制：手動鎖屏/來電仍會中斷（PWA 無法背景錄音），僅能兜底保片段 | `main` |
 | 2026-07-27 | **Phase 19–24 merge + 部署 production**：一批六項深化功能（RAG 跨會議問答、摘要↔音檔時間戳、貼連結匯入、情境/來源篩選+手動標籤、分享匯入、AI 自動標籤）ff-only 併入 main 並 push；CI 自動套用 migration 000014/000015、Cloud Run image 含 yt-dlp。合併後刪除三條分支（`feat/phase-19-24-...`、`fix/worker-reliability-and-hardening`、`refactor/post-audit-cleanup`），本地僅剩 main。剩各 Phase 最後一項裝置端 e2e 人工驗收 | `59ec949` |
 | 2026-07-25 | **iPhone 推播打通（實機驗收）**：測試推播 + 排程會議提醒皆收到（Apple 201）。根因＝VAPID JWT sub 雙重 mailto 前綴 → Apple 403 BadJwtToken（Chrome/FF 容忍、僅 iOS 失敗）；改傳原始 email + 回歸測試。連帶：403/404/410 一律清除失效訂閱（解殭屍訂閱洪水/429）。移除診斷 log | `0825a80, 6620e75` |
-| 2026-07-25 | 通知修正（demo / 免費 / scale-to-zero）：確認 F-REMIND 前後端已完備，決策 demo 觸發用**內建計時器**（無外部 Scheduler、零額外費用）；線上 VAPID 三變數到位；新增 debug 工具 `POST /api/v1/push/test`（`application/push/test.go` + push handler + 路由）、NotificationToggle 測試鈕、`sw.ts` push-debug log，加速 iPhone 實機顯示驗證。後端 vet/test 綠、前端 build 綠 | `main` |
-| 2026-07-17 | Phase 1 全部完成（1.1–1.6：骨架、apperr、config、server、response、compose）；TDD 全程；分支 feat/phase-1-backend-skeleton | `8cec0df..9fd11b5` |
-| 2026-07-17 | Phase 2 全部完成（2.1–2.6：migrations、sqlc、WithTx、auth 白名單、/users/sync、openapi）；分支 feat/phase-2-db-auth | `0d560c1..ee6a642` |
-| 2026-07-17 | Phase 3 全部完成（3.1–3.4：scaffold、Google 登入、API client、Dashboard）；Firebase 專案 busy-bee-502710 建立；登入人工驗收通過 | `41de695..f9d77f4` |
-| 2026-07-17 | Phase 4.1 Dockerfile 完成；4.2-4.4 暫緩（Supabase 額度滿，production DB 待定）；決策：優先開發 M1-B 核心功能 | `d1ed1ce` |
-| 2026-07-18 | Phase 5 全部完成（5.1–5.6：狀態機、GCS impersonation 簽名、三段式上傳 API、上傳 UI）；上傳人工驗收通過 | `324273c..a0876cf` |
-| 2026-07-18 | Phase 6 全部完成（6.1–6.6：Asynq、ProcessUC、Groq STT、ffmpeg、冪等、retry）；修復完成任務擋重排 bug；e2e 繁中逐字稿驗證通過 | `06c9930..e610142` |
-| 2026-07-18 | Phase 6R 完成：ADR-010 移除 Redis（記憶體佇列 + Sweeper）；無 Redis e2e 復原驗證通過 | `b64bcb2` |
-| 2026-07-18 | Phase 7 完成（hub + 首訊驗證 + 事件發布 + 前端即時更新）；人工驗收通過；決定開發順序調整為 9 → 10 → 8 | `275ea01..60e25d8` |
-| 2026-07-18 | Phase 9 完成（artifacts、Gemini client、雙模板、冪等生成、查詢 API）；模型名修正為 gemini-3-flash-preview；真實生成 e2e 通過 | `369234b..cfd2833` |
-| 2026-07-19 | Phase 10 完成（list/search/detail/retry API + UI、逐字稿去重）；M2-A 達成；人工驗收通過 | `5eeb122..2f8a98d` |
-| 2026-07-19 | Phase 8 完成（useRecorder + RecorderPanel）；錄音→STT→文件全鏈路人工驗收通過；M1-B 達成 | `cc151fc` |
-| 2026-07-19 | Phase 4 部署完成（Neon + Secret Manager + Cloud Run + Hosting）；production 上線 | `f4fb15d` |
-| 2026-07-19 | ADR-004 修訂 scale-to-zero（月費 ~$12→~$0-2）；4.4 CI/CD 完成（WIF），首次執行全綠自動部署 revision 00004；Phase 4 全數完成 | `75ec206..88742a1` |
-| 2026-07-19 | Phase 12 完成（rate limiting、錯誤畫面、README） | `383adc6..88426d4` |
-| 2026-07-19 | Phase 11 程式完成（訂閱/VAPID/掃描發送/SW/排程 UI）；後端發送實測成功；文件稽核：清除 ARCHITECTURE 5 處過時「計畫中」標籤、補 PRODUCT 驗收勾選 | `bb48b3a..066f846` |
-| 2026-07-19 | 後端健檢修正（error_message 不外洩原文、rate limit 惰性清理）；Phase 11 merge main；Cloud Run 補 VAPID env/secret（rev 00007）；CI 自動部署 | `8cc6f78` |
-| 2026-07-19 | 前端視覺重設計：Linear 式暗色風、Tailwind v4 + design tokens、暗/亮雙主題、行動優先（iPhone PWA 為主）、lucide 圖示、大圓形錄音鈕、排程 bottom sheet；typecheck/lint/build 通過，待 iPhone 實機驗收 | `90c97a3` |
-| 2026-07-19 | Phase 13 擴充第一波：F-ACTION（LLM 抽取行動項→artifacts JSON 冪等標記→action_items 表→list/pending/toggle API→Dashboard 待辦卡＋詳情 tab）、F-EXPORT（複製/下載/Web Share）、F-REMIND 深連結（`/?record=1`＋SW 聚焦既有分頁＋錄音鈕高亮）；後端全測試綠、路由實測 401、前端三檢通過；待真實音訊 e2e 人工驗收 | `1e9c741..9cd5595` |
-| 2026-07-19 | 前端全站 CSS 動畫（進場淡入、列表 stagger、錄音 ripple、sheet 滑入、勾選彈跳；尊重 prefers-reduced-motion）；Phase 13 分支 merge main | `8361753..91b4935` |
-| 2026-07-19 | 前端改底部 Tab 導覽（分支 feat/tab-navigation）：拆單頁為錄音/會議/行程/設定四分頁 + TabBar/TabLayout/TopBar/MeetingList/useMeetings；詳情頁維持獨立；三檢通過、路由導向驗證 | `b8bb2b3` |
-| 2026-07-19 | 行動裝置修正：PWA 禁縮放、錄音頁三段固定版面一屏不滑、排程 sheet 不被遮、通知開關防卡死 | `3a2a37f` |
-| 2026-07-20 | Phase 13 人工驗收通過（除深連結，卡推播顯示）；Phase 14 程式完成：改名/刪除 API（TDD）+ 排程專屬詳情頁 + ScheduleSheet 編輯模式 + 行程頁過濾上傳暫存；盤點確認錄音/上傳邊角程式已存在僅待驗收 | `3f6d23b, 9a4b756` |
-| 2026-07-19 | 找到提醒不觸發根因（scale-to-zero 下 instance=0，進程內 sweeper 不跑）：新增密鑰保護的 `/internal/sweep-reminders` 端點備用（TDD 3 例）。**決策：暫緩自動提醒**——每分鐘 Scheduler 會讓 instance 常駐、失去 scale-to-zero 省錢意義；使用者選擇先不啟用，端點休眠（無密鑰無觸發器＝零額外費用）。未來若要啟用，較省的方向是 Cloud Tasks 精準排程（提醒時刻才喚醒一次） | `49bb919` |
-| 2026-07-20 | Phase 15 RAG 語意搜尋程式完成（15.1–15.8）：pgvector 前置＋migration 000006（transcript_chunks、hnsw cosine、CASCADE）→ domain/search entity/ports＋SplitIntoChunks 切塊（TDD）→ Gemini Embed（gemini-embedding-001 @768 維）→ chunk_repo（手寫 pgx＋pgvector-go，DISTINCT ON＋`<=>`＋owner 過濾，真實 PG 整合測試）→ IndexUC/SearchUC（hybrid 合併＋embedding 失敗降級純字面，TDD）→ worker 回填掃描＋completed best-effort 觸發 → List handler 走 SearchUC 回 matchSnippet＋openapi/TS client＋main.go wiring＋前端片段顯示。全後端 build/vet/test 綠、前端 typecheck/build 綠；待本地 e2e 人工驗收（搜「定價」找「價格策略」）＋Neon extension＋merge（15.9） | `c6a0726..3e1f969` |
-| 2026-07-21 | Phase 16 語者辨識完成（16.1–16.6）＋本地 e2e 驗收通過：domain segments/FlattenSegments（TDD）→ migration 000007（transcript_segments/speaker_names jsonb）＋repo round-trip → STT 換 **Deepgram nova-2 zh-TW**（聲學分離；踩坑：nova-3+multi 中文空、Gemini 音訊誤拆多人皆棄）→ `UpdateSpeakerNames` 改名 use case＋STT 空結果保護 → `PATCH /speakers`＋音檔播放端點 `GET /audio-url`（GCS SignedDownloadURL）→ 前端分講者顯示（晶片配色/時間碼靠左可點跳播）＋改名 sheet＋音檔播放器＋匯出用顯示名＋列表時長分秒 tag＋返回回列表＋標題跑馬燈。全後端 build/vet/test 綠、前端 typecheck/lint/build 綠；清理拋棄式 POC。待 merge＋部署（Deepgram key 進 Secret Manager、prod migration 000007）(16.7) | `f53fb6c..1da9020` |
-| 2026-07-22 | 部署收尾實測驗證：Phase 15/16 皆已 merge 並上線。gcloud 確認 `DEEPGRAM_API_KEY` 已掛 Cloud Run（secret `busy-bee-deepgram-key:1`，runtime SA busy-bee-storage）＋Groq/Gemini/VAPID 皆在；prod `/version` 回 commit `687d52f`（main HEAD，晚於 15/16 merge），revision `00023-w9m` serving，故 CI 自動 migration 000006（含 `CREATE EXTENSION vector`）/000007 已套用。16.7 標 ✅、Phase 16 overview ✅；15.9 部署部分完成、僅剩 prod 裝置端 e2e 驗收。**結論：部署/基建零待辦，剩裝置端人工驗收（15.9 RAG、14.3 邊角、Phase 16 diarization e2e）** | — |
-| 2026-07-22 | Phase 17 紀錄情境化程式完成（17.1–17.6）：migration 000009（scenario/summary_sections）→ domain Scenario/ParseScenario/SummarySection/Summarizer port → 兩情境 prompt + gemini Summarize → 管線改產結構化區塊（冪等）並移除 PRD/TechSpec 自動產生（LLM 3→2 呼叫）→ openapi/handler 串接 → 前端「會議」頁籤改「紀錄」、錄音前情境分段切換、清單情境標籤（移到標題前、時長改純文字區隔）、SummarySections 通用渲染器、詳情頁整合、錄音標題依情境命名。後端 build/vet/test 綠（24 pkg，含改寫 process 測試 + ParseScenario 測試）、前端 typecheck/lint/build 綠。待裝置端 e2e + merge（17.7） | `feat/scenario-templates` |
-| 2026-07-22 | 對標競品 Aimture Shorts 擴充三項：**17.9** 摘要卡片化（SummaryPoint heading/text/speaker＋容忍式 unmarshal、prompt 分情境密度、SummarySections 單一渲染器＋講者徽章、共用 speakerColor）；**Phase 18** 行動項到期日（dueISO 解析＋migration 000011 due_at/reminded_at＋ReminderUC 掃描到期行動項推「待辦提醒」複用既有 push/sweeper）＋**.ics 行事曆**（純前端 services/ics.ts、ActionItemList「加入行事曆」鈕）。全程 TDD（SummaryPoint 3 例、DueDate 4 例、行動項提醒 2 例）；後端 build/vet/test 全綠、前端 typecheck/lint/build 綠、sqlc/openapi/TS client 重生成、本地 migration 000011 待套用。待裝置端 e2e + merge | `feat/scenario-templates` |
-| 2026-07-22 | 詳情頁 UX + 手動待辦（18.7–18.8，實測回饋驅動）：摘要改頁籤（預設選中）＋頁籤移標題下 sticky＋命名統一「待辦」；手動新增待辦全端（migration 000012 source 欄位、重跑只刪 llm 保護手動項、AddUC owner 驗證 TDD、POST 端點、前端 AddTodoForm）。後端 build/vet/test 全綠、前端三檢綠、本地 migration 000012 已套用、後端已重啟含新路由 | `feat/scenario-templates` |
-| 2026-07-22 | UI 調整 + 情境擴充「面試」（17.8）：① 品牌化載入動畫 `Loader`（蜂巢 sonar/breathe）；② 確認彈窗抽出 `Sheet` 改 React Portal 掛 body，修正 AppShell transform 讓 fixed 被推到頁尾（iOS）；③ 紀錄詳情頁改版：貼底 mini-player（AudioPlayer portal）、hero 摘要合併雙卡、meta 行（情境·時長·講者數·行動項）、頁籤 sticky、移除全域品牌列（`AppShell hideTopBar`）、完成狀態不再顯示（詳情＋列表）；④ 錄音頁情境配色化 `scenarioTheme`（會議黃/閒聊藍/面試綠，含大鈕/聲波環/光點/背景暈染）、情境切換上移放大；⑤ 面試情境全端：migration 000010（CHECK 放寬，已套用）、domain 常數/IsValid、`summary_interview.md`+gemini 註冊、openapi enum、重生 TS client、前端 label/theme/toggle/清單標籤。後端 build/test 綠、前端 typecheck/lint 綠。待裝置端 e2e | `feat/scenario-templates` |
+
+> 較早紀錄（31 列）見 [archive/SESSION-LOG-2026.md](archive/SESSION-LOG-2026.md)。
 
 ---
 
