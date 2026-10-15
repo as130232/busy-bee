@@ -12,7 +12,9 @@ import (
 
 	appactionitem "github.com/as130232/busy-bee/busy-bee-be/application/actionitem"
 	appcorrection "github.com/as130232/busy-bee/busy-bee-be/application/correction"
+	applive "github.com/as130232/busy-bee/busy-bee-be/application/live"
 	appmeeting "github.com/as130232/busy-bee/busy-bee-be/application/meeting"
+	appmc "github.com/as130232/busy-bee/busy-bee-be/application/meetingcontext"
 	apppush "github.com/as130232/busy-bee/busy-bee-be/application/push"
 	appsearch "github.com/as130232/busy-bee/busy-bee-be/application/search"
 	appuser "github.com/as130232/busy-bee/busy-bee-be/application/user"
@@ -28,6 +30,7 @@ import (
 	httpserver "github.com/as130232/busy-bee/busy-bee-be/interface/http"
 	actionitemhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/actionitem"
 	correctionhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/correction"
+	livehandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/live"
 	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
 	opshandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/ops"
 	pushhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/push"
@@ -144,6 +147,19 @@ func main() {
 		slog.Warn("push reminders disabled: VAPID keys not configured")
 	}
 
+	// 即時會議（Phase 30, F-LIVE）：瀏覽器以短效金鑰直連 Deepgram 串流，後端只負責 Gemini、用量與狀態（ADR-018）
+	contextRepo := db.NewMeetingContextRepo(pool)
+	liveUC := applive.New(applive.Deps{
+		Meetings: meetingRepo, Repo: meetingRepo, Contexts: contextRepo, Storage: audioStorage,
+		Tokens: stt.NewDeepgramGrant(cfg.Deepgram.APIKey), Assistant: llmClient,
+	}, applive.Config{
+		MonthlyMinutesLimit: cfg.Live.MonthlyMinutesLimit, STTModel: cfg.Live.STTModel, Keyterms: cfg.Deepgram.Keywords,
+		MaxNotesChars: 20000, MaxAskChars: 120000,
+	})
+	contextUC := appmc.New(meetingRepo, contextRepo, llmClient, appmc.Config{
+		MaxChars: int64(cfg.Live.MaxContextChars), MaxFileBytes: int64(cfg.Live.MaxContextFileBytes),
+	})
+
 	var internalHandler *opshandler.Handler
 	if reminderUC != nil {
 		internalHandler = opshandler.NewHandler(reminderUC, cfg.Push.SweepSecret)
@@ -172,7 +188,8 @@ func main() {
 			EditSegment:    appmeeting.NewEditSegmentUC(meetingRepo, indexUC),
 			Search:         appsearch.NewSearchUC(meetingRepo, llmClient, chunkRepo, meetingRepo),
 		}),
-		QAHandler: qahandler.NewHandler(appsearch.NewQAUC(llmClient, chunkRepo, llmClient, meetingRepo)),
+		LiveHandler: livehandler.NewHandler(liveUC, contextUC, userRepo, int64(cfg.Live.MaxContextFileBytes)),
+		QAHandler:   qahandler.NewHandler(appsearch.NewQAUC(llmClient, chunkRepo, llmClient, meetingRepo)),
 		ActionItemHandler: actionitemhandler.NewHandler(actionitemhandler.HandlerUCs{
 			ListByMeeting: appactionitem.NewListByMeetingUC(meetingRepo, actionItemRepo),
 			ListPending:   appactionitem.NewListPendingUC(actionItemRepo),

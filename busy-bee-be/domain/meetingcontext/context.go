@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -50,7 +51,7 @@ type Extraction struct {
 
 // Extractor 將檔案轉為純文字並抽專有名詞（Gemini 實作）。MIMEType 為 text/plain 時只抽術語。
 type Extractor interface {
-	Extract(ctx context.Context, data []byte, mimeType string) (Extraction, error)
+	ExtractContext(ctx context.Context, data []byte, mimeType string) (Extraction, error)
 }
 
 // PromptBlock 組 prompt 用的背景資料段落；無資料回空字串（prompt 與無會前資料時相同）。
@@ -66,12 +67,13 @@ func PromptBlock(cs []Context) string {
 	return b.String()
 }
 
-// MergeKeyterms 合併全域術語與會前資料術語：去空白、去重（不分大小寫），全域優先，總數上限 limit。
+// MergeKeyterms 合併全域術語與會前資料術語：去空白、去「:數字」權重後綴（keyterm 不支援權重）、
+// 去重（不分大小寫），全域優先，總數上限 limit。
 func MergeKeyterms(global []string, cs []Context, limit int) []string {
 	seen := map[string]bool{}
 	out := []string{}
 	add := func(t string) {
-		t = strings.TrimSpace(t)
+		t = stripWeight(strings.TrimSpace(t))
 		k := strings.ToLower(t)
 		if t == "" || seen[k] || len(out) >= limit {
 			return
@@ -88,4 +90,16 @@ func MergeKeyterms(global []string, cs []Context, limit int) []string {
 		}
 	}
 	return out
+}
+
+// stripWeight 去除 keywords 格式的「:權重」後綴（"Kubernetes:2" → "Kubernetes"）；冒號後不是數字時原樣保留。
+func stripWeight(t string) string {
+	i := strings.LastIndex(t, ":")
+	if i < 0 {
+		return t
+	}
+	if _, err := strconv.ParseFloat(t[i+1:], 64); err != nil {
+		return t
+	}
+	return strings.TrimSpace(t[:i])
 }

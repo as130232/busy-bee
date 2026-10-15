@@ -5,6 +5,7 @@ package config
 import (
 	"bufio"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -18,6 +19,7 @@ type Config struct {
 	Groq     GroqConfig
 	Gemini   GeminiConfig
 	Deepgram DeepgramConfig
+	Live     LiveConfig
 	Push     PushConfig
 	Worker   WorkerConfig
 }
@@ -37,6 +39,18 @@ type DeepgramConfig struct {
 	Language string
 	// Keywords 術語加權（如專有名詞、英文縮寫），提升辨識準確度；格式可帶權重 "term:2"。
 	Keywords []string
+}
+
+// LiveConfig 即時會議（F-LIVE）設定。
+type LiveConfig struct {
+	// STTModel 瀏覽器直連 Deepgram 串流用的模型（與會後整批辨識的 DEEPGRAM_MODEL 分開）。
+	STTModel string
+	// MonthlyMinutesLimit 每位使用者每月即時辨識分鐘上限（超過只停即時辨識，錄音照常）。
+	MonthlyMinutesLimit int
+	// MaxContextChars 單場會前資料合計字數上限。
+	MaxContextChars int
+	// MaxContextFileBytes 單一會前資料檔案大小上限。
+	MaxContextFileBytes int
 }
 
 type GeminiConfig struct {
@@ -134,6 +148,12 @@ func Load() (*Config, error) {
 			Language: lookup("DEEPGRAM_LANGUAGE", "zh-TW"),
 			Keywords: splitCSV(lookup("DEEPGRAM_KEYWORDS", "")),
 		},
+		Live: LiveConfig{
+			STTModel:            lookup("DEEPGRAM_LIVE_MODEL", "nova-3"),
+			MonthlyMinutesLimit: parseInt(lookup("LIVE_MONTHLY_MINUTES_LIMIT", ""), 3000),
+			MaxContextChars:     parseInt(lookup("LIVE_CONTEXT_MAX_CHARS", ""), 100000),
+			MaxContextFileBytes: parseInt(lookup("LIVE_CONTEXT_MAX_FILE_BYTES", ""), 10<<20),
+		},
 		Push: PushConfig{
 			VAPIDPublicKey:  lookup("VAPID_PUBLIC_KEY", ""),
 			VAPIDPrivateKey: lookup("VAPID_PRIVATE_KEY", ""),
@@ -144,6 +164,15 @@ func Load() (*Config, error) {
 			TaskTimeout: parseDuration(lookup("WORKER_TASK_TIMEOUT", "15m"), 15*time.Minute),
 		},
 	}, nil
+}
+
+// parseInt 解析正整數，空值或無效時回退 def。
+func parseInt(s string, def int) int {
+	n, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil || n <= 0 {
+		return def
+	}
+	return n
 }
 
 // parseDuration 解析 Go duration 字串（如 "15m"），無效時回退 def。

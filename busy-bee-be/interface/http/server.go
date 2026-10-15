@@ -10,6 +10,7 @@ import (
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/config"
 	actionitemhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/actionitem"
 	correctionhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/correction"
+	livehandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/live"
 	meetinghandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/meeting"
 	opshandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/ops"
 	pushhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/push"
@@ -37,10 +38,12 @@ type Deps struct {
 	ActionItemHandler *actionitemhandler.Handler
 	// CorrectionHandler AI 錄音重新校正（F-CORRECT）；nil 時不掛路由。
 	CorrectionHandler *correctionhandler.Handler
-	QAHandler         *qahandler.Handler
-	PushHandler       *pushhandler.Handler
-	InternalHandler   *opshandler.Handler
-	Hub               *ws.Hub
+	// LiveHandler 即時會議與會前資料（F-LIVE）；nil 時不掛路由。
+	LiveHandler     *livehandler.Handler
+	QAHandler       *qahandler.Handler
+	PushHandler     *pushhandler.Handler
+	InternalHandler *opshandler.Handler
+	Hub             *ws.Hub
 	// 建置資訊（由 main 經 ldflags 注入）；/version 回傳，供部署後確認上線的 commit。
 	Commit  string
 	BuiltAt string
@@ -106,6 +109,9 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 			authed.POST("/meetings/:id/correction/revert", deps.CorrectionHandler.Revert)
 		}
 		authed.GET("/meetings/:id/artifacts", deps.MeetingHandler.ListArtifacts)
+		if deps.LiveHandler != nil {
+			deps.LiveHandler.Register(authed)
+		}
 
 		if deps.ActionItemHandler != nil {
 			authed.GET("/meetings/:id/action-items", deps.ActionItemHandler.ListByMeeting)

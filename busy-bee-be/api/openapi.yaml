@@ -840,6 +840,307 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
 
+  /api/v1/meetings/live:
+    post:
+      tags: [live]
+      summary: 開始即時會議（F-LIVE），或從排程開始
+      operationId: startLiveMeeting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, contentType]
+              properties:
+                title: { type: string }
+                scenario: { type: string, enum: [meeting, casual, interview, idea] }
+                language: { type: string, enum: [zh-TW, en-US, auto], description: "串流辨識 auto 退回 zh-TW" }
+                contentType: { type: string, enum: [audio/webm, audio/mp4], description: "錄音格式（決定音檔副檔名）" }
+                scheduledMeetingId: { type: string, format: uuid, description: "從此排程開始（沿用其會前資料）" }
+      responses:
+        "200":
+          description: 已建立 live 紀錄
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          meeting: { $ref: "#/components/schemas/Meeting" }
+        "400": { description: "參數錯誤", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { description: "排程不存在或非本人", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "409": { description: "排程已非 scheduled", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+
+  /api/v1/meetings/{id}/live/token:
+    post:
+      tags: [live]
+      summary: 取得 Deepgram 串流短效金鑰（30 秒）與串流參數
+      description: "瀏覽器以 Sec-WebSocket-Protocol（bearer, accessToken）直連 Deepgram；金鑰只用於建立連線"
+      operationId: issueLiveToken
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: 金鑰與參數
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [accessToken, expiresIn, model, language, keyterms, usage]
+                        properties:
+                          accessToken: { type: string }
+                          expiresIn: { type: integer }
+                          model: { type: string }
+                          language: { type: string }
+                          keyterms: { type: array, items: { type: string }, description: "全域＋會前資料術語（已去權重、去重，≤100）" }
+                          usage: { $ref: "#/components/schemas/LiveUsage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { description: "紀錄不存在或非本人", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "409": { description: "40906 紀錄不在即時會議中", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "429": { description: "42902 本月即時辨識額度已用完", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+
+  /api/v1/meetings/{id}/live/heartbeat:
+    post:
+      tags: [live]
+      summary: 回報距上次心跳的即時辨識秒數（單次最多計 600 秒），回傳本月用量
+      operationId: liveHeartbeat
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [seconds], properties: { seconds: { type: integer } } }
+      responses:
+        "200":
+          description: 本月用量
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { type: object, properties: { usage: { $ref: "#/components/schemas/LiveUsage" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { description: "40906 紀錄不在即時會議中", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+
+  /api/v1/meetings/{id}/live/notes:
+    post:
+      tags: [live]
+      summary: 更新即時重點（每場每 15 秒最多 1 次）
+      operationId: updateLiveNotes
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [notes, newTranscript]
+              properties:
+                notes: { $ref: "#/components/schemas/LiveSummary" }
+                newTranscript: { type: string, description: "上次更新後新增的即時逐字稿（≤20000 字，每行「[HH:MM] 對方/我: 內容」）" }
+      responses:
+        "200":
+          description: 新版重點
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { type: object, properties: { notes: { $ref: "#/components/schemas/LiveSummary" } } }
+        "400": { description: "參數錯誤（空白或過長）", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { description: "40906 紀錄不在即時會議中", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "429": { description: "42901 呼叫太頻繁", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+
+  /api/v1/meetings/{id}/live/ask:
+    post:
+      tags: [live]
+      summary: 會議中提問（只依本場即時逐字稿與會前資料，每場每 5 秒最多 1 次）
+      operationId: askLive
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question, transcript]
+              properties:
+                question: { type: string, description: "≤500 字" }
+                transcript: { type: string, description: "目前完整即時逐字稿（≤120000 字）" }
+                history: { type: array, items: { $ref: "#/components/schemas/LiveQA" }, description: "本場先前問答（後端只取最近 5 輪）" }
+      responses:
+        "200":
+          description: 回答與依據
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [answer, sources]
+                        properties:
+                          answer: { type: string }
+                          sources: { type: array, items: { $ref: "#/components/schemas/LiveSource" } }
+        "400": { description: "參數錯誤", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { description: "40906 紀錄不在即時會議中", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "429": { description: "42901 呼叫太頻繁", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+
+  /api/v1/meetings/{id}/live/finish:
+    post:
+      tags: [live]
+      summary: 結束即時會議：存會議中筆記、live → scheduled，回傳音檔直傳 URL（之後呼叫 complete-upload）
+      description: 冪等：已結束的即時會議再呼叫會重發上傳 URL，不覆寫筆記
+      operationId: finishLive
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes: { $ref: "#/components/schemas/LiveSummary" }
+                qa: { type: array, items: { $ref: "#/components/schemas/LiveQA" }, description: "最多保存最近 50 輪" }
+      responses:
+        "200":
+          description: 已結束，回傳直傳資訊
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          meeting: { $ref: "#/components/schemas/Meeting" }
+                          upload:
+                            type: object
+                            properties:
+                              url: { type: string }
+                              headers: { type: object, additionalProperties: { type: string } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { description: "紀錄不存在或非本人", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "409": { description: "40906 不是即時會議", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+
+  /api/v1/meetings/{id}/contexts:
+    get:
+      tags: [live]
+      summary: 列出會前資料（不含全文）
+      operationId: listMeetingContexts
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: 會前資料清單
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { type: object, properties: { contexts: { type: array, items: { $ref: "#/components/schemas/MeetingContext" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { description: "紀錄不存在或非本人", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+    post:
+      tags: [live]
+      summary: 新增會前資料（貼上文字或上傳 .txt/.md/.pdf；PDF 由 Gemini 轉純文字，原檔不保存）
+      operationId: addMeetingContext
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [text], properties: { title: { type: string }, text: { type: string } } }
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary, description: "≤10MB" }
+                title: { type: string }
+      responses:
+        "200":
+          description: 已新增
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { type: object, properties: { context: { $ref: "#/components/schemas/MeetingContext" } } }
+        "400": { description: "參數錯誤", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { description: "紀錄不存在或非本人", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "413": { description: "41301 超過大小上限（單檔 10MB／單場合計 10 萬字）", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "415": { description: "41501 不支援的檔案格式", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "422": { description: "42201 檔案轉文字失敗", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+
+  /api/v1/meetings/{id}/contexts/{contextId}:
+    delete:
+      tags: [live]
+      summary: 刪除會前資料
+      operationId: deleteMeetingContext
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: contextId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "已刪除", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { description: "不存在或非本人", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+
+  /api/v1/users/me/preferences:
+    patch:
+      tags: [users]
+      summary: 更新使用者偏好（即時辨識麥克風開關）
+      operationId: updatePreferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [liveMicTranscription], properties: { liveMicTranscription: { type: boolean } } }
+      responses:
+        "200":
+          description: 已更新
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { type: object, properties: { liveMicTranscription: { type: boolean } } }
+        "400": { description: "參數錯誤", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /api/v1/meetings/{id}/complete-upload:
     post:
       tags: [meetings]
@@ -1138,6 +1439,7 @@ components:
         email: { type: string, format: email }
         displayName: { type: string }
         avatarUrl: { type: string }
+        liveMicTranscription: { type: boolean, description: "即時會議是否同時即時辨識麥克風（設定頁開關）" }
         createdAt: { type: string, format: date-time }
 
     Meeting:
@@ -1148,7 +1450,8 @@ components:
         title: { type: string }
         status:
           type: string
-          enum: [scheduled, pending, transcribing, analyzing, completed, failed]
+          enum: [scheduled, live, pending, transcribing, analyzing, completed, failed]
+          description: "live = 即時會議進行中；scheduled 且有 liveStartedAt = 即時會議已結束、待上傳錄音"
         scenario:
           type: string
           enum: [meeting, casual, interview, idea]
@@ -1167,6 +1470,7 @@ components:
         errorMessage: { type: string }
         scheduledAt: { type: string, format: date-time }
         remindBeforeMin: { type: integer }
+        liveStartedAt: { type: string, format: date-time, description: "即時會議開始時間；非即時會議不出現" }
         createdAt: { type: string, format: date-time }
         matchSnippet: { type: string, description: "搜尋命中的逐字稿片段（僅 search 非空且語意命中時出現）" }
         matchType: { type: string, enum: [semantic, literal], description: "命中類型" }
@@ -1236,6 +1540,57 @@ components:
               type: number
               format: double
               description: 逐字稿低信心字元比例（0–1）；≥0.05 時前端建議 AI 校正
+            liveNotes:
+              $ref: "#/components/schemas/LiveNotes"
+
+    LiveSummary:
+      type: object
+      required: [current, points]
+      properties:
+        current: { type: string, description: "目前在討論什麼（一句話）" }
+        points: { type: array, items: { type: string }, description: "已談到的重點（≤15）" }
+
+    LiveSource:
+      type: object
+      required: [type, label]
+      properties:
+        type: { type: string, enum: [transcript, context] }
+        label: { type: string, description: "transcript 為 HH:MM；context 為會前資料標題" }
+
+    LiveQA:
+      type: object
+      required: [question, answer, sources]
+      properties:
+        question: { type: string }
+        answer: { type: string }
+        sources: { type: array, items: { $ref: "#/components/schemas/LiveSource" } }
+        askedAt: { type: string, format: date-time }
+
+    LiveNotes:
+      type: object
+      description: 即時會議的會議中筆記（最後一版重點＋提問紀錄）
+      required: [notes, qa]
+      properties:
+        notes: { $ref: "#/components/schemas/LiveSummary" }
+        qa: { type: array, items: { $ref: "#/components/schemas/LiveQA" } }
+
+    LiveUsage:
+      type: object
+      required: [usedMinutes, limitMinutes, overLimit]
+      properties:
+        usedMinutes: { type: integer, description: "本月（台灣時間）已用即時辨識分鐘" }
+        limitMinutes: { type: integer }
+        overLimit: { type: boolean }
+
+    MeetingContext:
+      type: object
+      required: [id, title, source, chars, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        source: { type: string, enum: [text, file] }
+        chars: { type: integer, description: "轉換後純文字字數" }
+        createdAt: { type: string, format: date-time }
 
     Artifact:
       type: object

@@ -14,7 +14,12 @@ var msg = map[ErrCode]string{
 	CorrectionInProgress:   "correction already in progress",
 	CorrectionNotAllowed:   "meeting cannot be corrected",
 	NothingToRevert:        "nothing to revert",
+	LiveNotActive:          "meeting is not live",
+	ContextTooLarge:        "meeting context too large",
+	ContextUnsupportedType: "unsupported meeting context file type",
+	ContextExtractFailed:   "failed to read meeting context file",
 	TooManyRequests:        "too many requests, please slow down",
+	LiveQuotaExceeded:      "monthly live transcription quota exceeded",
 	Internal:               "internal server error",
 }
 

@@ -2,6 +2,7 @@ package meeting
 
 import (
 	"testing"
+	"time"
 
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 )
@@ -43,5 +44,23 @@ func TestToMeetingDetailResponse_CorrectionFields(t *testing.T) {
 	}
 	if r.UncertainRatio != 1 {
 		t.Errorf("UncertainRatio = %v, want 1", r.UncertainRatio)
+	}
+}
+
+func TestToMeetingDetailResponse_LiveFields(t *testing.T) {
+	started := time.Date(2026, 10, 15, 14, 0, 0, 0, time.UTC)
+	m := domainmeeting.Meeting{Status: domainmeeting.StatusScheduled, LiveStartedAt: &started, LiveNotes: &domainmeeting.LiveNotes{
+		Notes: domainmeeting.LiveSummary{Current: "c", Points: []string{"p"}},
+		QA:    []domainmeeting.LiveQA{{Question: "q", Answer: "a", Sources: []domainmeeting.LiveSource{{Type: "transcript", Label: "14:03"}}}},
+	}}
+	r := toMeetingDetailResponse(m)
+	if r.LiveStartedAt == nil || !r.LiveStartedAt.Equal(started) {
+		t.Errorf("liveStartedAt = %v", r.LiveStartedAt)
+	}
+	if r.LiveNotes == nil || r.LiveNotes.Notes.Current != "c" || len(r.LiveNotes.QA) != 1 || r.LiveNotes.QA[0].Sources[0].Label != "14:03" {
+		t.Errorf("liveNotes = %+v", r.LiveNotes)
+	}
+	if r := toMeetingDetailResponse(domainmeeting.Meeting{}); r.LiveNotes != nil || r.LiveStartedAt != nil {
+		t.Errorf("非即時會議不應有 live 欄位：%+v", r)
 	}
 }

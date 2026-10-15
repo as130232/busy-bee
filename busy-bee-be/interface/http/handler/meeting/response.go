@@ -25,7 +25,9 @@ type meetingResponse struct {
 	ErrorMessage    string     `json:"errorMessage,omitempty"`
 	ScheduledAt     *time.Time `json:"scheduledAt,omitempty"`
 	RemindBeforeMin int        `json:"remindBeforeMin"`
-	CreatedAt       time.Time  `json:"createdAt"`
+	// LiveStartedAt 即時會議開始時間；有值且 status=scheduled 代表即時會議已結束、待上傳錄音。
+	LiveStartedAt *time.Time `json:"liveStartedAt,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
 	// 搜尋命中片段（僅 search 非空且語意命中時出現）
 	MatchSnippet string `json:"matchSnippet,omitempty"`
 	MatchType    string `json:"matchType,omitempty"`
@@ -55,6 +57,7 @@ func toMeetingResponse(m domainmeeting.Meeting) meetingResponse {
 		ErrorMessage:    m.ErrorMessage,
 		ScheduledAt:     m.ScheduledAt,
 		RemindBeforeMin: m.RemindBeforeMin,
+		LiveStartedAt:   m.LiveStartedAt,
 		CreatedAt:       m.CreatedAt,
 	}
 }
@@ -132,6 +135,49 @@ type meetingDetailResponse struct {
 	SummarySections []summarySectionResponse `json:"summarySections"`
 	// UncertainRatio 逐字稿低信心字元比例（0–1），前端據以提示是否建議 AI 校正。
 	UncertainRatio float64 `json:"uncertainRatio"`
+	// LiveNotes 即時會議的會議中筆記（最後一版重點＋提問紀錄）；非即時會議省略。
+	LiveNotes *liveNotesResponse `json:"liveNotes,omitempty"`
+}
+
+type liveNotesResponse struct {
+	Notes liveSummaryResponse `json:"notes"`
+	QA    []liveQAResponse    `json:"qa"`
+}
+
+type liveSummaryResponse struct {
+	Current string   `json:"current"`
+	Points  []string `json:"points"`
+}
+
+type liveQAResponse struct {
+	Question string               `json:"question"`
+	Answer   string               `json:"answer"`
+	Sources  []liveSourceResponse `json:"sources"`
+	AskedAt  time.Time            `json:"askedAt"`
+}
+
+type liveSourceResponse struct {
+	Type  string `json:"type"`
+	Label string `json:"label"`
+}
+
+func toLiveNotesResponse(n *domainmeeting.LiveNotes) *liveNotesResponse {
+	if n == nil {
+		return nil
+	}
+	points := n.Notes.Points
+	if points == nil {
+		points = []string{}
+	}
+	qa := make([]liveQAResponse, len(n.QA))
+	for i, q := range n.QA {
+		src := make([]liveSourceResponse, len(q.Sources))
+		for j, s := range q.Sources {
+			src[j] = liveSourceResponse{Type: s.Type, Label: s.Label}
+		}
+		qa[i] = liveQAResponse{Question: q.Question, Answer: q.Answer, Sources: src, AskedAt: q.AskedAt}
+	}
+	return &liveNotesResponse{Notes: liveSummaryResponse{Current: n.Notes.Current, Points: points}, QA: qa}
 }
 
 func toMeetingDetailResponse(m domainmeeting.Meeting) meetingDetailResponse {
@@ -161,6 +207,7 @@ func toMeetingDetailResponse(m domainmeeting.Meeting) meetingDetailResponse {
 		SpeakerNames:       names,
 		SummarySections:    sections,
 		UncertainRatio:     domainmeeting.UncertainRatio(m.TranscriptSegments),
+		LiveNotes:          toLiveNotesResponse(m.LiveNotes),
 	}
 }
 

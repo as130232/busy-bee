@@ -30,6 +30,9 @@ func TestMergeKeyterms(t *testing.T) {
 	if got := MergeKeyterms([]string{"G1", "G2"}, cs, 3); !slices.Equal(got, []string{"G1", "G2", "Stage"}) {
 		t.Errorf("limit: got %v (global must win)", got)
 	}
+	if got := MergeKeyterms([]string{"Kubernetes:2", "a:b", "Kubernetes"}, nil, 10); !slices.Equal(got, []string{"Kubernetes", "a:b"}) {
+		t.Errorf("weight suffix: got %v（串流 keyterm 不支援權重，數字後綴需去除）", got)
+	}
 	if got := MergeKeyterms(nil, nil, 10); got == nil || len(got) != 0 {
 		t.Errorf("empty input must return empty non-nil slice, got %#v", got)
 	}

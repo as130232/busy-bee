@@ -161,3 +161,21 @@ func TestLoad_AppEnvSelectsDotEnvFile(t *testing.T) {
 		t.Errorf("DB.URL = %q, want value from .env.qa", cfg.DB.URL)
 	}
 }
+
+func TestLoad_LiveConfig(t *testing.T) {
+	t.Chdir(t.TempDir())
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 即時串流固定 nova-3（2026-10-15 實測 zh-TW 串流可用、輸出繁體；nova-2 zh-TW 串流連線失敗）
+	if cfg.Live.STTModel != "nova-3" || cfg.Live.MonthlyMinutesLimit != 3000 || cfg.Live.MaxContextChars != 100000 || cfg.Live.MaxContextFileBytes != 10<<20 {
+		t.Errorf("Live defaults = %+v", cfg.Live)
+	}
+
+	t.Setenv("LIVE_MONTHLY_MINUTES_LIMIT", "500")
+	t.Setenv("LIVE_CONTEXT_MAX_CHARS", "not-a-number")
+	if cfg, _ = Load(); cfg.Live.MonthlyMinutesLimit != 500 || cfg.Live.MaxContextChars != 100000 {
+		t.Errorf("Live override = %+v（無效數字回退預設）", cfg.Live)
+	}
+}
