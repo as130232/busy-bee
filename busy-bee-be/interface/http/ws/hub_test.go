@@ -120,9 +120,23 @@ func TestWS_NotWhitelistedClosed(t *testing.T) {
 	t.Fatal("connection should be closed for non-whitelisted email")
 }
 
+func TestWS_UnverifiedEmailClosed(t *testing.T) {
+	me := domainuser.User{ID: uuid.New(), FirebaseUID: "fb-1"}
+	v := fakeVerifier{identity: domainuser.Identity{UID: "fb-1", Email: "a@x.com", EmailVerified: false}}
+	_, url := setupWS(t, v, &fakeUserRepo{user: me}, []string{"a@x.com"})
+	conn := dial(t, url)
+	defer conn.CloseNow()
+
+	sendAuth(t, conn, "tok")
+
+	if msg, err := readMsg(t, conn, 2*time.Second); err == nil && msg["type"] == "authOk" {
+		t.Fatal("unverified email must not receive authOk")
+	}
+}
+
 func TestWS_AuthOkAndReceivesOwnEvents(t *testing.T) {
 	me := domainuser.User{ID: uuid.New(), FirebaseUID: "fb-1"}
-	v := fakeVerifier{identity: domainuser.Identity{UID: "fb-1", Email: "a@x.com"}}
+	v := fakeVerifier{identity: domainuser.Identity{UID: "fb-1", Email: "a@x.com", EmailVerified: true}}
 	hub, url := setupWS(t, v, &fakeUserRepo{user: me}, []string{"a@x.com"})
 
 	conn := dial(t, url)
@@ -161,7 +175,7 @@ func TestWS_AuthOkAndReceivesOwnEvents(t *testing.T) {
 
 func TestWS_DoesNotReceiveOthersEvents(t *testing.T) {
 	me := domainuser.User{ID: uuid.New(), FirebaseUID: "fb-1"}
-	v := fakeVerifier{identity: domainuser.Identity{UID: "fb-1", Email: "a@x.com"}}
+	v := fakeVerifier{identity: domainuser.Identity{UID: "fb-1", Email: "a@x.com", EmailVerified: true}}
 	hub, url := setupWS(t, v, &fakeUserRepo{user: me}, []string{"a@x.com"})
 
 	conn := dial(t, url)
@@ -185,7 +199,7 @@ func TestWS_DisallowedOriginRejected(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	hub := NewHub()
 	t.Cleanup(hub.Close)
-	v := fakeVerifier{identity: domainuser.Identity{UID: "fb-1", Email: "a@x.com"}}
+	v := fakeVerifier{identity: domainuser.Identity{UID: "fb-1", Email: "a@x.com", EmailVerified: true}}
 
 	e := gin.New()
 	e.GET("/ws", hub.Handler(v, &fakeUserRepo{}, []string{"a@x.com"}, []string{"good.example.com"}))
@@ -206,7 +220,7 @@ func TestWS_DisallowedOriginRejected(t *testing.T) {
 
 func TestWS_MultipleConnectionsSameUserAllReceive(t *testing.T) {
 	me := domainuser.User{ID: uuid.New(), FirebaseUID: "fb-1"}
-	v := fakeVerifier{identity: domainuser.Identity{UID: "fb-1", Email: "a@x.com"}}
+	v := fakeVerifier{identity: domainuser.Identity{UID: "fb-1", Email: "a@x.com", EmailVerified: true}}
 	hub, url := setupWS(t, v, &fakeUserRepo{user: me}, []string{"a@x.com"})
 
 	conns := make([]*websocket.Conn, 2)

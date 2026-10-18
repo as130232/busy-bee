@@ -40,10 +40,17 @@ func (v *Verifier) Verify(ctx context.Context, idToken string) (user.Identity, e
 		Email:   claimString(token.Claims, "email"),
 		Name:    claimString(token.Claims, "name"),
 		Picture: claimString(token.Claims, "picture"),
+		// Google 登入的 token 一律帶 email_verified=true；缺少或非 bool 視為未驗證（fail-closed）。
+		EmailVerified: claimBool(token.Claims, "email_verified"),
 	}, nil
 }
 
 func claimString(claims map[string]any, key string) string {
 	v, _ := claims[key].(string)
+	return v
+}
+
+func claimBool(claims map[string]any, key string) bool {
+	v, _ := claims[key].(bool)
 	return v
 }

@@ -36,7 +36,8 @@ func Auth(verifier user.TokenVerifier, allowedEmails []string) gin.HandlerFunc {
 			return
 		}
 
-		if _, ok := allowed[strings.ToLower(identity.Email)]; !ok {
+		// 只認已驗證的 email：未驗證時任何人都能用別人的 email 註冊（如開了帳密登入），繞過白名單。
+		if _, ok := allowed[strings.ToLower(identity.Email)]; !ok || !identity.EmailVerified {
 			response.Fail(c, apperr.New(errcode.Forbidden))
 			return
 		}

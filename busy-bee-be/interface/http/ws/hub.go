@@ -207,7 +207,7 @@ func (h *Hub) authenticate(ctx context.Context, conn *websocket.Conn, verifier d
 	if err != nil {
 		return uuid.Nil, err
 	}
-	if _, ok := allowed[strings.ToLower(identity.Email)]; !ok {
+	if _, ok := allowed[strings.ToLower(identity.Email)]; !ok || !identity.EmailVerified {
 		return uuid.Nil, errNotWhitelisted
 	}
 

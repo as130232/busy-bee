@@ -73,6 +73,15 @@ func TestAuth_EmailNotWhitelisted403(t *testing.T) {
 	}
 }
 
+// 白名單比對 email 前須確認 email 已驗證；未驗證的同名 email（如其他登入方式註冊）不可通過。
+func TestAuth_UnverifiedEmail403(t *testing.T) {
+	v := fakeVerifier{identity: user.Identity{UID: "u1", Email: "a@x.com", EmailVerified: false}}
+	w, _ := runAuth(t, v, []string{"a@x.com"}, "Bearer tok")
+	if w.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403", w.Code)
+	}
+}
+
 func TestAuth_EmptyWhitelistFailClosed403(t *testing.T) {
 	v := fakeVerifier{identity: user.Identity{UID: "u1", Email: "a@x.com"}}
 	w, _ := runAuth(t, v, nil, "Bearer tok")
@@ -82,7 +91,7 @@ func TestAuth_EmptyWhitelistFailClosed403(t *testing.T) {
 }
 
 func TestAuth_WhitelistCaseInsensitive(t *testing.T) {
-	v := fakeVerifier{identity: user.Identity{UID: "u1", Email: "A@X.com"}}
+	v := fakeVerifier{identity: user.Identity{UID: "u1", Email: "A@X.com", EmailVerified: true}}
 	w, _ := runAuth(t, v, []string{"a@x.com"}, "Bearer tok")
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 (email compare case-insensitive)", w.Code)
@@ -90,7 +99,7 @@ func TestAuth_WhitelistCaseInsensitive(t *testing.T) {
 }
 
 func TestAuth_ValidTokenInjectsIdentity(t *testing.T) {
-	id := user.Identity{UID: "u1", Email: "a@x.com", Name: "Alice"}
+	id := user.Identity{UID: "u1", Email: "a@x.com", Name: "Alice", EmailVerified: true}
 	w, captured := runAuth(t, fakeVerifier{identity: id}, []string{"a@x.com"}, "Bearer tok")
 
 	if w.Code != http.StatusOK {

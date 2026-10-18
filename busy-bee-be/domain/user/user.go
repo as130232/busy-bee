@@ -31,6 +31,8 @@ type Identity struct {
 	Email   string
 	Name    string
 	Picture string
+	// EmailVerified token 的 email_verified claim；白名單只認已驗證的 email。
+	EmailVerified bool
 }
 
 // TokenVerifier 驗證 ID token（Firebase 實作在 infrastructure/firebaseauth）。
