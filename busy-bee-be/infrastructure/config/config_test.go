@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"os"
 	"path/filepath"
 	"testing"
@@ -177,5 +178,21 @@ func TestLoad_LiveConfig(t *testing.T) {
 	t.Setenv("LIVE_CONTEXT_MAX_CHARS", "not-a-number")
 	if cfg, _ = Load(); cfg.Live.MonthlyMinutesLimit != 500 || cfg.Live.MaxContextChars != 100000 {
 		t.Errorf("Live override = %+v（無效數字回退預設）", cfg.Live)
+	}
+}
+
+// 正式環境漏設 FRONTEND_ORIGINS 時 WebSocket 不檢查來源；啟動時要明確提示（教訓 #22：預設關閉不能無聲）。
+func TestConfig_Warnings(t *testing.T) {
+	prod := &Config{Server: ServerConfig{Env: "prod"}}
+	w := prod.Warnings()
+	if len(w) != 1 || !strings.Contains(w[0], "FRONTEND_ORIGINS") {
+		t.Fatalf("prod without origins warnings = %v, want one FRONTEND_ORIGINS warning", w)
+	}
+	prod.Server.AllowedOrigins = []string{"busy-bee-502710.web.app"}
+	if w := prod.Warnings(); len(w) != 0 {
+		t.Fatalf("warnings = %v, want none", w)
+	}
+	if w := (&Config{Server: ServerConfig{Env: "local"}}).Warnings(); len(w) != 0 {
+		t.Fatalf("local warnings = %v, want none", w)
 	}
 }

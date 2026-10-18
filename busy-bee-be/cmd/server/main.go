@@ -60,6 +60,9 @@ func main() {
 		os.Exit(1)
 	}
 	setupLogger(cfg)
+	for _, w := range cfg.Warnings() {
+		slog.Warn("config.insecure", "detail", w)
+	}
 
 	ctx := context.Background()
 

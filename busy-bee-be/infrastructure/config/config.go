@@ -166,6 +166,15 @@ func Load() (*Config, error) {
 	}, nil
 }
 
+// Warnings 回傳正式環境中「服務能啟動、但安全防護被默默關掉」的設定問題，供啟動時 log。
+func (c *Config) Warnings() []string {
+	var out []string
+	if c.Server.Env == "prod" && len(c.Server.AllowedOrigins) == 0 {
+		out = append(out, "FRONTEND_ORIGINS 未設定：WebSocket 不檢查連線來源")
+	}
+	return out
+}
+
 // parseInt 解析正整數，空值或無效時回退 def。
 func parseInt(s string, def int) int {
 	n, err := strconv.Atoi(strings.TrimSpace(s))
