@@ -1422,7 +1422,7 @@ components:
       properties:
         errCode:
           type: integer
-          description: 0 = 成功；非 0 為業務錯誤碼（HTTP status 三碼 + 兩碼流水號）
+          description: 0 = 成功；非 0 為業務錯誤碼（HTTP status 三碼 + 兩碼流水號）。所有端點的請求 body 上限 1MB（會前資料上傳依檔案上限），超過回 413 / 41302
           example: 0
         msg:
           type: string

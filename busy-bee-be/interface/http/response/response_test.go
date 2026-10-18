@@ -103,3 +103,15 @@ func TestFail_IncludesTraceID(t *testing.T) {
 		t.Errorf("traceId = %q, want %q", b.TraceID, "trace-abc")
 	}
 }
+
+// handler 以 Param 包裝 ShouldBindJSON 的錯誤；body 超過上限時應改回 413，讓前端知道是太大不是格式錯。
+func TestFail_MaxBytesErrorMapsTo413(t *testing.T) {
+	c, w := setupCtx(t)
+	Fail(c, apperr.Wrap(&http.MaxBytesError{Limit: 10}, errcode.Param, "body"))
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("status = %d, want 413", w.Code)
+	}
+	if b := decode(t, w); b.ErrCode != int(errcode.RequestTooLarge) {
+		t.Errorf("errCode = %d, want %d", b.ErrCode, errcode.RequestTooLarge)
+	}
+}

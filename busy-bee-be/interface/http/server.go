@@ -49,6 +49,9 @@ type Deps struct {
 	BuiltAt string
 }
 
+// defaultBodyLimit 一般 API 請求 body 上限；音檔走 GCS 直傳，不經 API。
+const defaultBodyLimit = 1 << 20
+
 // NewEngine 組裝 middleware 鏈與路由。順序：Recovery 最外層 → RequestID → Logger。
 func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 	if cfg.Server.Env == "prod" {
@@ -60,6 +63,10 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 		middleware.SecurityHeaders(cfg.Server.Env == "prod"),
 		middleware.RequestID(),
 		middleware.RequestLogger(),
+		// 預設 1MB（即時問答帶整場逐字稿約 12 萬字 ≈ 360KB）；會前資料上傳另依檔案上限放寬
+		middleware.BodyLimit(defaultBodyLimit, map[string]int64{
+			"/api/v1/meetings/:id/contexts": int64(cfg.Live.MaxContextFileBytes) + 64<<10,
+		}),
 	)
 
 	e.NoRoute(func(c *gin.Context) {

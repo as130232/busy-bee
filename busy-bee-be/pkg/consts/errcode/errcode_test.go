@@ -25,6 +25,7 @@ func TestHTTPStatus(t *testing.T) {
 		{"live not active maps to 409", LiveNotActive, http.StatusConflict},
 		{"live quota exceeded maps to 429", LiveQuotaExceeded, http.StatusTooManyRequests},
 		{"context too large maps to 413", ContextTooLarge, http.StatusRequestEntityTooLarge},
+		{"request too large maps to 413", RequestTooLarge, http.StatusRequestEntityTooLarge},
 		{"context unsupported type maps to 415", ContextUnsupportedType, http.StatusUnsupportedMediaType},
 		{"context extract failed maps to 422", ContextExtractFailed, http.StatusUnprocessableEntity},
 		{"internal maps to 500", Internal, http.StatusInternalServerError},

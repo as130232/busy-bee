@@ -92,6 +92,8 @@ function friendlyMessage(errCode: number, msg: string): string {
       return '這場會議已不在即時模式中。'
     case 41301:
       return '資料太大（單檔上限 10MB，單場合計 10 萬字）。'
+    case 41302:
+      return '送出的內容太大，請縮短後再試。'
     case 41501:
       return '只支援 .txt、.md、.pdf 檔案。'
     case 42201:

@@ -16,6 +16,7 @@ var msg = map[ErrCode]string{
 	NothingToRevert:        "nothing to revert",
 	LiveNotActive:          "meeting is not live",
 	ContextTooLarge:        "meeting context too large",
+	RequestTooLarge:        "request body too large",
 	ContextUnsupportedType: "unsupported meeting context file type",
 	ContextExtractFailed:   "failed to read meeting context file",
 	TooManyRequests:        "too many requests, please slow down",

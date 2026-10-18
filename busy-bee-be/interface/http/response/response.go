@@ -36,7 +36,11 @@ func Fail(c *gin.Context, err error) {
 	ctx := c.Request.Context()
 
 	var ae *apperr.Error
-	if !errors.As(err, &ae) {
+	var mbe *http.MaxBytesError
+	if errors.As(err, &mbe) && (!errors.As(err, &ae) || ae.Code == errcode.Param) {
+		// body 超過 BodyLimit：handler 多半包成 Param，這裡統一改回 413。
+		ae = apperr.Wrap(err, errcode.RequestTooLarge)
+	} else if !errors.As(err, &ae) {
 		slog.ErrorContext(ctx, "unhandled error", "err", err, "path", c.Request.URL.Path)
 		ae = apperr.New(errcode.Internal)
 	} else if ae.Cause != nil {

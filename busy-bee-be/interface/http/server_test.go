@@ -118,3 +118,14 @@ func TestNotFoundRoute_ReturnsEnvelope(t *testing.T) {
 		t.Errorf("404 response is not the unified envelope: %s", w.Body.String())
 	}
 }
+
+// 全域 body 上限有掛上：超過 1MB 的請求在路由前就回 413。
+func TestEngine_RejectsOversizedBody(t *testing.T) {
+	e := testEngine(t)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/anything", strings.NewReader(strings.Repeat("a", defaultBodyLimit+1)))
+	e.ServeHTTP(w, req)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413", w.Code)
+	}
+}
