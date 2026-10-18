@@ -51,7 +51,7 @@ export function SettingsPage() {
 
       <button
         type="button"
-        className="btn btn-secondary text-red-500 hover:text-red-500"
+        className="btn btn-secondary text-danger hover:text-danger"
         onClick={() => void signOut()}
       >
         <LogOut className="size-4" />

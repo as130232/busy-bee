@@ -4,15 +4,14 @@ import { BrandMark } from '../components/AppShell'
 import { GoogleIcon } from '../components/GoogleIcon'
 import { Loader } from '../components/Loader'
 import { useAuth } from '../hooks/useAuth'
-import { scenarioLabels } from '../services/api/client'
+import { scenarioThemes } from '../components/scenarioTheme'
+import { scenarioLabels, type Scenario } from '../services/api/client'
 
-// 四情境 chips：配色對齊錄音頁情境色（會議琥珀 / 閒聊天藍 / 面試翠綠 / 想法紫）。
-const chips = [
-  { label: scenarioLabels.meeting, tone: 'bg-accent/10 text-accent' },
-  { label: scenarioLabels.casual, tone: 'bg-sky-500/10 text-sky-500' },
-  { label: scenarioLabels.interview, tone: 'bg-emerald-500/10 text-emerald-500' },
-  { label: scenarioLabels.idea, tone: 'bg-violet-500/10 text-violet-500' },
-]
+// 四情境 chips：配色沿用 scenarioThemes（與錄音頁情境色一致）。
+const chips = (Object.keys(scenarioThemes) as Scenario[]).map((s) => ({
+  label: scenarioLabels[s],
+  tone: scenarioThemes[s].chip,
+}))
 
 export function LoginPage() {
   const { user, initializing, error, signIn } = useAuth()
@@ -52,7 +51,7 @@ export function LoginPage() {
 
       {/* 標題（琥珀漸層字） */}
       <h1
-        className="animate-fade-in-up m-0 bg-gradient-to-r from-amber-300 to-amber-500 bg-clip-text text-3xl font-semibold tracking-tight text-transparent"
+        className="animate-fade-in-up m-0 bg-gradient-to-r from-amber-500 to-amber-700 bg-clip-text dark:from-amber-300 dark:to-amber-500 text-3xl font-semibold tracking-tight text-transparent"
         style={{ animationDelay: '0.08s' }}
       >
         Busy Bee
@@ -63,7 +62,7 @@ export function LoginPage() {
         className="animate-fade-in-up flex flex-col items-center gap-1 text-center"
         style={{ animationDelay: '0.16s' }}
       >
-        <p className="m-0 text-[15px] font-medium text-fg">錄音一鍵成筆記</p>
+        <p className="m-0 text-body font-medium text-fg">錄音一鍵成筆記</p>
         <p className="m-0 text-sm text-muted">AI 幫你整理重點與行動項</p>
       </div>
 
@@ -86,14 +85,14 @@ export function LoginPage() {
       <button
         type="button"
         onClick={() => void signIn()}
-        className="animate-fade-in-up mt-4 flex h-12 w-full max-w-xs items-center justify-center gap-3 rounded-xl border border-border bg-surface/70 text-[15px] font-medium text-fg backdrop-blur-sm transition hover:bg-surface active:scale-[0.98]"
+        className="animate-fade-in-up mt-4 flex h-12 w-full max-w-xs items-center justify-center gap-3 rounded-xl border border-border bg-surface/70 text-body font-medium text-fg backdrop-blur-sm transition hover:bg-surface active:scale-[0.98]"
         style={{ animationDelay: '0.32s' }}
       >
         <GoogleIcon className="size-5" />
         使用 Google 登入
       </button>
 
-      {error && <p className="animate-fade-in m-0 text-center text-sm text-red-500">{error}</p>}
+      {error && <p className="animate-fade-in m-0 text-center text-sm text-danger">{error}</p>}
     </main>
   )
 }

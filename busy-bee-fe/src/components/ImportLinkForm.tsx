@@ -60,7 +60,7 @@ export function ImportLinkForm({
     return (
       <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-surface px-4 py-5">
         <p className="m-0 flex items-center gap-2 text-sm">
-          <CheckCircle2 className="size-4 text-emerald-500" />
+          <CheckCircle2 className="size-4 text-success" />
           已開始匯入，稍後可在「紀錄」查看
         </p>
         <button type="button" className="btn btn-secondary h-9" onClick={() => setState({ phase: 'idle' })}>
@@ -108,7 +108,7 @@ export function ImportLinkForm({
         <Link2 className="size-4" />
         {state.phase === 'submitting' ? '匯入中…' : '貼連結匯入'}
       </button>
-      {state.phase === 'error' && <p className="m-0 text-xs text-red-500">{state.message}</p>}
+      {state.phase === 'error' && <p className="m-0 text-xs text-danger">{state.message}</p>}
       <p className="m-0 text-center text-xs text-muted">支援公開影片/單集，90 分鐘、200MB 以內</p>
     </form>
   )

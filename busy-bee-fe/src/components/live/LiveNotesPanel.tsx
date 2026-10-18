@@ -47,7 +47,7 @@ export function LiveNotesPanel({
           立即更新
         </button>
       </div>
-      {error && <p className="m-0 text-xs text-amber-600 dark:text-amber-400">{error}（保留上一版，稍後自動重試）</p>}
+      {error && <p className="m-0 text-xs text-warning">{error}（保留上一版，稍後自動重試）</p>}
       {empty ? (
         <p className="m-0 py-6 text-center text-sm text-muted">還沒有重點</p>
       ) : (

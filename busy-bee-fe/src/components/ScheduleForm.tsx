@@ -97,7 +97,7 @@ export function ScheduleSheet({ editing, onClose, onSaved }: SheetProps) {
           />
           分鐘提醒
         </label>
-        {error && <p className="m-0 text-sm text-red-500">{error}</p>}
+        {error && <p className="m-0 text-sm text-danger">{error}</p>}
         <button
           type="button"
           className="btn btn-primary mt-1"

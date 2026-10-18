@@ -46,7 +46,7 @@ export function LiveMicToggle() {
       <p className="m-0 text-xs text-muted">
         即時會議中把你說的話也即時轉成文字。關閉較省錢；不論開關，你的聲音都會錄進存檔與會後紀錄。
       </p>
-      {error && <p className="m-0 text-xs text-red-500">{error}</p>}
+      {error && <p className="m-0 text-xs text-danger">{error}</p>}
     </div>
   )
 }

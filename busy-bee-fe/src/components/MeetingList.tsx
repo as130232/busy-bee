@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 
+import { scenarioThemes } from './scenarioTheme'
 import { StatusBadge } from './StatusBadge'
 import { displayStatus } from '../utils/meetingStatus'
 import { scenarioLabels, type Meeting } from '../services/api/client'
@@ -9,15 +10,7 @@ import { formatDateTime, formatDuration } from '../utils/format'
 function ScenarioTag({ scenario }: { scenario: Meeting['scenario'] }) {
   const label = scenarioLabels[scenario]
   if (!label) return null
-  const tone =
-    scenario === 'casual'
-      ? 'bg-sky-500/10 text-sky-500'
-      : scenario === 'interview'
-        ? 'bg-emerald-500/10 text-emerald-500'
-        : scenario === 'idea'
-          ? 'bg-violet-500/10 text-violet-500'
-          : 'bg-accent/10 text-accent'
-  return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
+  return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${scenarioThemes[scenario].chip}`}>{label}</span>
 }
 
 /** 副標題：日期時間在前，時長以強調 tag 呈現以區隔。 */
@@ -73,7 +66,7 @@ export function MeetingList({ meetings, emptyText }: { meetings: Meeting[]; empt
               {(m.tags ?? []).length > 0 && (
                 <span className="mt-1 flex flex-wrap gap-1">
                   {(m.tags ?? []).map((t) => (
-                    <span key={t} className="rounded-full border border-border px-1.5 py-0.5 text-[11px] text-muted">
+                    <span key={t} className="rounded-full border border-border px-1.5 py-0.5 text-micro text-muted">
                       #{t}
                     </span>
                   ))}

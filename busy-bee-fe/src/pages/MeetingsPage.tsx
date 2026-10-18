@@ -24,7 +24,7 @@ function Chip({
       onClick={onClick}
       className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition ${
         active
-          ? 'border-accent bg-accent/10 text-accent'
+          ? 'border-accent bg-accent/10 text-accent-fg'
           : 'border-border text-muted hover:text-fg'
       }`}
     >
@@ -109,7 +109,7 @@ export function MeetingsPage() {
       )}
 
       {error && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-500">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
           {error}
           <button type="button" className="btn btn-secondary h-9" onClick={reload}>
             重新載入

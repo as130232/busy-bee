@@ -120,7 +120,7 @@ export function ContextPicker({
           資料處理中（PDF 需要數十秒）…
         </p>
       )}
-      {error && <p className="m-0 text-xs text-red-500">{error}</p>}
+      {error && <p className="m-0 text-xs text-danger">{error}</p>}
       <p className="m-0 text-xs text-muted">支援 .txt、.md、.pdf（單檔 10MB），AI 只用來理解背景，不會當成會議內容。</p>
     </div>
   )

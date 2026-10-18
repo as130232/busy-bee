@@ -180,7 +180,7 @@ function ActionItemRow({
                 )}
                 {item.dueText && <span className="text-xs text-muted">{item.dueText}</span>}
                 {title && (
-                  <Link to={`/meetings/${item.meetingId}`} className="text-xs text-accent hover:underline">
+                  <Link to={`/meetings/${item.meetingId}`} className="text-xs text-accent-fg hover:underline">
                     {title}
                   </Link>
                 )}
@@ -203,7 +203,7 @@ function ActionItemRow({
                 type="button"
                 aria-label="移除待辦"
                 onClick={() => onRemove(item.id)}
-                className="flex size-8 items-center justify-center rounded-md text-muted transition hover:bg-surface-hover hover:text-red-500"
+                className="flex size-8 items-center justify-center rounded-md text-muted transition hover:bg-surface-hover hover:text-danger"
               >
                 <Trash2 className="size-4" />
               </button>

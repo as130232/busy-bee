@@ -140,14 +140,14 @@ function SegmentRow({
           onClick={() => onSeek?.(seg.startMs / 1000)}
           aria-label={`從 ${formatClock(seg.startMs / 1000)} 播放`}
         >
-          <span className="font-mono text-[11px] tabular-nums text-muted">{formatClock(seg.startMs / 1000)}</span>
+          <span className="font-mono text-micro tabular-nums text-muted">{formatClock(seg.startMs / 1000)}</span>
           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${colorClass}`}>{speakerName}</span>
           <Play className="ml-auto size-3.5 shrink-0 text-muted transition-colors group-hover:text-accent" />
         </button>
         {seg.originalText && (
           <button
             type="button"
-            className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] text-accent"
+            className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-micro text-accent-fg"
             onClick={() => setShowOriginal(true)}
           >
             AI 已校正
@@ -269,7 +269,7 @@ function SpeakerRenameSheet({
           if (e.key === 'Escape') onClose()
         }}
       />
-      {err && <p className="m-0 text-xs text-red-500">{err}</p>}
+      {err && <p className="m-0 text-xs text-danger">{err}</p>}
       <div className="flex gap-2">
         <button type="button" className="btn btn-secondary flex-1" onClick={onClose} disabled={busy}>
           取消

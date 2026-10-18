@@ -42,7 +42,7 @@ export function ExportBar({ content, filename }: { content: string; filename: st
         onClick={() => void copy()}
       >
         {copied ? (
-          <Check className="animate-scale-in size-4 text-emerald-500" />
+          <Check className="animate-scale-in size-4 text-success" />
         ) : (
           <Copy className="size-4" />
         )}

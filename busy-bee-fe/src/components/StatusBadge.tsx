@@ -21,12 +21,12 @@ const config: Record<
   awaitingUpload: {
     label: '待上傳錄音',
     Icon: HardDriveUpload,
-    cls: 'text-amber-600 bg-amber-600/10 dark:text-amber-400 dark:bg-amber-400/10',
+    cls: 'text-warning bg-warning/10',
   },
   pending: {
     label: '等待處理',
     Icon: Clock,
-    cls: 'text-amber-600 bg-amber-600/10 dark:text-amber-400 dark:bg-amber-400/10',
+    cls: 'text-warning bg-warning/10',
   },
   transcribing: {
     label: '轉錄中',
@@ -43,12 +43,12 @@ const config: Record<
   completed: {
     label: '已完成',
     Icon: Check,
-    cls: 'text-emerald-600 bg-emerald-600/10 dark:text-emerald-400 dark:bg-emerald-400/10',
+    cls: 'text-success bg-success/10',
   },
   failed: {
     label: '失敗',
     Icon: CircleAlert,
-    cls: 'text-red-600 bg-red-600/10 dark:text-red-400 dark:bg-red-400/10',
+    cls: 'text-danger bg-danger/10',
   },
 }
 

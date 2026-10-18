@@ -156,7 +156,7 @@ function LiveSetup({
         <p className="m-0 flex items-center gap-2">
           {user?.liveMicTranscription ? <Mic className="size-4" /> : <MicOff className="size-4 text-muted" />}
           麥克風即時辨識：{user?.liveMicTranscription ? '開' : '關（省錢模式）'}
-          <Link to="/settings" className="ml-auto text-xs text-accent">
+          <Link to="/settings" className="ml-auto text-xs text-accent-fg">
             設定
           </Link>
         </p>
@@ -172,7 +172,7 @@ function LiveSetup({
         <li>請依公司規範告知與會者本場有錄音與 AI 整理。</li>
       </ol>
 
-      {error && <p className="m-0 text-sm text-red-500">{error}</p>}
+      {error && <p className="m-0 text-sm text-danger">{error}</p>}
 
       <button
         type="button"
@@ -382,7 +382,7 @@ function LiveFinishing({ state, onRetry }: { state: SessionState; onRetry: () =>
       <section className="flex flex-col items-center gap-3 rounded-xl border border-border bg-surface p-6 text-center">
         {state.phase === 'error' ? (
           <>
-            <p className="m-0 text-sm text-red-500">{state.error}</p>
+            <p className="m-0 text-sm text-danger">{state.error}</p>
             <p className="m-0 text-xs text-muted">錄音已保存在這台電腦，重試或之後重新開啟 busy-bee 都能再上傳。</p>
             <button type="button" className="btn btn-primary" onClick={onRetry}>
               重試上傳

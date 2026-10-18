@@ -23,7 +23,7 @@ function Avatar({ user }: { user: AppUser | null }) {
   const initial = user?.displayName?.trim().charAt(0).toUpperCase()
   if (initial) {
     return (
-      <span className="flex size-8 items-center justify-center rounded-full bg-accent/10 text-sm font-medium text-accent">
+      <span className="flex size-8 items-center justify-center rounded-full bg-accent/10 text-sm font-medium text-accent-fg">
         {initial}
       </span>
     )

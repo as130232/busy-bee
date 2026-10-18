@@ -14,6 +14,11 @@
   --bb-fg: #18181b;
   --bb-muted: #71717a;
   --bb-accent: #d97706;
+  /* 小字/文字用強調色：亮色底上需 ≥4.5:1（#d97706 僅 3.2:1） */
+  --bb-accent-fg: #b45309;
+  --bb-danger: #dc2626;
+  --bb-success: #047857;
+  --bb-warning: #b45309;
 }
 
 .dark {
@@ -24,6 +29,10 @@
   --bb-fg: #e4e4e7;
   --bb-muted: #8b8b94;
   --bb-accent: #fbbf24;
+  --bb-accent-fg: #fbbf24;
+  --bb-danger: #f87171;
+  --bb-success: #34d399;
+  --bb-warning: #fbbf24;
 }
 
 @theme inline {
@@ -34,11 +43,27 @@
   --color-fg: var(--bb-fg);
   --color-muted: var(--bb-muted);
   --color-accent: var(--bb-accent);
+  --color-accent-fg: var(--bb-accent-fg);
+  --color-danger: var(--bb-danger);
+  --color-success: var(--bb-success);
+  --color-warning: var(--bb-warning);
 }
 
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, 'Noto Sans TC', 'PingFang TC', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* 字級尺度：頁面標題 / 區塊標題 / 閱讀內文 / 說明 / 微型標籤；取代任意 px */
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.75rem;
+  --text-heading: 1.0625rem;
+  --text-heading--line-height: 1.5rem;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.625rem;
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.25rem;
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1rem;
 
   /* 動畫（可用 animate-* utility 呼叫）；緩動用 ease-out 曲線讓進場自然 */
   --animate-fade-in-up: fade-in-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -169,11 +194,16 @@
 
 @layer components {
   .btn {
-    @apply inline-flex h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium transition select-none active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50;
+    @apply inline-flex h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium transition outline-none select-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50;
   }
 
+  /* 深字配琥珀底：亮暗一致，對比 ≥5:1（與錄音大鈕同一做法） */
   .btn-primary {
-    @apply bg-accent text-white hover:brightness-105 dark:text-zinc-900;
+    @apply bg-accent text-zinc-900 hover:brightness-105;
+  }
+
+  .btn-danger {
+    @apply bg-danger text-white hover:brightness-110 dark:text-zinc-900;
   }
 
   .btn-secondary {
@@ -185,7 +215,7 @@
   }
 
   .input {
-    @apply h-11 w-full rounded-lg border border-border bg-surface px-3 text-base text-fg transition sm:text-sm outline-none placeholder:text-muted focus:border-accent;
+    @apply h-11 w-full rounded-lg border border-border bg-surface px-3 text-base text-fg transition sm:text-sm outline-none placeholder:text-muted focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/30;
   }
 
   .progress {

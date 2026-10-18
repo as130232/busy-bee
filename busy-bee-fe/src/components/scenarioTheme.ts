@@ -26,6 +26,10 @@ export interface ScenarioTheme {
   toggleActive: string
   /** 深連結高亮環 */
   highlightRing: string
+  /** 列表/登入頁的情境小標籤（文字色需在亮色底上達 4.5:1） */
+  chip: string
+  /** 列表的情境色點 */
+  dot: string
 }
 
 export const scenarioThemes: Record<Scenario, ScenarioTheme> = {
@@ -40,6 +44,8 @@ export const scenarioThemes: Record<Scenario, ScenarioTheme> = {
     dotFaint: 'bg-amber-300/60',
     toggleActive: 'bg-amber-400 text-zinc-900',
     highlightRing: 'ring-amber-400',
+    chip: 'bg-accent/10 text-accent-fg',
+    dot: 'bg-amber-500',
   },
   casual: {
     ring: 'border-sky-400/40',
@@ -52,6 +58,8 @@ export const scenarioThemes: Record<Scenario, ScenarioTheme> = {
     dotFaint: 'bg-sky-300/60',
     toggleActive: 'bg-sky-400 text-zinc-900',
     highlightRing: 'ring-sky-400',
+    chip: 'bg-sky-500/10 text-sky-700 dark:text-sky-400',
+    dot: 'bg-sky-500',
   },
   interview: {
     ring: 'border-emerald-400/40',
@@ -64,6 +72,8 @@ export const scenarioThemes: Record<Scenario, ScenarioTheme> = {
     dotFaint: 'bg-emerald-300/60',
     toggleActive: 'bg-emerald-400 text-zinc-900',
     highlightRing: 'ring-emerald-400',
+    chip: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+    dot: 'bg-emerald-500',
   },
   idea: {
     ring: 'border-violet-400/40',
@@ -76,5 +86,7 @@ export const scenarioThemes: Record<Scenario, ScenarioTheme> = {
     dotFaint: 'bg-violet-300/60',
     toggleActive: 'bg-violet-400 text-zinc-900',
     highlightRing: 'ring-violet-400',
+    chip: 'bg-violet-500/10 text-violet-700 dark:text-violet-400',
+    dot: 'bg-violet-500',
   },
 }

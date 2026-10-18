@@ -47,7 +47,7 @@ export function RecorderPanel({
   if (upload.phase === 'error') {
     return (
       <div className="flex flex-col items-center gap-3 py-8">
-        <p className="m-0 text-sm text-red-500">{upload.message}</p>
+        <p className="m-0 text-sm text-danger">{upload.message}</p>
         <button type="button" className="btn btn-primary" onClick={() => void uploadFile(upload.file)}>
           重試上傳
         </button>
@@ -91,7 +91,7 @@ export function RecorderPanel({
           </span>
         </button>
         <p className="m-0 text-sm text-muted">輕觸開始錄音</p>
-        {rec.error && <p className="m-0 text-sm text-red-500">{rec.error}</p>}
+        {rec.error && <p className="m-0 text-sm text-danger">{rec.error}</p>}
       </div>
     )
   }
@@ -114,7 +114,7 @@ export function RecorderPanel({
         <span className="font-mono text-5xl font-medium tabular-nums">{formatClock(rec.elapsedSec)}</span>
       </div>
       {interrupted && (
-        <p className="m-0 max-w-xs text-center text-sm text-amber-600">
+        <p className="m-0 max-w-xs text-center text-sm text-warning">
           錄音因裝置休眠而中斷，可直接結束並上傳已錄部分。
         </p>
       )}
@@ -137,7 +137,7 @@ export function RecorderPanel({
         <button
           type="button"
           aria-label="捨棄錄音"
-          className="btn btn-ghost size-11 px-0 text-red-500 hover:text-red-500"
+          className="btn btn-ghost size-11 px-0 text-danger hover:text-danger"
           onClick={() => void rec.discard()}
         >
           <Trash2 className="size-5" />

@@ -21,7 +21,7 @@ export function TabBar() {
             end={end}
             className={({ isActive }) =>
               `flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition ${
-                isActive ? 'text-accent' : 'text-muted hover:text-fg'
+                isActive ? 'text-accent-fg' : 'text-muted hover:text-fg'
               }`
             }
           >

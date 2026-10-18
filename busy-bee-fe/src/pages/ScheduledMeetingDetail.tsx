@@ -70,7 +70,7 @@ export function ScheduledMeetingDetail({
         </div>
       </section>
 
-      {error && <p className="m-0 text-sm text-red-500">{error}</p>}
+      {error && <p className="m-0 text-sm text-danger">{error}</p>}
 
       {isLiveSupported() && (
         <Link to={`/live?scheduled=${meeting.id}`} className="btn btn-primary">
@@ -91,7 +91,7 @@ export function ScheduledMeetingDetail({
         </button>
         <button
           type="button"
-          className="btn btn-secondary flex-1 text-red-500"
+          className="btn btn-secondary flex-1 text-danger"
           onClick={() => setConfirmDelete(true)}
         >
           <Trash2 className="size-4" />
@@ -116,7 +116,7 @@ export function ScheduledMeetingDetail({
             <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmDelete(false)}>
               取消
             </button>
-            <button type="button" className="btn btn-primary flex-1 bg-red-600" onClick={() => void remove()}>
+            <button type="button" className="btn btn-danger flex-1" onClick={() => void remove()}>
               刪除
             </button>
           </div>

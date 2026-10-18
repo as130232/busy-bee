@@ -57,14 +57,14 @@ export function LiveTranscriptPanel({
         )}
         {lines.map((l) =>
           l.gap ? (
-            <p key={l.id} className="my-1 text-center text-xs text-amber-600 dark:text-amber-400">
+            <p key={l.id} className="my-1 text-center text-xs text-warning">
               {l.text}
             </p>
           ) : (
             <p key={l.id} className="my-1.5 flex gap-2">
               <span className="w-10 shrink-0 text-xs leading-6 text-muted tabular-nums">{hhmm(l.at)}</span>
               <span
-                className={`shrink-0 text-xs leading-6 font-medium ${l.who === 'local' ? 'text-accent' : 'text-muted'}`}
+                className={`shrink-0 text-xs leading-6 font-medium ${l.who === 'local' ? 'text-accent-fg' : 'text-muted'}`}
               >
                 {whoLabel[l.who]}
               </span>

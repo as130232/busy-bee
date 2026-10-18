@@ -97,7 +97,7 @@ export function MeetingDetailPage() {
   if (error) {
     return (
       <AppShell hideTopBar>
-        <p className="py-10 text-center text-sm text-red-500">{error}</p>
+        <p className="py-10 text-center text-sm text-danger">{error}</p>
       </AppShell>
     )
   }
@@ -158,7 +158,7 @@ export function MeetingDetailPage() {
           {meeting.status !== 'completed' && <StatusBadge status={meeting.status} />}
           <button
             type="button"
-            className="btn btn-ghost size-9 shrink-0 px-0 text-muted hover:text-red-500"
+            className="btn btn-ghost size-9 shrink-0 px-0 text-muted hover:text-danger"
             aria-label="刪除會議"
             onClick={() => setConfirmDelete(true)}
           >
@@ -192,8 +192,8 @@ export function MeetingDetailPage() {
       <TagEditor meeting={meeting} onUpdated={setMeeting} />
 
       {meeting.status === 'failed' && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3">
-          <p className="m-0 text-sm text-red-500">處理失敗：{meeting.errorMessage || '未知錯誤'}</p>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/30 bg-danger/5 px-4 py-3">
+          <p className="m-0 text-sm text-danger">處理失敗：{meeting.errorMessage || '未知錯誤'}</p>
           <button type="button" className="btn btn-secondary h-9" onClick={() => void retry()}>
             重新處理
           </button>
@@ -231,7 +231,7 @@ export function MeetingDetailPage() {
           hasSummary ? (
             <div>
               {meeting.summary && (
-                <p className="m-0 text-[15px] leading-6 font-medium text-fg">
+                <p className="m-0 text-body leading-6 font-medium text-fg">
                   {resolveSpeakerNames(meeting.summary, meeting.speakerNames ?? {})}
                 </p>
               )}
@@ -307,7 +307,7 @@ export function MeetingDetailPage() {
             </button>
             <button
               type="button"
-              className="btn btn-primary flex-1 bg-red-600"
+              className="btn btn-danger flex-1"
               onClick={() => void remove().then((ok) => { if (!ok) setConfirmDelete(false) })}
             >
               刪除

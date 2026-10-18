@@ -12,7 +12,7 @@ function TimeChip({ startMs, onSeek }: { startMs: number; onSeek: (sec: number) 
       type="button"
       onClick={() => onSeek(startMs / 1000)}
       aria-label={`從 ${formatClock(startMs / 1000)} 播放`}
-      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 font-mono text-[11px] tabular-nums text-accent transition hover:bg-accent/20"
+      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 font-mono text-micro tabular-nums text-accent-fg transition hover:bg-accent/20"
     >
       <Play className="size-3" />
       {formatClock(startMs / 1000)}

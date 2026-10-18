@@ -41,7 +41,7 @@ export function UploadZone({
     return (
       <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-surface px-4 py-5">
         <p className="m-0 flex items-center gap-2 text-sm">
-          <CheckCircle2 className="size-4 text-emerald-500" />
+          <CheckCircle2 className="size-4 text-success" />
           「{state.meeting.title}」已進入處理佇列
         </p>
         <button type="button" className="btn btn-secondary h-9" onClick={reset}>
@@ -53,8 +53,8 @@ export function UploadZone({
 
   if (state.phase === 'error') {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-5">
-        <p className="m-0 text-sm text-red-500">{state.message}</p>
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-danger/30 bg-danger/5 px-4 py-5">
+        <p className="m-0 text-sm text-danger">{state.message}</p>
         <div className="flex gap-2">
           <button type="button" className="btn btn-primary h-9" onClick={() => void upload(state.file)}>
             重試

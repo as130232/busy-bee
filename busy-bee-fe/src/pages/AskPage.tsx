@@ -101,7 +101,7 @@ export function AskPage() {
       </form>
 
       {error && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-500">
+        <div className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
@@ -131,7 +131,7 @@ export function AskPage() {
             {result?.noMatch ? (
               <p className="text-sm text-muted">{result.answer}</p>
             ) : (
-              <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none prose-headings:font-semibold prose-h1:text-base prose-h2:mt-4 prose-h2:text-[15px] prose-h3:text-sm prose-p:my-2 prose-ul:my-2 prose-li:my-0.5">
+              <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none prose-headings:font-semibold prose-h1:text-base prose-h2:mt-4 prose-h2:text-body prose-h3:text-sm prose-p:my-2 prose-ul:my-2 prose-li:my-0.5">
                 <ReactMarkdown
                   skipHtml
                   components={{
@@ -142,7 +142,7 @@ export function AskPage() {
                         return (
                           <Link
                             to={`/meetings/${src.meetingId}`}
-                            className="mx-0.5 font-medium text-accent no-underline"
+                            className="mx-0.5 font-medium text-accent-fg no-underline"
                           >
                             {children}
                           </Link>
@@ -172,7 +172,7 @@ export function AskPage() {
                   className="rounded-xl border border-border bg-surface px-4 py-3 transition hover:border-accent"
                 >
                   <div className="flex items-baseline gap-2">
-                    <span className="text-accent text-sm font-semibold">[{s.index}]</span>
+                    <span className="text-accent-fg text-sm font-semibold">[{s.index}]</span>
                     <span className="text-sm font-medium">{s.title}</span>
                   </div>
                   <p className="mt-1 line-clamp-2 text-xs text-muted">{s.snippet}</p>

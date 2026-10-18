@@ -100,7 +100,7 @@ export function CorrectionPanel({ meeting, onChanged }: { meeting: MeetingDetail
         </div>
       </div>
       {error && (
-        <p role="alert" className="m-0 text-xs text-red-600">
+        <p role="alert" className="m-0 text-xs text-danger">
           {error}
         </p>
       )}

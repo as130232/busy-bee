@@ -107,10 +107,10 @@ export function LiveUnfinishedDetail({ meeting, onUploaded }: { meeting: Meeting
             上傳中… {percent}%
           </p>
         )}
-        {error && <p className="m-0 text-xs text-red-500">{error}</p>}
+        {error && <p className="m-0 text-xs text-danger">{error}</p>}
       </section>
 
-      <button type="button" className="btn btn-secondary text-red-500" onClick={() => setConfirmDelete(true)}>
+      <button type="button" className="btn btn-secondary text-danger" onClick={() => setConfirmDelete(true)}>
         <Trash2 className="size-4" />
         刪除這場會議
       </button>
@@ -122,7 +122,7 @@ export function LiveUnfinishedDetail({ meeting, onUploaded }: { meeting: Meeting
             <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmDelete(false)}>
               取消
             </button>
-            <button type="button" className="btn btn-primary flex-1 bg-red-600" onClick={() => void remove()}>
+            <button type="button" className="btn btn-danger flex-1" onClick={() => void remove()}>
               刪除
             </button>
           </div>

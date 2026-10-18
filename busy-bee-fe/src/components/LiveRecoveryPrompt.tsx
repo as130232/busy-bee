@@ -62,7 +62,7 @@ export function LiveRecoveryPrompt() {
           上傳中… {percent}%
         </p>
       )}
-      {error && <p className="m-0 text-xs text-red-500">{error}</p>}
+      {error && <p className="m-0 text-xs text-danger">{error}</p>}
       <div className="flex gap-2">
         <button type="button" className="btn btn-secondary flex-1" disabled={percent !== null} onClick={() => void discard()}>
           捨棄

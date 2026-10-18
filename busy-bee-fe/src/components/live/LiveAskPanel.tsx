@@ -53,7 +53,7 @@ export function LiveAskPanel({
             思考中…
           </p>
         )}
-        {error && <p className="m-0 mt-2 text-sm text-red-500">{error}</p>}
+        {error && <p className="m-0 mt-2 text-sm text-danger">{error}</p>}
       </div>
       <form onSubmit={submit} className="flex gap-2">
         <input

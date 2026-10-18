@@ -98,7 +98,7 @@ export function AudioPlayer({
         >
           <FastForward className="size-4" />
         </button>
-        <span className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted">{formatClock(cur)}</span>
+        <span className="w-9 shrink-0 text-right font-mono text-micro tabular-nums text-muted">{formatClock(cur)}</span>
         <input
           type="range"
           className="min-w-0 flex-1 accent-accent"
@@ -110,7 +110,7 @@ export function AudioPlayer({
           disabled={!url}
           aria-label="播放進度"
         />
-        <span className="w-9 shrink-0 font-mono text-[11px] tabular-nums text-muted">{formatClock(total)}</span>
+        <span className="w-9 shrink-0 font-mono text-micro tabular-nums text-muted">{formatClock(total)}</span>
       </div>
     </div>,
     document.body,
