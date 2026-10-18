@@ -7,6 +7,8 @@
 
 ## 當前焦點
 
+**2026-10-18 Phase 31 前端設計刷新、Phase 32 後端上線稽核修正已合併 main**（部署中）。Phase 31 剩亮暗兩主題 × 手機／桌機的目視驗收（31.4）；Phase 32 剩部署後確認（32.10）。
+
 **Phase 30 即時會議助理（F-LIVE）已部署 production**（2026-10-15，`779c0eb`；Cloud Run 已改用 Deepgram secret v2）。
 
 下一步：30.10 用真實 Google Meet 驗收（測試清單見 Phase 30）；之後 30.11 面試助理另開 spec。
@@ -67,6 +69,8 @@
 | 🔄 | Phase 28 — 摘要細節化 + 模型自動備援 | post-MVP |
 | 🔄 | Phase 29 — 前端上線前稽核修正 | post-MVP |
 | 🔄 | Phase 30 — 即時會議助理（F-LIVE） | post-MVP |
+| 🔄 | Phase 31 — 前端設計刷新 | post-MVP |
+| 🔄 | Phase 32 — 後端上線稽核修正 | post-MVP |
 
 > Phase 18–24 已 merge（`59ec949`）+ 部署（2026-07-27）；標 🔄 僅因各留最後一項裝置端 e2e 人工驗收待跑。
 
@@ -564,10 +568,41 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 
 ---
 
+## Phase 31：前端設計刷新
+> 里程碑：post-MVP | 🔄 待目視驗收
+> 對應：N-6（亮色對比、焦點環、縮放後版面）
+
+- 31.1 ✅ A 設計系統：`accent-fg`/`danger`/`success`/`warning` token；btn-primary 改深字配琥珀底；`text-title/heading/body/caption/micro` 字級；`.btn`/`.input` focus-visible；`btn-danger`；`scenarioTheme` 補 `chip`/`dot` 並移除重複配色 `407af63`
+- 31.2 ✅ B 版面收斂：TopBar 顯示頁名（分頁定義抽到 `navTabs.ts`）、TabBar 作用中膠囊底；詳情頁 AI 校正／會前資料／刪除收進「⋯」選單、meta 與標籤合併一行、分頁列可橫捲＋匯出貼右；CorrectionPanel 只在有狀態時顯示；錄音鈕去旋轉光點、聲納 3→2 層；情境切換與語言選單同高 `57d916c`
+- 31.3 ✅ C 體驗細節：MeetingList 每列固定三行＋日期分組；紀錄頁單排篩選＋篩選 Sheet；`EmptyState`；問答範例問題與骨架；設定分組＋主題三段（跟隨系統）；`dateGroupLabel`/`formatShortDateTime`（含測試）`e2a070b`
+- 31.4 ⬜ 實機目視驗收：390px／1280px × 亮／暗，逐頁（錄音、紀錄、詳情、問答、行程、設定、登入）；鍵盤 Tab 走主要流程
+
+---
+
+## Phase 32：後端上線稽核修正
+> 里程碑：post-MVP | 🔄 待部署後確認
+> 對應：N-3、N-2
+> 來源：2026-10-18 `/backend-launch-audit`（分支 `fix/launch-audit`）；無 migration。
+
+- 32.1 ✅ B1 SSRF：新增 `infrastructure/netguard`（連線時檢查實際 IP，轉址也檢查）；貼連結匯入呼叫 yt-dlp 前先擋內網 host；推播端點限 FCM／Mozilla／Apple／WNS `6e4ef53`
+- 32.2 ✅ B2 限流移到 Auth 之後、以 Firebase UID 為 key（Gin 預設信任所有 proxy，偽造 X-Forwarded-For 可換額度）`ad21b82`
+- 32.3 ✅ B3 全域 body 上限 1MB（會前資料上傳依檔案上限），超過回 413／41302 `98fd5f8`
+- 32.4 ✅ B4 大檔暫存共用名額（/tmp 在 Cloud Run 算記憶體）；壓縮後立刻刪原始輸入 `d9d230d`
+- 32.5 ✅ B5 白名單只認 `email_verified=true`（HTTP 與 WebSocket）`7dd172b`
+- 32.6 ✅ B6 推播訂閱刪除須比對 user_id；log 改記 subscription_id `260b260`
+- 32.7 ✅ B7 正式環境漏設 `FRONTEND_ORIGINS` 啟動即 log `config.insecure`；正式環境已由使用者設定 `5b0f922`
+- 32.8 ✅ B8 http.Server `ReadHeaderTimeout`／`IdleTimeout`；基底映像釘 digest＋Dependabot；CI 加 govulncheck（不擋部署）`f83b0ba`／`8d32349`／`e39f966`
+- 32.9 ⬜ 未做（待決）：yt-dlp 改 pip 釘版（apk 版 2025.11.12 落後，新版 YouTube 需 deno）、golangci-lint 進 CI、Neon 備份還原演練、各供應商預算警示、Cloud Run 與 Neon 跨區
+- 32.10 ⬜ 部署後確認：`/version` commit、啟動 log 無 `config.insecure`、govulncheck job 結果、Android/iOS 推播訂閱仍可成功
+
+---
+
 ## Session Log
 
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
+| 2026-10-18 | **Phase 32 後端上線稽核修正**：`/backend-launch-audit` 結論「尚無法確認可發布」（無阻斷；缺備份還原與依賴掃描證據），使用者授權修 B1–B8，全數 TDD。因另一個 session 共用工作目錄切換分支，後端 commit 曾落在 `feat/fe-design-refresh`，已 cherry-pick 回 `fix/launch-audit` 後依序合併文件升級、稽核修正、Phase 31 | `6e4ef53..e39f966` |
+| 2026-10-18 | **Phase 31 前端設計刷新**：以設計師角度審查全部頁面（結論：底子佳、收斂＋補系統即可），使用者選 A+B+C 全做、主按鈕深字配琥珀底。另一個 session 共用工作目錄並切換分支，導致原分支 `feat/fe-design-refresh` 混入後端 commit → 改在 worktree 從 main 開 `feat/fe-design` 並 cherry-pick 三個前端 commit。前端 111 測試全綠 | `407af63..e2a070b` |
 | 2026-10-15 | **Phase 30 即時會議助理程式完成**：brainstorming 拆子專案（A 即時會議／B 面試助理）→ spec → 實測 Deepgram 串流（nova-3 zh-TW 可用）→ 後端資料層/API/會前資料/會後帶入、前端 live 模組與頁面（皆 TDD）。後端全綠、前端 108 測試全綠。發現 Deepgram 金鑰需 Member 權限才能簽短效金鑰 | `a634051..d9d2de4` |
 | 2026-10-13 | **Phase 29 前端稽核修正**：`/frontend-launch-audit` 找出 10 項（無阻斷），全數修正並附測試；確認 WS 閒置/背景會斷線不阻擋 scale-to-zero；F11 排程提醒選擇不加 Cloud Scheduler。前端 60 測試全綠 | — |
 | 2026-10-12 | **Phase 28 摘要細節化 + 模型備援**：使用者回報報告過度簡略 → 以 prod 實際 40 分鐘會議 A/B（模型 × thinking、各 2 次）確認主因為 3.5-flash-lite；改回 3-flash-preview + 404 自動備援；會議 prompt 改為保留可執行細節並新增兩區塊（實測 ~560 → ~1670 字）。後端全綠 | — |
