@@ -85,6 +85,8 @@ Clean Architecture（對齊 sport-hub），依賴方向由外往內：interface 
 - meetings / artifacts 查詢一律以 `user_id` 過濾，禁止無 owner 條件的業務查詢
 - 禁止 log 用戶 token 與 transcript 全文（log 只記 meeting_id 等識別欄位）
 - API keys（Groq / Gemini / VAPID private key）一律走 Secret Manager，禁止進 repo 或 log
+- 伺服器依使用者提供的網址發請求（匯入、推播等）一律用 `infrastructure/netguard` 的 client 或先 `CheckHost`，禁止裸 `http.Client`（原因：SSRF，PLAN 32.1）
+- 寫大型暫存檔（音檔落地 /tmp）須取得 `tempslot` 名額；/tmp 在 Cloud Run 算記憶體（PLAN 32.4）
 
 ---
 

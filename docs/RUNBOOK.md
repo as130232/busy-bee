@@ -43,6 +43,16 @@
 - **先查**：設定頁「發送測試通知」是否收到；log `push.*`
 - **處理**：scale-to-zero 下提醒會延到 instance 喚醒才補發（2026-10-13 決策，PLAN 29.11），屬預期。測試通知也收不到 → 檢查 VAPID 設定（曾發生 `sub` 雙重 `mailto:`，見事故紀錄）。
 
+### 前端出現「送出的內容太大」（41302）
+
+- **先查**：哪個端點、body 多大（log `request failed` 帶 path）
+- **處理**：全域上限 1MB（`interface/http/server.go` 的 `defaultBodyLimit`）；即時問答帶整場逐字稿約 12 萬字 ≈ 360KB，超過代表前端送了異常內容，先查前端而非直接放寬。
+
+### 貼連結匯入 YouTube 失敗
+
+- **先查**：log `fetch yt-dlp metadata` 的錯誤尾行（bot 偵測、extractor 過期）
+- **處理**：image 內 yt-dlp 來自 alpine 套件（2026-10 實測 2025.11.12，已落後）；需改 pip 釘版並加 deno（PLAN 32.9）。指向內網的連結會回 `netguard` 錯誤，屬預期。
+
 ## 回滾
 
 > ⚠️ 執行前先詢問使用者確認。
@@ -72,6 +82,12 @@
 | Gemini | 看 AI Studio 額度與錯誤；主模型 404 會自動備援 | Google AI Studio |
 | Firebase Auth / Hosting | 看 Firebase status；登入失敗時其他功能也無法使用 | Firebase console |
 | GCS | 看 GCP status；上傳與播放失敗 | GCP console |
+
+## 部署後確認
+
+- `curl https://busy-bee-api-897794325314.asia-east1.run.app/version` 的 commit 與 main 一致
+- 啟動 log 沒有 `config.insecure`（有則補設對應環境變數；`FRONTEND_ORIGINS` 應為 `busy-bee-502710.web.app,busy-bee-502710.firebaseapp.com`）
+- GitHub Actions 的 `vulncheck-backend` job：紅燈不擋部署，但要評估是否升級依賴
 
 ## 常用排查指令
 

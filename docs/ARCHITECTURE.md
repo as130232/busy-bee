@@ -456,9 +456,13 @@ sqlc / migration 變更 SOP：改 `db/migrations/` 或 `db/query/*.sql` 後必�
 
 - 認證：`/api/v1` 一律經 `middleware.Auth`（Firebase JWT 驗簽 + `ALLOWED_EMAILS` 白名單）與 `ResolveUser`；WS 第一則訊息驗 JWT（ADR-002）。
 - 授權：業務查詢一律帶 `user_id`（見 AGENTS.md〈資料安全規範〉）；他人資源回 404，不區分不存在與無權限。
-- 限流：每 IP 10 req/s、burst 30（`middleware.RateLimit`）；即時會議另有每場冷卻（重點 15 秒、提問 5 秒）與每月分鐘上限（ADR-018）。
+- 認證補充：白名單只認 token `email_verified=true` 的 email（HTTP 與 WS 皆同）。
+- 限流：每位使用者（Firebase UID）10 req/s、burst 30，掛在 Auth 之後（`middleware.RateLimit`）；不以 IP 計，因 Gin 預設信任所有 proxy、`X-Forwarded-For` 可偽造。即時會議另有每場冷卻（重點 15 秒、提問 5 秒）與每月分鐘上限（ADR-018）。
+- 請求大小：全域 body 上限 1MB（`middleware.BodyLimit`；會前資料上傳依檔案上限），超過回 413／41302；`http.Server` 設 `ReadHeaderTimeout` 10 秒、`IdleTimeout` 120 秒，不設讀寫逾時（WS 長連線）。
+- 對外連線（SSRF）：依使用者網址發請求一律經 `infrastructure/netguard`（連線時檢查實際 IP，擋 loopback／私有網段／link-local 含 metadata／CGNAT）；yt-dlp 自行連網，只能事前 `CheckHost`（DNS rebinding 與 yt-dlp 自身轉址為已知殘餘風險）。推播端點限 FCM／Mozilla／Apple／WNS。
+- WebSocket 來源：`FRONTEND_ORIGINS` 空時不檢查來源；prod 漏設會在啟動 log `config.insecure`。
 - 回應：`middleware.SecurityHeaders`（prod 模式）；外部錯誤 cause 只進 log（`response.Fail`）。
-- 上傳：音檔走 GCS signed URL，限制 content-type 與 200MB（ADR-001）；會前資料單檔 10MB、格式白名單。
+- 上傳：音檔走 GCS signed URL，限制 content-type 與 200MB（ADR-001）；會前資料單檔 10MB、格式白名單。貼連結匯入與 AI 校正壓縮共用一個大檔暫存名額（`infrastructure/tempslot`），避免多個 200MB 檔同時落地 /tmp（Cloud Run 上算進 512Mi 記憶體）。
 - 瀏覽器直連 Deepgram 只拿 30 秒短效 JWT，主金鑰不出後端（ADR-018）。
 - 待確認：Firebase Hosting 尚未設定安全標頭與 CSP、Firebase API key 網域限制（PLAN 29.12）。
 
