@@ -7,8 +7,8 @@ ON CONFLICT (endpoint) DO UPDATE SET
     auth_key   = EXCLUDED.auth_key
 RETURNING *;
 
--- name: DeletePushSubscriptionByEndpoint :exec
-DELETE FROM push_subscriptions WHERE endpoint = $1;
+-- name: DeletePushSubscription :exec
+DELETE FROM push_subscriptions WHERE user_id = $1 AND endpoint = $2;
 
 -- name: ListPushSubscriptionsByUser :many
 SELECT * FROM push_subscriptions WHERE user_id = $1;

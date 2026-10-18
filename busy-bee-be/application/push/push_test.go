@@ -26,6 +26,7 @@ type fakePushRepo struct {
 	subs      []domainpush.Subscription
 	upserted  []domainpush.Subscription
 	deleted   []string
+	deletedBy []uuid.UUID
 	upsertErr error
 	deleteErr error
 	listErr   error
@@ -39,11 +40,12 @@ func (f *fakePushRepo) Upsert(_ context.Context, sub domainpush.Subscription) (d
 	return sub, nil
 }
 
-func (f *fakePushRepo) DeleteByEndpoint(_ context.Context, endpoint string) error {
+func (f *fakePushRepo) Delete(_ context.Context, userID uuid.UUID, endpoint string) error {
 	if f.deleteErr != nil {
 		return f.deleteErr
 	}
 	f.deleted = append(f.deleted, endpoint)
+	f.deletedBy = append(f.deletedBy, userID)
 	return nil
 }
 
@@ -134,17 +136,22 @@ func TestUnsubscribe_DeletesByEndpoint(t *testing.T) {
 	repo := &fakePushRepo{}
 	uc := NewSubscribeUC(repo)
 
-	if err := uc.Unsubscribe(context.Background(), "https://ep"); err != nil {
+	me := uuid.New()
+	if err := uc.Unsubscribe(context.Background(), me, "https://ep"); err != nil {
 		t.Fatalf("Unsubscribe() error = %v", err)
 	}
 	if len(repo.deleted) != 1 || repo.deleted[0] != "https://ep" {
 		t.Errorf("deleted = %v, want [https://ep]", repo.deleted)
 	}
+	// 只能刪自己的訂閱：刪除必須帶目前使用者
+	if len(repo.deletedBy) != 1 || repo.deletedBy[0] != me {
+		t.Errorf("deletedBy = %v, want [%v]", repo.deletedBy, me)
+	}
 }
 
 func TestUnsubscribe_EmptyEndpointParamError(t *testing.T) {
 	uc := NewSubscribeUC(&fakePushRepo{})
-	if code := codeOf(uc.Unsubscribe(context.Background(), "")); code != errcode.Param {
+	if code := codeOf(uc.Unsubscribe(context.Background(), uuid.New(), "")); code != errcode.Param {
 		t.Errorf("code = %v, want Param", code)
 	}
 }

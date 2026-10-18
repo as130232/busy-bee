@@ -35,8 +35,8 @@ func (r *PushRepo) Upsert(ctx context.Context, sub domainpush.Subscription) (dom
 	return toDomainSub(row), nil
 }
 
-func (r *PushRepo) DeleteByEndpoint(ctx context.Context, endpoint string) error {
-	if err := r.q.DeletePushSubscriptionByEndpoint(ctx, endpoint); err != nil {
+func (r *PushRepo) Delete(ctx context.Context, userID uuid.UUID, endpoint string) error {
+	if err := r.q.DeletePushSubscription(ctx, sqlcgen.DeletePushSubscriptionParams{UserID: userID, Endpoint: endpoint}); err != nil {
 		return fmt.Errorf("db.DeletePushSubscription: %w", err)
 	}
 	return nil

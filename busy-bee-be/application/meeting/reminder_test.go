@@ -50,7 +50,7 @@ func (f *fakePushRepo) Upsert(_ context.Context, s domainpush.Subscription) (dom
 	return s, nil
 }
 
-func (f *fakePushRepo) DeleteByEndpoint(_ context.Context, endpoint string) error {
+func (f *fakePushRepo) Delete(_ context.Context, _ uuid.UUID, endpoint string) error {
 	f.deleted = append(f.deleted, endpoint)
 	return nil
 }

@@ -20,7 +20,8 @@ type Subscription struct {
 type Repository interface {
 	// Upsert 以 endpoint 唯一；換帳號登入時訂閱歸屬轉移。
 	Upsert(ctx context.Context, sub Subscription) (Subscription, error)
-	DeleteByEndpoint(ctx context.Context, endpoint string) error
+	// Delete 刪除該使用者的訂閱；user_id 不符時不刪（知道別人的 endpoint 也刪不掉）。
+	Delete(ctx context.Context, userID uuid.UUID, endpoint string) error
 	ListByUser(ctx context.Context, userID uuid.UUID) ([]Subscription, error)
 }
 

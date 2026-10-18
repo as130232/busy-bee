@@ -11,12 +11,17 @@ import (
 	"github.com/google/uuid"
 )
 
-const deletePushSubscriptionByEndpoint = `-- name: DeletePushSubscriptionByEndpoint :exec
-DELETE FROM push_subscriptions WHERE endpoint = $1
+const deletePushSubscription = `-- name: DeletePushSubscription :exec
+DELETE FROM push_subscriptions WHERE user_id = $1 AND endpoint = $2
 `
 
-func (q *Queries) DeletePushSubscriptionByEndpoint(ctx context.Context, endpoint string) error {
-	_, err := q.db.Exec(ctx, deletePushSubscriptionByEndpoint, endpoint)
+type DeletePushSubscriptionParams struct {
+	UserID   uuid.UUID
+	Endpoint string
+}
+
+func (q *Queries) DeletePushSubscription(ctx context.Context, arg DeletePushSubscriptionParams) error {
+	_, err := q.db.Exec(ctx, deletePushSubscription, arg.UserID, arg.Endpoint)
 	return err
 }
 

@@ -45,8 +45,8 @@ func (uc *TestUC) SendTest(ctx context.Context, userID uuid.UUID) (int, error) {
 		case err == nil:
 			delivered++
 		case errors.As(err, &domainpush.ErrSubscriptionGone{}):
-			if derr := uc.repo.DeleteByEndpoint(ctx, sub.Endpoint); derr != nil {
-				slog.WarnContext(ctx, "push.test.cleanup_failed", "endpoint", sub.Endpoint, "err", derr)
+			if derr := uc.repo.Delete(ctx, sub.UserID, sub.Endpoint); derr != nil {
+				slog.WarnContext(ctx, "push.test.cleanup_failed", "subscription_id", sub.ID, "err", derr)
 			}
 		default:
 			slog.WarnContext(ctx, "push.test.send_failed", "err", err)

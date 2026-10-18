@@ -97,8 +97,8 @@ func (uc *ReminderUC) deliver(ctx context.Context, userID, logID uuid.UUID, msg 
 		case err == nil:
 			delivered++
 		case errors.As(err, &domainpush.ErrSubscriptionGone{}):
-			if derr := uc.subs.DeleteByEndpoint(ctx, sub.Endpoint); derr != nil {
-				slog.WarnContext(ctx, "reminder.cleanup_failed", "endpoint", sub.Endpoint, "err", derr)
+			if derr := uc.subs.Delete(ctx, sub.UserID, sub.Endpoint); derr != nil {
+				slog.WarnContext(ctx, "reminder.cleanup_failed", "subscription_id", sub.ID, "err", derr)
 			}
 		default:
 			transientFail++

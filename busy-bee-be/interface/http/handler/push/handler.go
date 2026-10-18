@@ -59,12 +59,17 @@ type unsubscribeRequest struct {
 
 // Unsubscribe DELETE /api/v1/push/subscriptions
 func (h *Handler) Unsubscribe(c *gin.Context) {
+	userID, ok := domainuser.IDFrom(c.Request.Context())
+	if !ok {
+		response.Fail(c, apperr.New(errcode.Unauthorized))
+		return
+	}
 	var req unsubscribeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, apperr.Wrap(err, errcode.Param, "body"))
 		return
 	}
-	if err := h.uc.Unsubscribe(c.Request.Context(), req.Endpoint); err != nil {
+	if err := h.uc.Unsubscribe(c.Request.Context(), userID, req.Endpoint); err != nil {
 		response.Fail(c, err)
 		return
 	}

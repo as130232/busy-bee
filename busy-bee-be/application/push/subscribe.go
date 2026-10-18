@@ -60,11 +60,11 @@ func (uc *SubscribeUC) Subscribe(ctx context.Context, userID uuid.UUID, endpoint
 	return nil
 }
 
-func (uc *SubscribeUC) Unsubscribe(ctx context.Context, endpoint string) error {
+func (uc *SubscribeUC) Unsubscribe(ctx context.Context, userID uuid.UUID, endpoint string) error {
 	if endpoint == "" {
 		return apperr.New(errcode.Param, "endpoint")
 	}
-	if err := uc.repo.DeleteByEndpoint(ctx, endpoint); err != nil {
+	if err := uc.repo.Delete(ctx, userID, endpoint); err != nil {
 		return apperr.Wrap(err, errcode.Internal)
 	}
 	return nil
