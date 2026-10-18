@@ -1,8 +1,8 @@
 # Busy Bee 架構說明
 
-> 最後更新：2026-07-19
+> 最後更新：2026-10-18
 >
-> **注意**：全部 Phase（1-12）均已實作並上線（production：https://busy-bee-502710.web.app）。「已取消 / 暫緩設計」與「post-MVP」項目見 §10。
+> **注意**：全部 Phase（1-12）均已實作並上線（production：https://busy-bee-502710.web.app）。「已取消 / 暫緩設計」與「post-MVP」項目見〈已取消 / 暫緩設計〉。
 
 ---
 
@@ -20,6 +20,11 @@
 10. [已取消 / 暫緩設計](#10-已取消--暫緩設計)
 11. [計畫中但尚未實作](#11-計畫中但尚未實作)
 12. [開發指令](#12-開發指令)
+13. [設定與環境變數](#13-設定與環境變數)
+14. [安全邊界](#14-安全邊界)
+15. [測試策略](#15-測試策略)
+16. [可觀測性](#16-可觀測性)
+17. [部署與回滾](#17-部署與回滾)
 
 ---
 
@@ -415,21 +420,70 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
 
 ## 12. 開發指令
 
-（實際指令以 AGENTS.md「常用指令」與 CI workflow 為準）
+（本節為指令的唯一來源；AGENTS.md「常用指令」只列最常用幾條。2026-10-18 依 CI workflow 與程式現況校正：Redis 已於 ADR-010 移除、migration 改用內建 `cmd/migrate`、sqlc 設定在 `db/`）
 
 ```bash
 # 本地環境
-docker compose up -d              # PostgreSQL + Redis
+docker compose up -d              # PostgreSQL
 
 # 後端（busy-bee-be/）
 go run ./cmd/server               # 啟動 HTTP + worker
 go build ./... && go vet ./...    # 編譯與靜態檢查
 go test ./...                     # 測試
-sqlc generate                     # db/query/*.sql 變更後重新產生
-migrate -path db/migrations -database "$DB_URL" up   # 跑 migration
+cd db && sqlc generate            # db/query/*.sql 變更後重新產生（設定檔 db/sqlc.yaml）
+go run ./cmd/migrate up           # 跑 migration（讀 DB_URL；`down` 回退一版、`version` 看目前版本）
+go test -tags integration ./infrastructure/db/... ./infrastructure/stt/...   # 整合測試（需 DB、ffmpeg）
 
 # 前端（busy-bee-fe/）
 npm run dev / build / typecheck / lint
+npm run test:run                  # Vitest 單元測試
+npm run gen:api                   # 依 busy-bee-be/api/openapi.yaml 重新產生 TS 型別
 ```
 
 sqlc / migration 變更 SOP：改 `db/migrations/` 或 `db/query/*.sql` 後必須重跑 `sqlc generate` 並 commit 產出。
+
+---
+
+## 13. 設定與環境變數
+
+- 載入：`infrastructure/config/config.go`；優先序 OS 環境變數 > `.env.{APP_ENV}` > 預設值。完整清單見根目錄 `.env.example`。
+- 機敏值（`DB_URL`、`GEMINI_API_KEY`、`GROQ_API_KEY`、`DEEPGRAM_API_KEY`、`VAPID_PRIVATE_KEY`、`REMINDER_SWEEP_SECRET`）在 production 一律走 Secret Manager 掛到 Cloud Run，不寫進 repo 或 log。
+- Deepgram 主金鑰須為 Member 以上權限（即時會議簽發短效金鑰需要，ADR-018）；production secret `busy-bee-deepgram-key`，Cloud Run 以固定版本引用（2026-10-15 起為 `:2`）。
+- 即時會議參數：`DEEPGRAM_LIVE_MODEL`（預設 nova-3）、`LIVE_MONTHLY_MINUTES_LIMIT`（3000）、`LIVE_CONTEXT_MAX_CHARS`（100000）、`LIVE_CONTEXT_MAX_FILE_BYTES`（10MB）。
+- 前端：`VITE_WS_BASE`（WebSocket 直連 Cloud Run 的網址，見 `busy-bee-fe/.env.production`）；Firebase Web 設定為公開值。
+
+## 14. 安全邊界
+
+- 認證：`/api/v1` 一律經 `middleware.Auth`（Firebase JWT 驗簽 + `ALLOWED_EMAILS` 白名單）與 `ResolveUser`；WS 第一則訊息驗 JWT（ADR-002）。
+- 授權：業務查詢一律帶 `user_id`（見 AGENTS.md〈資料安全規範〉）；他人資源回 404，不區分不存在與無權限。
+- 限流：每 IP 10 req/s、burst 30（`middleware.RateLimit`）；即時會議另有每場冷卻（重點 15 秒、提問 5 秒）與每月分鐘上限（ADR-018）。
+- 回應：`middleware.SecurityHeaders`（prod 模式）；外部錯誤 cause 只進 log（`response.Fail`）。
+- 上傳：音檔走 GCS signed URL，限制 content-type 與 200MB（ADR-001）；會前資料單檔 10MB、格式白名單。
+- 瀏覽器直連 Deepgram 只拿 30 秒短效 JWT，主金鑰不出後端（ADR-018）。
+- 待確認：Firebase Hosting 尚未設定安全標頭與 CSP、Firebase API key 網域限制（PLAN 29.12）。
+
+## 15. 測試策略
+
+| 層 | 工具 | 範圍 |
+|---|---|---|
+| 後端單元 | `go test ./...` | domain / application 用 mock port；handler 用 httptest；LLM prompt 組裝與解析用假的 generate 函式 |
+| 後端整合 | `go test -tags integration`（build tag，見 AGENTS.md〈測試規範〉） | repository 對真實 PostgreSQL、ffmpeg 壓縮切段；CI 對 db 與 stt 套件執行 |
+| 前端單元 | Vitest + Testing Library（jsdom） | hooks、services、元件、`src/live/` 即時會議核心邏輯（假 WebSocket / MediaStream、fake-indexeddb） |
+| 人工驗收 | 真機 / 真實會議 | 錄音、推播、即時會議等瀏覽器 API 與外部服務流程（各 Phase 的 e2e 項） |
+
+CI（`.github/workflows/deploy.yml`）在部署前跑後端 vet + 單元 + 整合測試、前端 typecheck + lint + build；任一失敗不部署。
+
+## 16. 可觀測性
+
+- 結構化 log：`slog` JSON 輸出到 stdout（Cloud Logging 收集），等級由 `LOG_LEVEL` 控制。
+- 每個請求由 `middleware.RequestID` 產生 traceId，`RequestLogger` 記錄；錯誤回應帶 `traceId` 方便對照 log。
+- 處理管線、校正、即時會議只記 `meeting_id` 等識別欄位與數量、耗時；不記 token、逐字稿全文、會前資料內容。
+- `GET /version` 回傳線上 commit 與建置時間，部署後用來確認版本。
+- 待確認：前端錯誤監控（PLAN 29.12）、告警設定。
+
+## 17. 部署與回滾
+
+- 觸發：push 到 `main` → GitHub Actions：測試 → 建 image（tag = commit 前 7 碼）→ production migration（`go run ./cmd/migrate up`，DB_URL 取自 Secret Manager）→ `gcloud run deploy`（沿用服務既有的 env 與 secret 設定）→ 建前端並部署 Firebase Hosting。
+- Cloud Run：scale-to-zero、`--no-cpu-throttling`、單 instance（ADR-004、ADR-010）。
+- 回滾與維運操作步驟見 `docs/RUNBOOK.md`。
+

@@ -96,7 +96,13 @@ go test -tags integration ./...  # 含整合測試（需 Docker Postgres / GCS A
 |------|------|
 | [docs/PRODUCT.md](docs/PRODUCT.md) | 功能需求、F-ID、驗收條件、Milestone |
 | [docs/PLAN.md](docs/PLAN.md) | 開發計畫、Phase 進度、Session Log |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架構設計、ADR 決策記錄、資料流 |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架構設計、ADR 決策記錄、資料流、開發指令 |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md) | 維運手冊：線上問題排查、回滾、金鑰輪換、事故紀錄 |
+| [AGENTS.md](AGENTS.md) | AI 開發規則與禁止事項（`CLAUDE.md` 只引用此檔） |
+| [.env.example](.env.example) | 後端環境變數清單（不含真實值） |
+| [docs/superpowers/](docs/superpowers/) | 各功能的設計稿（specs）與實作計畫（plans），由 superpowers 工具產生，屬過程紀錄 |
+| [docs/archive/](docs/archive/) | 封存：PLAN 舊的當前焦點與 Session Log |
+| [busy-bee-fe/README.md](busy-bee-fe/README.md) | Vite 專案範本原文（未客製，前端說明以本 README 為準） |
 
 ## License
 
