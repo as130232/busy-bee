@@ -55,6 +55,20 @@ jobs:
         env:
           TEST_DB_URL: postgres://busybee:busybee@localhost:5432/busybee?sslmode=disable
 
+  # 依賴漏洞掃描：只報告、不擋部署（deploy 的 needs 不含此 job）；紅燈時人工評估是否升級。
+  vulncheck-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: busy-bee-be
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: busy-bee-be/go.mod
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+
   test-frontend:
     runs-on: ubuntu-latest
     defaults:
