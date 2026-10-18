@@ -1,0 +1,17 @@
+# 依賴更新 PR：基底映像已釘 digest，需靠 Dependabot 跟上安全更新（yt-dlp、ffmpeg 隨 alpine 套件更新）。
+# 每月一次、同類合併成一個 PR，減少雜訊；PR 會跑既有 CI，合併前仍需人工確認。
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: /busy-bee-be
+    schedule: { interval: monthly }
+  - package-ecosystem: gomod
+    directory: /busy-bee-be
+    schedule: { interval: monthly }
+    groups:
+      go-deps: { patterns: ["*"] }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+    groups:
+      actions: { patterns: ["*"] }
