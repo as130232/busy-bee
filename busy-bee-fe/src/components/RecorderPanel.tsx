@@ -64,22 +64,14 @@ export function RecorderPanel({
           type="button"
           aria-label="開始錄音"
           onClick={() => void rec.start()}
-          className="group relative flex size-40 items-center justify-center"
+          className="group relative flex size-40 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
         >
-          {/* 向外擴散的聲波環（三層錯開，像聲納）；顏色隨情境 */}
+          {/* 向外擴散的聲波環（兩層錯開，像聲納）；顏色隨情境。只留聲納＋呼吸，避免多種動態同時搶戲 */}
           <span className={`animate-sonar absolute size-28 rounded-full border ${theme.ring}`} />
-          <span className={`animate-sonar absolute size-28 rounded-full border ${theme.ring} [animation-delay:0.9s]`} />
-          <span className={`animate-sonar absolute size-28 rounded-full border ${theme.ring} [animation-delay:1.8s]`} />
+          <span className={`animate-sonar absolute size-28 rounded-full border ${theme.ring} [animation-delay:1.4s]`} />
 
           {/* 柔和光暈（呼吸脹縮） */}
           <span className={`animate-breathe absolute size-32 rounded-full blur-2xl ${theme.glow}`} />
-
-          {/* 環繞旋轉的光點 */}
-          <span className="absolute size-40 animate-[spin_9s_linear_infinite]">
-            <span className={`absolute top-0 left-1/2 size-1.5 -translate-x-1/2 rounded-full shadow-[0_0_8px] ${theme.dotBright}`} />
-            <span className={`absolute bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full ${theme.dotSoft}`} />
-            <span className={`absolute top-1/2 right-1 size-1 -translate-y-1/2 rounded-full ${theme.dotFaint}`} />
-          </span>
 
           {/* 主鈕（呼吸放大縮小）；漸層/陰影/高亮環皆隨情境 */}
           <span

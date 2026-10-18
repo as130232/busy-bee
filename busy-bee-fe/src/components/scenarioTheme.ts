@@ -1,7 +1,7 @@
 import type { Scenario } from '../services/api/client'
 
 /**
- * 每個情境一組配色，統一驅動錄音頁的情境切換、錄音大鈕、聲波環、光暈與背景暈染。
+ * 每個情境一組配色，統一驅動錄音頁的情境切換、錄音大鈕、聲波環、光暈與背景暈染，以及列表/登入頁的情境標籤。
  * 會議 = 琥珀、閒聊 = 天藍、面試 = 翠綠（emerald）。
  * Record<Scenario, …> 讓後端 enum 新增情境時，型別會強制在此補齊配色，不會漏掉。
  *
@@ -18,10 +18,6 @@ export interface ScenarioTheme {
   button: string
   /** 錄音鈕 hover 陰影色 */
   buttonHover: string
-  /** 環繞光點（亮/中/淡） */
-  dotBright: string
-  dotSoft: string
-  dotFaint: string
   /** 情境切換選中態 */
   toggleActive: string
   /** 深連結高亮環 */
@@ -39,9 +35,6 @@ export const scenarioThemes: Record<Scenario, ScenarioTheme> = {
     tint: 'bg-amber-500/15',
     button: 'from-amber-400 to-amber-500 shadow-amber-400/60',
     buttonHover: 'group-hover:shadow-amber-400/80',
-    dotBright: 'bg-amber-300 shadow-amber-300',
-    dotSoft: 'bg-amber-400/70',
-    dotFaint: 'bg-amber-300/60',
     toggleActive: 'bg-amber-400 text-zinc-900',
     highlightRing: 'ring-amber-400',
     chip: 'bg-accent/10 text-accent-fg',
@@ -53,9 +46,6 @@ export const scenarioThemes: Record<Scenario, ScenarioTheme> = {
     tint: 'bg-sky-500/15',
     button: 'from-sky-400 to-sky-500 shadow-sky-400/60',
     buttonHover: 'group-hover:shadow-sky-400/80',
-    dotBright: 'bg-sky-300 shadow-sky-300',
-    dotSoft: 'bg-sky-400/70',
-    dotFaint: 'bg-sky-300/60',
     toggleActive: 'bg-sky-400 text-zinc-900',
     highlightRing: 'ring-sky-400',
     chip: 'bg-sky-500/10 text-sky-700 dark:text-sky-400',
@@ -67,9 +57,6 @@ export const scenarioThemes: Record<Scenario, ScenarioTheme> = {
     tint: 'bg-emerald-500/15',
     button: 'from-emerald-400 to-emerald-500 shadow-emerald-400/60',
     buttonHover: 'group-hover:shadow-emerald-400/80',
-    dotBright: 'bg-emerald-300 shadow-emerald-300',
-    dotSoft: 'bg-emerald-400/70',
-    dotFaint: 'bg-emerald-300/60',
     toggleActive: 'bg-emerald-400 text-zinc-900',
     highlightRing: 'ring-emerald-400',
     chip: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
@@ -81,9 +68,6 @@ export const scenarioThemes: Record<Scenario, ScenarioTheme> = {
     tint: 'bg-violet-500/15',
     button: 'from-violet-400 to-violet-500 shadow-violet-400/60',
     buttonHover: 'group-hover:shadow-violet-400/80',
-    dotBright: 'bg-violet-300 shadow-violet-300',
-    dotSoft: 'bg-violet-400/70',
-    dotFaint: 'bg-violet-300/60',
     toggleActive: 'bg-violet-400 text-zinc-900',
     highlightRing: 'ring-violet-400',
     chip: 'bg-violet-500/10 text-violet-700 dark:text-violet-400',

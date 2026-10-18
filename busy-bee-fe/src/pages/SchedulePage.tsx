@@ -14,8 +14,7 @@ export function SchedulePage() {
 
   return (
     <>
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="m-0 text-base font-semibold">會議行程</h1>
+      <div className="flex justify-end">
         <ScheduleForm onCreated={reload} />
       </div>
 

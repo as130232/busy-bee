@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Tag, X } from 'lucide-react'
+import { X } from 'lucide-react'
 
 import { updateMeetingTags, type MeetingDetail } from '../services/api/client'
 import { getIdToken } from '../services/token'
 
-/** 會議標籤就地編輯：晶片可移除、輸入框加標籤（Enter/失焦送出）；即時 PATCH。 */
+/** 會議標籤就地編輯：晶片可移除、輸入框加標籤（Enter/失焦送出）；即時 PATCH。接在詳情頁 meta 行尾。 */
 export function TagEditor({
   meeting,
   onUpdated,
@@ -36,12 +36,11 @@ export function TagEditor({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <Tag className="size-3.5 shrink-0 text-muted" />
+    <span className="contents">
       {tags.map((t) => (
         <span
           key={t}
-          className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-0.5 text-xs"
+          className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-0.5 text-xs text-fg"
         >
           #{t}
           <button
@@ -55,8 +54,8 @@ export function TagEditor({
         </span>
       ))}
       <input
-        className="w-20 border-b border-border bg-transparent text-base outline-none sm:text-xs focus:border-accent disabled:opacity-50"
-        placeholder="加標籤"
+        className="w-16 rounded-full border border-dashed border-border bg-transparent px-2 py-0.5 text-base outline-none placeholder:text-muted sm:text-xs focus:w-24 focus:border-accent disabled:opacity-50"
+        placeholder="＋ 標籤"
         value={input}
         maxLength={30}
         disabled={busy}
@@ -69,6 +68,6 @@ export function TagEditor({
         }}
         onBlur={add}
       />
-    </div>
+    </span>
   )
 }

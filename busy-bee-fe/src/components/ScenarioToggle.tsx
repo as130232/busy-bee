@@ -3,7 +3,7 @@ import { scenarioThemes } from './scenarioTheme'
 
 const order: Scenario[] = ['meeting', 'casual', 'interview', 'idea']
 
-/** 情境分段切換（會議 / 閒聊）；行動優先，滿版可點區塊。 */
+/** 情境分段切換（會議 / 閒聊 / 面試 / 想法）；高度與語言選單一致（h-11）。 */
 export function ScenarioToggle({
   value,
   onChange,
@@ -17,7 +17,7 @@ export function ScenarioToggle({
     <div
       role="radiogroup"
       aria-label="紀錄情境"
-      className="inline-flex rounded-full border border-border bg-surface p-1 text-sm"
+      className="inline-flex h-11 rounded-full border border-border bg-surface p-1 text-sm"
     >
       {order.map((s) => {
         const active = s === value
@@ -29,7 +29,7 @@ export function ScenarioToggle({
             aria-checked={active}
             disabled={disabled}
             onClick={() => onChange(s)}
-            className={`min-w-0 rounded-full px-4 py-2 font-semibold transition-colors disabled:opacity-50 ${
+            className={`min-w-0 rounded-full px-4 font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:opacity-50 ${
               active ? `${scenarioThemes[s].toggleActive} shadow-sm` : 'text-muted'
             }`}
           >

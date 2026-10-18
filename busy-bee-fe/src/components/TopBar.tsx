@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { User } from 'lucide-react'
 
 import { BrandMark } from './BrandMark'
+import { tabs } from './navTabs'
 import { useAuth } from '../hooks/useAuth'
 import type { User as AppUser } from '../services/api/client'
 
@@ -31,16 +32,27 @@ function Avatar({ user }: { user: AppUser | null }) {
   return <User className="size-5 text-muted" />
 }
 
-/** 共用頂欄：左側品牌，右側使用者頭像（點擊進設定）。 */
+// 頁名：錄音（首頁）顯示品牌，其他分頁顯示頁名，讓使用者知道自己在哪。
+const pageTitles: Record<string, string> = {
+  ...Object.fromEntries(tabs.filter((t) => t.to !== '/').map((t) => [t.to, t.label])),
+  '/settings': '設定',
+}
+
+/** 共用頂欄：左側品牌或頁名，右側使用者頭像（點擊進設定）。 */
 export function TopBar() {
   const { user } = useAuth()
+  const title = pageTitles[useLocation().pathname]
   return (
     <header className="shrink-0 border-b border-border bg-bg pt-[env(safe-area-inset-top)]">
       <div className="mx-auto flex h-14 max-w-xl items-center px-4">
-        <Link to="/" className="flex items-center gap-2 font-semibold">
-          <BrandMark />
-          Busy Bee
-        </Link>
+        {title ? (
+          <h1 className="animate-fade-in m-0 text-title font-semibold tracking-tight">{title}</h1>
+        ) : (
+          <Link to="/" className="flex items-center gap-2 font-semibold">
+            <BrandMark />
+            Busy Bee
+          </Link>
+        )}
         <Link
           to="/settings"
           aria-label="設定"

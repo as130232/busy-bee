@@ -47,7 +47,7 @@ export function ScheduledMeetingDetail({
         <Link to="/schedule" className="btn btn-ghost size-11 shrink-0 px-0" aria-label="返回">
           <ChevronLeft className="size-5" />
         </Link>
-        <h1 className="m-0 min-w-0 flex-1 truncate text-lg font-semibold">{meeting.title}</h1>
+        <h1 className="m-0 min-w-0 flex-1 truncate text-title font-semibold">{meeting.title}</h1>
         <StatusBadge status={meeting.status} />
       </header>
 
@@ -99,7 +99,7 @@ export function ScheduledMeetingDetail({
         </button>
       </div>
 
-      <p className="m-0 text-xs text-muted">會議開始後上傳錄音，處理完成會出現 PRD、Tech Spec 與待辦。</p>
+      <p className="m-0 text-xs text-muted">會議開始後上傳錄音，處理完成會出現摘要、逐字稿與待辦。</p>
 
       {editOpen && (
         <ScheduleSheet

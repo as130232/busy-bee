@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,11 +35,14 @@ describe('CorrectionPanel', () => {
     expect(await screen.findByText('本紀錄約 8% 內容語音辨識不確定，建議校正。')).toBeInTheDocument()
   })
 
-  it('低於門檻不顯示提示但仍有按鈕', async () => {
+  it('低於門檻且無狀態時不佔版面，入口改由 startSignal（⋯ 選單）開啟確認', async () => {
     getMock.mockResolvedValue({ correction: state() })
-    render(<CorrectionPanel meeting={meeting(0.02)} onChanged={() => {}} />)
-    expect(await screen.findByRole('button', { name: 'AI 校正' })).toBeEnabled()
+    const { rerender } = render(<CorrectionPanel meeting={meeting(0.02)} onChanged={() => {}} />)
+    await waitFor(() => expect(getMock).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: 'AI 校正' })).not.toBeInTheDocument()
     expect(screen.queryByText(/建議校正/)).not.toBeInTheDocument()
+    rerender(<CorrectionPanel meeting={meeting(0.02)} onChanged={() => {}} startSignal={1} />)
+    expect(await screen.findByRole('button', { name: '開始校正' })).toBeEnabled()
   })
 
   it('已用 2 次時按鈕停用並顯示 2/2', async () => {
@@ -72,14 +75,13 @@ describe('CorrectionPanel', () => {
     expect(onChanged).toHaveBeenCalled()
   })
 
-  it('按下校正先顯示確認文案（含失敗也計次），確認後才呼叫 API', async () => {
+  it('從選單開啟校正先顯示確認文案（含失敗也計次），確認後才呼叫 API', async () => {
     getMock.mockResolvedValue({ correction: state() })
     startMock.mockResolvedValue({ correction: state({ status: 'queued', attemptsUsed: 1 }) })
-    render(<CorrectionPanel meeting={meeting()} onChanged={() => {}} />)
-    await userEvent.click(await screen.findByRole('button', { name: 'AI 校正' }))
-    expect(screen.getByText(/每場最多 2 次，失敗也會計次/)).toBeInTheDocument()
+    render(<CorrectionPanel meeting={meeting()} onChanged={() => {}} startSignal={1} />)
+    expect(await screen.findByText(/每場最多 2 次，失敗也會計次/)).toBeInTheDocument()
     expect(startMock).not.toHaveBeenCalled()
-    await userEvent.click(screen.getByRole('button', { name: '開始校正' }))
+    await userEvent.click(await screen.findByRole('button', { name: '開始校正' }))
     expect(startMock).toHaveBeenCalledWith('tok', 'm1')
     expect(await screen.findByText(/校正中/)).toBeInTheDocument()
   })
@@ -97,9 +99,8 @@ describe('CorrectionPanel', () => {
       .mockResolvedValueOnce({ correction: state() })
       .mockResolvedValueOnce({ correction: state({ status: 'running', attemptsUsed: 1 }) })
     startMock.mockRejectedValue(new Error('correction already in progress'))
-    render(<CorrectionPanel meeting={meeting()} onChanged={() => {}} />)
-    await userEvent.click(await screen.findByRole('button', { name: 'AI 校正' }))
-    await userEvent.click(screen.getByRole('button', { name: '開始校正' }))
+    render(<CorrectionPanel meeting={meeting()} onChanged={() => {}} startSignal={1} />)
+    await userEvent.click(await screen.findByRole('button', { name: '開始校正' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('correction already in progress')
     expect(screen.queryByRole('button', { name: '開始校正' })).not.toBeInTheDocument()
     expect(await screen.findByText(/校正中/)).toBeInTheDocument()

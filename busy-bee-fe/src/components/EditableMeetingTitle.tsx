@@ -101,7 +101,7 @@ function MarqueeTitle({ title }: { title: string }) {
 
   return (
     <div ref={containerRef} className="min-w-0 flex-1 overflow-hidden">
-      <h1 ref={textRef} className="m-0 inline-block whitespace-nowrap text-lg font-semibold" style={style}>
+      <h1 ref={textRef} className="m-0 inline-block whitespace-nowrap text-title font-semibold" style={style}>
         {title}
       </h1>
     </div>

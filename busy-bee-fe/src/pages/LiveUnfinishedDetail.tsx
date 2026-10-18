@@ -73,7 +73,7 @@ export function LiveUnfinishedDetail({ meeting, onUploaded }: { meeting: Meeting
         <Link to="/meetings" className="btn btn-ghost size-11 shrink-0 px-0" aria-label="返回">
           <ChevronLeft className="size-5" />
         </Link>
-        <h1 className="m-0 min-w-0 flex-1 truncate text-lg font-semibold">{meeting.title}</h1>
+        <h1 className="m-0 min-w-0 flex-1 truncate text-title font-semibold">{meeting.title}</h1>
         <StatusBadge status={displayStatus(meeting)} />
       </header>
 

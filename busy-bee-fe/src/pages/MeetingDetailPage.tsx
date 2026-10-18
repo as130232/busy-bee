@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { ChevronLeft, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileText, MoreHorizontal, Sparkles, Trash2, X } from 'lucide-react'
 
 import { formatClock } from '../utils/format'
 import { ActionItemList } from '../components/ActionItemList'
@@ -19,6 +19,7 @@ import { TagEditor } from '../components/TagEditor'
 import { TranscriptEditor } from '../components/TranscriptEditor'
 import { resolveSpeakerNames } from '../components/speakerColor'
 import { useMeetingDetail } from '../hooks/useMeetingDetail'
+import { scenarioThemes } from '../components/scenarioTheme'
 import { scenarioLabels, type MeetingDetail } from '../services/api/client'
 import { LiveNotesSection } from '../components/LiveNotesSection'
 import { MeetingContextsSection } from '../components/MeetingContextsSection'
@@ -76,6 +77,9 @@ export function MeetingDetailPage() {
   } = useMeetingDetail(id)
   const [tab, setTab] = useState<Tab>('summary')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // 「⋯」選單與其子視窗：低頻動作（AI 校正、會前資料、刪除）收進這裡，讓內文更早出現。
+  const [menu, setMenu] = useState<null | 'actions' | 'contexts'>(null)
+  const [correctionSignal, setCorrectionSignal] = useState(0)
   const audioRef = useRef<HTMLAudioElement>(null)
 
   // 點逐字稿時間碼 → 音檔跳至該處並播放。
@@ -144,9 +148,9 @@ export function MeetingDetailPage() {
 
   return (
     <AppShell hideTopBar>
-      <div className="flex flex-col gap-1.5">
-        <header className="flex items-center gap-2">
-          <Link to="/meetings" className="btn btn-ghost size-11 shrink-0 px-0" aria-label="返回">
+      <div className="flex flex-col gap-1">
+        <header className="flex items-center gap-1">
+          <Link to="/meetings" className="btn btn-ghost -ml-2 size-11 shrink-0 px-0" aria-label="返回">
             <ChevronLeft className="size-5" />
           </Link>
           <EditableMeetingTitle
@@ -158,22 +162,19 @@ export function MeetingDetailPage() {
           {meeting.status !== 'completed' && <StatusBadge status={meeting.status} />}
           <button
             type="button"
-            className="btn btn-ghost size-9 shrink-0 px-0 text-muted hover:text-danger"
-            aria-label="刪除會議"
-            onClick={() => setConfirmDelete(true)}
+            className="btn btn-ghost size-11 shrink-0 px-0 text-muted"
+            aria-label="更多動作"
+            onClick={() => setMenu('actions')}
           >
-            <Trash2 className="size-4" />
+            <MoreHorizontal className="size-5" />
           </button>
         </header>
-        {/* meta：情境 · 時長 · 講者數 · 待辦數（皆前端計算，一眼定位這場的樣貌） */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-[3.25rem] text-xs text-muted tabular-nums">
-          <span>{scenarioLabels[meeting.scenario]}</span>
-          {meeting.durationSeconds > 0 && (
-            <>
-              <span aria-hidden>·</span>
-              <span>{formatClock(meeting.durationSeconds)}</span>
-            </>
-          )}
+        {/* meta：情境 · 時長 · 講者數 · 待辦數，標籤接在行尾（一行掌握這場的樣貌） */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 pl-9 text-xs text-muted tabular-nums">
+          <span className={`rounded px-1.5 py-0.5 font-medium ${scenarioThemes[meeting.scenario].chip}`}>
+            {scenarioLabels[meeting.scenario]}
+          </span>
+          {meeting.durationSeconds > 0 && <span>{formatClock(meeting.durationSeconds)}</span>}
           {speakerCount > 0 && (
             <>
               <span aria-hidden>·</span>
@@ -186,10 +187,9 @@ export function MeetingDetailPage() {
               <span>{actionItems.length} 待辦</span>
             </>
           )}
+          <TagEditor meeting={meeting} onUpdated={setMeeting} />
         </div>
       </div>
-
-      <TagEditor meeting={meeting} onUpdated={setMeeting} />
 
       {meeting.status === 'failed' && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/30 bg-danger/5 px-4 py-3">
@@ -202,27 +202,28 @@ export function MeetingDetailPage() {
 
       <AudioPlayer meetingId={meeting.id} durationSeconds={meeting.durationSeconds} audioRef={audioRef} />
 
-      <nav className="sticky top-0 z-20 flex border-b border-border bg-bg">
-        {visibleTabs.map((t) => (
-          <button
-            key={t}
-            type="button"
-            className={`-mb-px h-11 flex-1 cursor-pointer border-b-2 text-sm font-medium transition ${tab === t ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg'
+      {/* 分頁列可橫向捲動（PRD/Tech Spec 出現時不擠），匯出動作貼在右側 */}
+      <div className="sticky top-0 z-20 -mx-4 flex items-center gap-2 border-b border-border bg-bg/95 px-4 backdrop-blur">
+        <nav className="flex min-w-0 flex-1 gap-5 overflow-x-auto [scrollbar-width:none]">
+          {visibleTabs.map((t) => (
+            <button
+              key={t}
+              type="button"
+              className={`-mb-px h-11 shrink-0 cursor-pointer border-b-2 text-sm font-medium whitespace-nowrap transition outline-none focus-visible:text-fg ${
+                tab === t ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg'
               }`}
-            onClick={() => setTab(t)}
-          >
-            {tabLabels[t]}
-          </button>
-        ))}
-      </nav>
-
-      {tab !== 'action_items' && exportContent && (
-        <div className="-mb-2 flex justify-end">
+              onClick={() => setTab(t)}
+            >
+              {tabLabels[t]}
+            </button>
+          ))}
+        </nav>
+        {tab !== 'action_items' && exportContent && (
           <ExportBar content={exportContent} filename={`${meeting.title}-${tab}`} />
-        </div>
-      )}
+        )}
+      </div>
 
-      <CorrectionPanel meeting={meeting} onChanged={() => void reload()} />
+      <CorrectionPanel meeting={meeting} onChanged={() => void reload()} startSignal={correctionSignal} />
 
       {meeting.liveNotes && <LiveNotesSection notes={meeting.liveNotes} />}
 
@@ -288,13 +289,57 @@ export function MeetingDetailPage() {
         )}
       </article>
 
-      <MeetingContextsSection
-        meetingId={meeting.id}
-        hint="背景資料會讓 AI 校正更準（專有名詞、術語），不會被當成會議內容。"
-      />
-
       {/* 讓開貼底 mini-player，避免最後內容被蓋住 */}
       <div aria-hidden className="h-16" />
+
+      {menu === 'actions' && (
+        <Sheet onClose={() => setMenu(null)}>
+          <ul className="m-0 flex list-none flex-col p-0">
+            {meeting.status === 'completed' && (
+              <MenuItem
+                icon={<Sparkles className="size-5 text-accent" />}
+                label="AI 重新聽錄音校正"
+                hint="修正逐字稿並更新摘要"
+                onClick={() => {
+                  setMenu(null)
+                  setCorrectionSignal((n) => n + 1)
+                }}
+              />
+            )}
+            <MenuItem
+              icon={<FileText className="size-5 text-muted" />}
+              label="會前資料"
+              hint="提供專有名詞、背景，讓 AI 校正更準"
+              onClick={() => setMenu('contexts')}
+            />
+            <MenuItem
+              icon={<Trash2 className="size-5 text-danger" />}
+              label="刪除紀錄"
+              danger
+              onClick={() => {
+                setMenu(null)
+                setConfirmDelete(true)
+              }}
+            />
+          </ul>
+        </Sheet>
+      )}
+
+      {menu === 'contexts' && (
+        <Sheet onClose={() => setMenu(null)} className="max-h-[85dvh] overflow-y-auto">
+          <div className="flex items-center justify-between">
+            <h2 className="m-0 text-heading font-semibold">會前資料</h2>
+            <button type="button" className="btn btn-ghost size-9 px-0" aria-label="關閉" onClick={() => setMenu(null)}>
+              <X className="size-4" />
+            </button>
+          </div>
+          <MeetingContextsSection
+            meetingId={meeting.id}
+            bare
+            hint="背景資料會讓 AI 校正更準（專有名詞、術語），不會被當成會議內容。"
+          />
+        </Sheet>
+      )}
 
       {confirmDelete && (
         <Sheet onClose={() => setConfirmDelete(false)}>
@@ -316,5 +361,37 @@ export function MeetingDetailPage() {
         </Sheet>
       )}
     </AppShell>
+  )
+}
+
+/** 「⋯」選單列：icon + 標題（+ 說明），整列可點。 */
+function MenuItem({
+  icon,
+  label,
+  hint,
+  danger = false,
+  onClick,
+}: {
+  icon: React.ReactNode
+  label: string
+  hint?: string
+  danger?: boolean
+  onClick: () => void
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition outline-none hover:bg-surface-hover focus-visible:bg-surface-hover"
+      >
+        {icon}
+        <span className="min-w-0 flex-1">
+          <span className={`block text-sm font-medium ${danger ? 'text-danger' : 'text-fg'}`}>{label}</span>
+          {hint && <span className="block text-xs text-muted">{hint}</span>}
+        </span>
+        {!danger && <ChevronRight className="size-4 shrink-0 text-muted" />}
+      </button>
+    </li>
   )
 }
