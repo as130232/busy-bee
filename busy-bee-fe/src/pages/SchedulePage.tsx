@@ -23,7 +23,11 @@ export function SchedulePage() {
         count={scheduled.length}
         icon={<CalendarClock className="size-4 text-accent" />}
       >
-        <MeetingList meetings={scheduled} emptyText="尚無排程會議，點右上角新增。" />
+        <MeetingList
+          meetings={scheduled}
+          emptyText="尚無排程會議"
+          emptyDescription="點上方「排程會議」，開會前會推播提醒你。"
+        />
       </CollapsibleSection>
 
       <PendingActionItems />

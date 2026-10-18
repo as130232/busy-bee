@@ -38,3 +38,30 @@ export function formatFileStamp(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
+
+function startOfDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+}
+
+/** 與 now 相差的「日曆日」數（今天 0、昨天 1）；以本地時區午夜為界。 */
+function dayDiff(value: string | number | Date, now: Date): number {
+  return Math.round((startOfDay(now) - startOfDay(new Date(value))) / 86_400_000)
+}
+
+/** 列表日期分組名：今天／昨天／近 7 天／「YYYY 年 M 月」。 */
+export function dateGroupLabel(value: string | number | Date, now: Date = new Date()): string {
+  const diff = dayDiff(value, now)
+  if (diff <= 0) return '今天'
+  if (diff === 1) return '昨天'
+  if (diff < 7) return '近 7 天'
+  const d = new Date(value)
+  return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月`
+}
+
+/** 列表列的精簡時間：今天/昨天只顯示 HH:mm（分組標題已說明日期），其餘「M/D HH:mm」。 */
+export function formatShortDateTime(value: string | number | Date, now: Date = new Date()): string {
+  const d = new Date(value)
+  const p = (n: number) => String(n).padStart(2, '0')
+  const time = `${p(d.getHours())}:${p(d.getMinutes())}`
+  return dayDiff(value, now) <= 1 ? time : `${d.getMonth() + 1}/${d.getDate()} ${time}`
+}

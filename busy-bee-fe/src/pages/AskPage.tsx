@@ -7,6 +7,7 @@ import { askCrossMeetingQA, type QAResult, type QASource } from '../services/api
 import { useApiCall } from '../hooks/useApiCall'
 import { QA_STORAGE_KEY } from '../services/localData'
 import { formatDateTime } from '../utils/format'
+import { EmptyState } from '../components/EmptyState'
 
 
 /** 上次問答（存本地端，不進 DB）：切頁回來仍可看到，重新整理也保留。 */
@@ -23,6 +24,20 @@ function loadStored(): StoredQA | null {
   } catch {
     return null
   }
+}
+
+/** 起始畫面的範例問題：點一下直接提問，降低「不知道能問什麼」的門檻。 */
+const EXAMPLES = ['上週的會議決定了哪些事？', '還有哪些待辦沒完成？', '最近有人提到預算嗎？', '幫我整理這個月的重點']
+
+/** 載入中的骨架：與答案卡同外框，讓等待有形狀。 */
+function AnswerSkeleton() {
+  return (
+    <div className="animate-fade-in flex flex-col gap-3 rounded-xl border border-border bg-surface px-4 py-4" aria-hidden>
+      {['w-2/5', 'w-full', 'w-11/12', 'w-4/5', 'w-3/5'].map((w, i) => (
+        <span key={i} className={`h-3 animate-pulse rounded-full bg-surface-hover ${w} ${i === 0 ? 'mb-1 h-3.5' : ''}`} />
+      ))}
+    </div>
+  )
 }
 
 /** 把答案中的 [n] 轉成 Markdown 連結錨點 [n](#cite-n)（僅限有對應來源者），交給 ReactMarkdown 渲染。 */
@@ -83,7 +98,7 @@ export function AskPage() {
       >
         <textarea
           className="input min-h-20 resize-none"
-          placeholder="問問你的會議，例如：上週產品會議決定了什麼？"
+          placeholder="輸入問題，例如：上週產品會議決定了什麼？"
           value={question}
           maxLength={500}
           onChange={(e) => setQuestion(e.target.value)}
@@ -106,7 +121,33 @@ export function AskPage() {
         </div>
       )}
 
-      {asked && !error && (
+      {loading && <AnswerSkeleton />}
+
+      {!asked && !loading && !error && (
+        <EmptyState
+          title="問問你所有的紀錄"
+          description="AI 會從你的會議與對話中找答案，並附上出處，點引用可直接跳到該場紀錄。"
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              {EXAMPLES.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-fg transition outline-none hover:border-accent/50 hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-accent/50"
+                  onClick={() => {
+                    setQuestion(q)
+                    void ask(q)
+                  }}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          }
+        />
+      )}
+
+      {asked && !error && !loading && (
         <div className="flex flex-col gap-4">
           <div className="rounded-xl border border-border bg-surface px-4 py-3">
             {/* 標頭：問題 + 建立時間 + 重新產生 */}

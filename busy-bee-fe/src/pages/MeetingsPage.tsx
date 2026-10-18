@@ -1,33 +1,40 @@
 import { useMemo, useState } from 'react'
-import { Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Mic, Search, SlidersHorizontal, X } from 'lucide-react'
 
 import { MeetingList } from '../components/MeetingList'
+import { scenarioThemes } from '../components/scenarioTheme'
+import { Sheet } from '../components/Sheet'
 import { useMeetings } from '../hooks/useMeetings'
 import { scenarioLabels, type Meeting, type Scenario } from '../services/api/client'
 
 type ScenarioFilter = Scenario | 'all'
 type SourceFilter = 'all' | 'recorded' | 'imported'
 
-/** 篩選晶片：選中時 accent 高亮。 */
+/** 篩選晶片：選中時 accent 高亮；dot 帶情境色點（兼作列表色點的圖例）。 */
 function Chip({
   active,
   onClick,
+  dot,
   children,
 }: {
   active: boolean
   onClick: () => void
+  dot?: string
   children: React.ReactNode
 }) {
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
-      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition ${
+      className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
         active
           ? 'border-accent bg-accent/10 text-accent-fg'
           : 'border-border text-muted hover:text-fg'
       }`}
     >
+      {dot && <span aria-hidden className={`size-1.5 rounded-full ${dot}`} />}
       {children}
     </button>
   )
@@ -40,6 +47,8 @@ export function MeetingsPage() {
   const [scenario, setScenario] = useState<ScenarioFilter>('all')
   const [source, setSource] = useState<SourceFilter>('all')
   const [tag, setTag] = useState<string | null>(null)
+  const [filterOpen, setFilterOpen] = useState(false)
+  const navigate = useNavigate()
 
   // 排程（未開始）不列在紀錄；即時會議已結束待上傳（scheduled + liveStartedAt）要列出來提醒上傳
   const list = useMemo(() => meetings.filter((m) => m.status !== 'scheduled' || m.liveStartedAt), [meetings])
@@ -64,6 +73,9 @@ export function MeetingsPage() {
   )
 
   const scenarioKeys = Object.keys(scenarioLabels) as Scenario[]
+  // 進階篩選（來源、標籤）收在 Sheet，作用中的數量顯示在「篩選」鈕上
+  const advancedCount = (source !== 'all' ? 1 : 0) + (tag ? 1 : 0)
+  const filtering = Boolean(search) || scenario !== 'all' || advancedCount > 0
 
   return (
     <div className="flex flex-col gap-3">
@@ -78,34 +90,77 @@ export function MeetingsPage() {
         />
       </div>
 
-      {/* 情境 + 來源篩選 */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        <Chip active={scenario === 'all' && source === 'all'} onClick={() => { setScenario('all'); setSource('all') }}>
+      {/* 單排篩選：情境 chips + 進階篩選鈕（來源、標籤） */}
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+        <Chip active={scenario === 'all'} onClick={() => setScenario('all')}>
           全部
         </Chip>
         {scenarioKeys.map((s) => (
-          <Chip key={s} active={scenario === s} onClick={() => setScenario(scenario === s ? 'all' : s)}>
+          <Chip
+            key={s}
+            active={scenario === s}
+            dot={scenarioThemes[s].dot}
+            onClick={() => setScenario(scenario === s ? 'all' : s)}
+          >
             {scenarioLabels[s]}
           </Chip>
         ))}
-        <span className="w-px shrink-0 self-stretch bg-border" />
-        <Chip active={source === 'recorded'} onClick={() => setSource(source === 'recorded' ? 'all' : 'recorded')}>
-          錄音
-        </Chip>
-        <Chip active={source === 'imported'} onClick={() => setSource(source === 'imported' ? 'all' : 'imported')}>
-          匯入
+        <Chip active={advancedCount > 0} onClick={() => setFilterOpen(true)}>
+          <SlidersHorizontal className="size-3.5" />
+          篩選{advancedCount > 0 && ` ${advancedCount}`}
         </Chip>
       </div>
 
-      {/* 標籤篩選（有標籤才顯示） */}
-      {allTags.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {allTags.map((t) => (
-            <Chip key={t} active={tag === t} onClick={() => setTag(tag === t ? null : t)}>
-              #{t}
-            </Chip>
-          ))}
-        </div>
+      {filterOpen && (
+        <Sheet onClose={() => setFilterOpen(false)} className="max-h-[85dvh] overflow-y-auto">
+          <div className="flex items-center justify-between">
+            <h2 className="m-0 text-heading font-semibold">篩選</h2>
+            <button type="button" className="btn btn-ghost size-9 px-0" aria-label="關閉" onClick={() => setFilterOpen(false)}>
+              <X className="size-4" />
+            </button>
+          </div>
+          <div className="flex flex-col gap-2">
+            <h3 className="m-0 text-xs font-medium text-muted">來源</h3>
+            <div className="flex flex-wrap gap-2">
+              <Chip active={source === 'all'} onClick={() => setSource('all')}>
+                全部
+              </Chip>
+              <Chip active={source === 'recorded'} onClick={() => setSource('recorded')}>
+                錄音
+              </Chip>
+              <Chip active={source === 'imported'} onClick={() => setSource('imported')}>
+                匯入
+              </Chip>
+            </div>
+          </div>
+          {allTags.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <h3 className="m-0 text-xs font-medium text-muted">標籤</h3>
+              <div className="flex flex-wrap gap-2">
+                {allTags.map((t) => (
+                  <Chip key={t} active={tag === t} onClick={() => setTag(tag === t ? null : t)}>
+                    #{t}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              className="btn btn-secondary flex-1"
+              onClick={() => {
+                setSource('all')
+                setTag(null)
+              }}
+            >
+              清除
+            </button>
+            <button type="button" className="btn btn-primary flex-1" onClick={() => setFilterOpen(false)}>
+              完成
+            </button>
+          </div>
+        </Sheet>
       )}
 
       {error && (
@@ -120,7 +175,17 @@ export function MeetingsPage() {
       {!error && (
         <MeetingList
           meetings={filtered}
-          emptyText={search || scenario !== 'all' || source !== 'all' || tag ? '沒有符合的紀錄。' : '尚無紀錄，錄下第一段吧。'}
+          groupByDate
+          emptyText={filtering ? '沒有符合的紀錄' : '還沒有紀錄'}
+          emptyDescription={filtering ? '換個關鍵字或清除篩選試試。' : '錄下第一段對話，AI 會幫你整理重點與待辦。'}
+          emptyAction={
+            filtering ? undefined : (
+              <button type="button" className="btn btn-primary" onClick={() => navigate('/')}>
+                <Mic className="size-4" />
+                開始錄音
+              </button>
+            )
+          }
         />
       )}
     </div>

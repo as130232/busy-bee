@@ -1,14 +1,33 @@
-import { LogOut, Moon, Sun } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { LogOut, Monitor, Moon, Sun } from 'lucide-react'
 
 import { LiveMicToggle } from '../components/LiveMicToggle'
 import { NotificationToggle } from '../components/NotificationToggle'
 import { useAuth } from '../hooks/useAuth'
-import { useTheme } from '../hooks/useTheme'
+import { useTheme, type ThemePref } from '../hooks/useTheme'
 
-/** 設定分頁：帳號、通知、主題、登出。 */
+const themeOptions: { value: ThemePref; label: string; Icon: typeof Sun }[] = [
+  { value: 'light', label: '淺色', Icon: Sun },
+  { value: 'dark', label: '深色', Icon: Moon },
+  { value: 'system', label: '跟隨系統', Icon: Monitor },
+]
+
+/** 設定分組：小標 + 卡片。 */
+function Group({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="m-0 px-1 text-xs font-medium text-muted">{title}</h2>
+      <div className="flex flex-col divide-y divide-border rounded-xl border border-border bg-surface [&>*]:p-4">
+        {children}
+      </div>
+    </section>
+  )
+}
+
+/** 設定頁：帳號、通知與錄音、外觀、登出。 */
 export function SettingsPage() {
   const { user, signOut } = useAuth()
-  const { dark, toggle } = useTheme()
+  const { pref, setPref } = useTheme()
 
   return (
     <>
@@ -29,31 +48,35 @@ export function SettingsPage() {
         </section>
       )}
 
-      <section className="rounded-xl border border-border bg-surface p-4">
+      <Group title="通知與錄音">
         <NotificationToggle />
-      </section>
-
-      <section className="rounded-xl border border-border bg-surface p-4">
         <LiveMicToggle />
-      </section>
+      </Group>
 
-      <button
-        type="button"
-        onClick={toggle}
-        className="flex items-center justify-between rounded-xl border border-border bg-surface p-4 text-left transition hover:bg-surface-hover"
-      >
-        <span className="flex items-center gap-2 text-sm">
-          {dark ? <Moon className="size-4" /> : <Sun className="size-4" />}
-          外觀主題
-        </span>
-        <span className="text-sm text-muted">{dark ? '深色' : '淺色'}</span>
-      </button>
+      <Group title="外觀">
+        <div role="radiogroup" aria-label="外觀主題" className="grid grid-cols-3 gap-1 rounded-lg bg-bg p-1">
+          {themeOptions.map(({ value, label, Icon }) => {
+            const active = pref === value
+            return (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setPref(value)}
+                className={`flex h-10 items-center justify-center gap-1.5 rounded-md text-sm font-medium transition outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                  active ? 'bg-surface text-fg shadow-sm ring-1 ring-border' : 'text-muted hover:text-fg'
+                }`}
+              >
+                <Icon className="size-4" />
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      </Group>
 
-      <button
-        type="button"
-        className="btn btn-secondary text-danger hover:text-danger"
-        onClick={() => void signOut()}
-      >
+      <button type="button" className="btn btn-secondary text-danger hover:text-danger" onClick={() => void signOut()}>
         <LogOut className="size-4" />
         登出
       </button>
