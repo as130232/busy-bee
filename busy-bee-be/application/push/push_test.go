@@ -72,11 +72,48 @@ func TestSubscribe_UpsertsSubscription(t *testing.T) {
 	repo := &fakePushRepo{}
 	uc := NewSubscribeUC(repo)
 
-	if err := uc.Subscribe(context.Background(), uuid.New(), "https://ep", "key", "auth"); err != nil {
+	if err := uc.Subscribe(context.Background(), uuid.New(), fcmEndpoint, "key", "auth"); err != nil {
 		t.Fatalf("Subscribe() error = %v", err)
 	}
-	if len(repo.upserted) != 1 || repo.upserted[0].Endpoint != "https://ep" {
+	if len(repo.upserted) != 1 || repo.upserted[0].Endpoint != fcmEndpoint {
 		t.Errorf("upserted = %v, want one subscription with endpoint", repo.upserted)
+	}
+}
+
+const fcmEndpoint = "https://fcm.googleapis.com/fcm/send/abc123"
+
+// 推播端點只接受已知推播服務（防 SSRF：伺服器之後會對這個網址發請求）。
+func TestSubscribe_EndpointAllowlist(t *testing.T) {
+	allowed := []string{
+		fcmEndpoint,
+		"https://web.push.apple.com/QGuQyavXutnMH",
+		"https://updates.push.services.mozilla.com/wpush/v2/gAAAA",
+		"https://wns2-par02p.notify.windows.com/w/?token=BQYAAA",
+	}
+	for _, ep := range allowed {
+		repo := &fakePushRepo{}
+		if err := NewSubscribeUC(repo).Subscribe(context.Background(), uuid.New(), ep, "k", "a"); err != nil {
+			t.Errorf("Subscribe(%q) error = %v, want nil", ep, err)
+		}
+	}
+	rejected := []string{
+		"http://fcm.googleapis.com/fcm/send/abc", // 非 https
+		"https://169.254.169.254/computeMetadata/v1/",
+		"https://localhost/x",
+		"https://evil.example.com/fcm.googleapis.com",
+		"https://fcm.googleapis.com.evil.example/x",
+		"https://evilpush.apple.com/x", // 不是 .push.apple.com 子網域
+		"not a url",
+	}
+	for _, ep := range rejected {
+		repo := &fakePushRepo{}
+		err := NewSubscribeUC(repo).Subscribe(context.Background(), uuid.New(), ep, "k", "a")
+		if code := codeOf(err); code != errcode.Param {
+			t.Errorf("Subscribe(%q) code = %v, want Param", ep, code)
+		}
+		if len(repo.upserted) != 0 {
+			t.Errorf("Subscribe(%q) must not upsert", ep)
+		}
 	}
 }
 

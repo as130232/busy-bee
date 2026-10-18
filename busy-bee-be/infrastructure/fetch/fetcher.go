@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
+	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/netguard"
 )
 
 const (
@@ -49,7 +50,8 @@ var _ domainmeeting.AudioFetcher = (*Fetcher)(nil)
 
 func New() *Fetcher {
 	return &Fetcher{
-		http:           &http.Client{Timeout: 10 * time.Minute},
+		// 只能連公開位址（防 SSRF）：連線時檢查實際 IP，轉址後的連線也會檢查。
+		http:           netguard.NewClient(10 * time.Minute),
 		ytdlpPath:      "yt-dlp",
 		tempDir:        os.TempDir(),
 		maxDurationSec: defaultMaxDurationSec,
@@ -62,6 +64,10 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) (domainmeeting.Fetch
 	u, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return domainmeeting.FetchedAudio{}, fmt.Errorf("fetch: 無效的連結")
+	}
+	// yt-dlp 自己連網、掛不上 dialer 檢查，所以先擋解析到內網的 host。
+	if err := netguard.CheckHost(ctx, u.Hostname()); err != nil {
+		return domainmeeting.FetchedAudio{}, fmt.Errorf("fetch: %w", err)
 	}
 	if f.looksDirectAudio(ctx, u) {
 		return f.fetchHTTP(ctx, u)

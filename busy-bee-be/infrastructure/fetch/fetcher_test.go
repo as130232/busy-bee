@@ -2,8 +2,13 @@ package fetch
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/netguard"
 )
 
 func TestFetch_InvalidURL(t *testing.T) {
@@ -35,5 +40,31 @@ func TestLooksDirectAudio_ByExtension(t *testing.T) {
 	u, _ := url.Parse("https://cdn.example.com/ep.mp3")
 	if !f.looksDirectAudio(context.Background(), u) {
 		t.Error("expected .mp3 to be direct audio")
+	}
+}
+
+// SSRF：直接音檔網址指向內網，下載必須被擋。
+func TestFetch_BlocksPrivateDirectAudio(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "audio/mpeg")
+		_, _ = w.Write([]byte("secret"))
+	}))
+	defer srv.Close()
+
+	_, err := New().Fetch(context.Background(), srv.URL+"/a.mp3")
+	if !errors.Is(err, netguard.ErrBlocked) {
+		t.Fatalf("err = %v, want netguard.ErrBlocked", err)
+	}
+}
+
+// SSRF：非音檔網址會交給 yt-dlp；指向內網時必須在呼叫 yt-dlp 前就擋下。
+func TestFetch_BlocksPrivateBeforeYtdlp(t *testing.T) {
+	f := New()
+	f.ytdlpPath = "/nonexistent/yt-dlp-must-not-run"
+	for _, u := range []string{"http://169.254.169.254/computeMetadata/v1/", "http://localhost:8080/page", "http://[::1]/x"} {
+		_, err := f.Fetch(context.Background(), u)
+		if !errors.Is(err, netguard.ErrBlocked) {
+			t.Errorf("Fetch(%q) err = %v, want netguard.ErrBlocked", u, err)
+		}
 	}
 }

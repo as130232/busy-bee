@@ -11,6 +11,7 @@ import (
 	wp "github.com/SherClockHolmes/webpush-go"
 
 	domainpush "github.com/as130232/busy-bee/busy-bee-be/domain/push"
+	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/netguard"
 )
 
 // sendTimeout 單則推播的 HTTP 逾時上界。提醒掃描不經 worker 佇列（無 per-task deadline），
@@ -34,7 +35,8 @@ func New(publicKey, privateKey, subscriberEmail string) *Sender {
 		publicKey:  publicKey,
 		privateKey: privateKey,
 		subscriber: subscriberEmail,
-		httpClient: &http.Client{Timeout: sendTimeout},
+		// endpoint 來自使用者；即使訂閱時已限定網域，送出時仍只連公開位址（防 SSRF 第二道）。
+		httpClient: netguard.NewClient(sendTimeout),
 	}
 }
 
