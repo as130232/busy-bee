@@ -2,7 +2,7 @@
 # --platform=$BUILDPLATFORM：編譯跑在建置機原生架構（Apple Silicon 上為 arm64），
 # 以 GOARCH 交叉編譯目標架構——避免 QEMU 模擬 Go 編譯器（會 panic）。
 # 基底映像釘 digest（多架構 index），避免同一個 tag 被換內容；由 Dependabot 開 PR 更新。
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine@sha256:3082400e369fa24d5fc60bca20edab3f6d604e0c5a690ec66b295eff4dd87ade AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS build
 ARG TARGETARCH
 # 建置資訊注入 /version（GIT_SHA=commit 短碼、BUILT_AT=建置時間 UTC）；未傳時保留程式預設 dev/unknown。
 ARG GIT_SHA=dev
