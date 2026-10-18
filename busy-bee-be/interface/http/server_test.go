@@ -129,3 +129,13 @@ func TestEngine_RejectsOversizedBody(t *testing.T) {
 		t.Fatalf("status = %d, want 413", w.Code)
 	}
 }
+
+// 慢速送 header（Slowloris）會一直占住連線；必須設 header 讀取與閒置逾時。
+// 不設 ReadTimeout / WriteTimeout：WebSocket 是長連線，即時問答也可能超過數十秒。
+func TestNewServer_SetsTimeouts(t *testing.T) {
+	cfg := &config.Config{Server: config.ServerConfig{Env: "local", Port: "8080"}}
+	s := NewServer(cfg, Deps{})
+	if s.ReadHeaderTimeout <= 0 || s.IdleTimeout <= 0 {
+		t.Fatalf("ReadHeaderTimeout = %v, IdleTimeout = %v, want both > 0", s.ReadHeaderTimeout, s.IdleTimeout)
+	}
+}

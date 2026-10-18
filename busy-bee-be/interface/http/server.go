@@ -3,6 +3,7 @@ package http
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -152,5 +153,9 @@ func NewServer(cfg *config.Config, deps Deps) *http.Server {
 	return &http.Server{
 		Addr:    ":" + cfg.Server.Port,
 		Handler: NewEngine(cfg, deps),
+		// 擋慢速送 header 占住連線；不設 ReadTimeout / WriteTimeout（WebSocket 長連線、即時問答較慢），
+		// body 大小由 BodyLimit 限制，整體請求時間由 Cloud Run 300 秒上限兜底。
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 }
