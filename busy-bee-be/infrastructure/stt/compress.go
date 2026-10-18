@@ -37,6 +37,8 @@ func CompressToMP3(ctx context.Context, audio interface{ Read([]byte) (int, erro
 		cleanup()
 		return nil, 0, fmt.Errorf("compress ffmpeg: %w: %s", err, tail(out, 300))
 	}
+	// 原始輸入（最大 200MB）用完即刪，只留壓縮檔；/tmp 在 Cloud Run 上算記憶體。
+	_ = os.Remove(inPath)
 
 	f, err := os.Open(outPath)
 	if err != nil {

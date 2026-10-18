@@ -7,8 +7,10 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/netguard"
+	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/tempslot"
 )
 
 func TestFetch_InvalidURL(t *testing.T) {
@@ -67,4 +69,47 @@ func TestFetch_BlocksPrivateBeforeYtdlp(t *testing.T) {
 			t.Errorf("Fetch(%q) err = %v, want netguard.ErrBlocked", u, err)
 		}
 	}
+}
+
+// 大檔暫存名額被占用時，Fetch 在下載前等待；ctx 到期即放棄，不落地任何檔案。
+func TestFetch_WaitsForTempSlot(t *testing.T) {
+	slots := tempslot.New(1)
+	hold, _ := slots.Acquire(context.Background())
+	defer hold()
+
+	f := New(WithTempSlots(slots))
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := f.Fetch(ctx, "https://203.0.113.10/ep.mp3"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want DeadlineExceeded", err)
+	}
+}
+
+// 名額持有到 Reader.Close（暫存檔刪除）為止。
+func TestFetch_ReleasesSlotOnClose(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("audio"))
+	}))
+	defer srv.Close()
+
+	slots := tempslot.New(1)
+	f := New(WithTempSlots(slots))
+	f.http = srv.Client()
+	f.checkHost = func(context.Context, string) error { return nil } // 測試 server 在 loopback
+
+	got, err := f.Fetch(context.Background(), srv.URL+"/a.mp3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	busy, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if _, err := slots.Acquire(busy); err == nil {
+		t.Fatal("slot must be held until Close")
+	}
+	_ = got.Reader.Close()
+	release, err := slots.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("slot not released after Close: %v", err)
+	}
+	release()
 }

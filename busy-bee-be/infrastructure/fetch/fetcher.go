@@ -22,6 +22,7 @@ import (
 
 	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/netguard"
+	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/tempslot"
 )
 
 const (
@@ -44,19 +45,35 @@ type Fetcher struct {
 	tempDir        string
 	maxDurationSec int
 	maxBytes       int64
+	// slots 大檔暫存名額（與 AI 校正共用）；下載前取得，暫存檔刪除時歸還。
+	slots *tempslot.Slots
+	// checkHost 呼叫前的內網檢查；測試可替換。
+	checkHost func(ctx context.Context, host string) error
 }
 
 var _ domainmeeting.AudioFetcher = (*Fetcher)(nil)
 
-func New() *Fetcher {
-	return &Fetcher{
+type Option func(*Fetcher)
+
+// WithTempSlots 下載前先取得大檔暫存名額，避免多個大檔同時落地 /tmp（Cloud Run 上算記憶體）。
+func WithTempSlots(s *tempslot.Slots) Option {
+	return func(f *Fetcher) { f.slots = s }
+}
+
+func New(opts ...Option) *Fetcher {
+	f := &Fetcher{
 		// 只能連公開位址（防 SSRF）：連線時檢查實際 IP，轉址後的連線也會檢查。
 		http:           netguard.NewClient(10 * time.Minute),
 		ytdlpPath:      "yt-dlp",
 		tempDir:        os.TempDir(),
 		maxDurationSec: defaultMaxDurationSec,
 		maxBytes:       defaultMaxBytes,
+		checkHost:      netguard.CheckHost,
 	}
+	for _, o := range opts {
+		o(f)
+	}
+	return f
 }
 
 // Fetch 驗證 URL 後依型態抓取音訊。回傳的 Reader 於 Close 時清理暫存檔。
@@ -66,13 +83,29 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) (domainmeeting.Fetch
 		return domainmeeting.FetchedAudio{}, fmt.Errorf("fetch: 無效的連結")
 	}
 	// yt-dlp 自己連網、掛不上 dialer 檢查，所以先擋解析到內網的 host。
-	if err := netguard.CheckHost(ctx, u.Hostname()); err != nil {
+	if err := f.checkHost(ctx, u.Hostname()); err != nil {
 		return domainmeeting.FetchedAudio{}, fmt.Errorf("fetch: %w", err)
 	}
-	if f.looksDirectAudio(ctx, u) {
-		return f.fetchHTTP(ctx, u)
+	release, err := f.slots.Acquire(ctx)
+	if err != nil {
+		return domainmeeting.FetchedAudio{}, fmt.Errorf("fetch wait temp slot: %w", err)
 	}
-	return f.fetchYtdlp(ctx, rawURL)
+	var out domainmeeting.FetchedAudio
+	if f.looksDirectAudio(ctx, u) {
+		out, err = f.fetchHTTP(ctx, u)
+	} else {
+		out, err = f.fetchYtdlp(ctx, rawURL)
+	}
+	if err != nil {
+		release()
+		return out, err
+	}
+	if tr, ok := out.Reader.(*tempReader); ok {
+		tr.release = release
+	} else {
+		release()
+	}
+	return out, nil
 }
 
 // looksDirectAudio 副檔名為音檔即判定；否則 HEAD 檢查 content-type 是否 audio/*。
@@ -216,11 +249,15 @@ func cleanup(f *os.File) {
 // tempReader 是暫存檔的 ReadCloser，Close 時一併刪檔（避免 /tmp 累積）。
 type tempReader struct {
 	*os.File
+	release func() // 歸還大檔暫存名額；可為 nil
 }
 
 func (t *tempReader) Close() error {
 	name := t.File.Name()
 	err := t.File.Close()
 	_ = os.Remove(name)
+	if t.release != nil {
+		t.release()
+	}
 	return err
 }

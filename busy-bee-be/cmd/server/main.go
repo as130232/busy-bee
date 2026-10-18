@@ -26,6 +26,7 @@ import (
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/llm"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/queue"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/stt"
+	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/tempslot"
 	"github.com/as130232/busy-bee/busy-bee-be/infrastructure/webpush"
 	httpserver "github.com/as130232/busy-bee/busy-bee-be/interface/http"
 	actionitemhandler "github.com/as130232/busy-bee/busy-bee-be/interface/http/handler/actionitem"
@@ -103,8 +104,10 @@ func main() {
 	// 記憶體佇列（ADR-010）：worker 與 HTTP 同 binary；重啟遺失由 Sweeper 掃 DB 復原
 	// STT 用 Deepgram（聲學語者分離，一個聲音＝一位講者，較 LLM 推測式穩定）。
 	sttClient := stt.NewDeepgram(cfg.Deepgram.APIKey, cfg.Deepgram.Model, cfg.Deepgram.Language, cfg.Deepgram.Keywords)
+	// 大檔暫存名額：/tmp 在 Cloud Run 上算記憶體（512Mi），貼連結下載與 AI 校正壓縮共用，同時只落地一個大檔
+	bigTempSlots := tempslot.New(1)
 	// 匯入來源音訊抓取（貼連結：直接音檔/Podcast 走 HTTP，YouTube 走 yt-dlp）
-	audioFetcher := fetch.New()
+	audioFetcher := fetch.New(fetch.WithTempSlots(bigTempSlots))
 	// 會前資料（F-LIVE）：處理管線、AI 校正與即時會議共用
 	contextRepo := db.NewMeetingContextRepo(pool)
 	processUC := appmeeting.NewProcessUC(appmeeting.ProcessDeps{
@@ -128,7 +131,7 @@ func main() {
 		Repo: correctionRepo, Meetings: meetingRepo, Storage: audioStorage,
 		Clipper: stt.FFmpegClipper{}, Corrector: llmClient, Summarizer: llmClient,
 		Extractor: llmClient, Items: actionItemRepo, Indexer: indexUC, Notifier: hub,
-		Contexts: contextRepo, Compress: stt.CompressToTempFile,
+		Contexts: contextRepo, Compress: bigTempSlots.GuardTempFile(stt.CompressToTempFile),
 	})
 	correctionQueue := queue.NewMemory(64, cfg.Worker.TaskTimeout, queue.DefaultRetryDelays)
 	correctionQueue.Start(ctx, 1, executeCorrection.Execute, executeCorrection.MarkFailed)

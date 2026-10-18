@@ -67,6 +67,10 @@ func TestCompressToTempFile(t *testing.T) {
 	if d := probeSeconds(t, p); d < 2.8 || d > 3.2 {
 		t.Errorf("長度 = %.2fs", d)
 	}
+	// 壓縮完成後原始輸入檔要立刻刪掉，只留壓縮後的檔案（/tmp 在 Cloud Run 上算記憶體）。
+	if entries, _ := os.ReadDir(filepath.Dir(p)); len(entries) != 1 {
+		t.Errorf("暫存目錄應只剩壓縮檔，got %d 個檔案", len(entries))
+	}
 	cleanup()
 	if _, err := os.Stat(p); !os.IsNotExist(err) {
 		t.Error("cleanup 後暫存檔應刪除")
