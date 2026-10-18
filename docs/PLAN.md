@@ -7,7 +7,7 @@
 
 ## 當前焦點
 
-**2026-10-18 Phase 31 前端設計刷新、Phase 32 後端上線稽核修正已合併 main**（部署中）。Phase 31 剩亮暗兩主題 × 手機／桌機的目視驗收（31.4）；Phase 32 剩部署後確認（32.10）。
+**2026-10-18 Phase 31 前端設計刷新、Phase 32 後端上線稽核修正已部署 production**（`0a8a723` 起，CI 含 govulncheck 全綠）。Phase 31 剩亮暗兩主題 × 手機／桌機的目視驗收（31.4）；Phase 32 剩 Android/iOS 推播訂閱實機確認（32.10）與 32.9 待決項目；Dependabot PR #1–#4 待評估。
 
 **Phase 30 即時會議助理（F-LIVE）已部署 production**（2026-10-15，`779c0eb`；Cloud Run 已改用 Deepgram secret v2）。
 
@@ -591,9 +591,9 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 - 32.5 ✅ B5 白名單只認 `email_verified=true`（HTTP 與 WebSocket）`7dd172b`
 - 32.6 ✅ B6 推播訂閱刪除須比對 user_id；log 改記 subscription_id `260b260`
 - 32.7 ✅ B7 正式環境漏設 `FRONTEND_ORIGINS` 啟動即 log `config.insecure`；正式環境已由使用者設定 `5b0f922`
-- 32.8 ✅ B8 http.Server `ReadHeaderTimeout`／`IdleTimeout`；基底映像釘 digest＋Dependabot；CI 加 govulncheck（不擋部署）`f83b0ba`／`8d32349`／`e39f966`
+- 32.8 ✅ B8 http.Server `ReadHeaderTimeout`／`IdleTimeout`；基底映像釘 digest＋Dependabot；CI 加 govulncheck（不擋部署）`f83b0ba`／`8d32349`／`e39f966`；govulncheck 抓到的模組漏洞已升級（x/net、grpc、otel、quic-go 等），`go` 指令對齊正式 image 的 1.26.9 `0a8a723`；CI setup-go 啟用模組快取 `2988435`
 - 32.9 ⬜ 未做（待決）：yt-dlp 改 pip 釘版（apk 版 2025.11.12 落後，新版 YouTube 需 deno）、golangci-lint 進 CI、Neon 備份還原演練、各供應商預算警示、Cloud Run 與 Neon 跨區
-- 32.10 ⬜ 部署後確認：`/version` commit、啟動 log 無 `config.insecure`、govulncheck job 結果、Android/iOS 推播訂閱仍可成功
+- 32.10 🔄 部署後確認：`/version` 回 `0a8a723`、啟動 log 無 `config.insecure`、govulncheck job 綠燈（皆 2026-10-18 確認）；剩 Android/iOS 推播訂閱實機確認
 
 ---
 
@@ -601,6 +601,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
+| 2026-10-18 | **Phase 32 收尾**：govulncheck 首跑紅燈——stdlib 項目是 CI 用舊版 Go 的誤報（正式 image 為 1.26.9），模組漏洞屬實並升級；CI setup-go 啟用模組快取。部署後確認 `/version`、啟動 log、govulncheck 皆通過 | `0a8a723`、`2988435` |
 | 2026-10-18 | **Phase 32 後端上線稽核修正**：`/backend-launch-audit` 結論「尚無法確認可發布」（無阻斷；缺備份還原與依賴掃描證據），使用者授權修 B1–B8，全數 TDD。因另一個 session 共用工作目錄切換分支，後端 commit 曾落在 `feat/fe-design-refresh`，已 cherry-pick 回 `fix/launch-audit` 後依序合併文件升級、稽核修正、Phase 31 | `6e4ef53..e39f966` |
 | 2026-10-18 | **Phase 31 前端設計刷新**：以設計師角度審查全部頁面（結論：底子佳、收斂＋補系統即可），使用者選 A+B+C 全做、主按鈕深字配琥珀底。另一個 session 共用工作目錄並切換分支，導致原分支 `feat/fe-design-refresh` 混入後端 commit → 改在 worktree 從 main 開 `feat/fe-design` 並 cherry-pick 三個前端 commit。前端 111 測試全綠 | `407af63..e2a070b` |
 | 2026-10-15 | **Phase 30 即時會議助理程式完成**：brainstorming 拆子專案（A 即時會議／B 面試助理）→ spec → 實測 Deepgram 串流（nova-3 zh-TW 可用）→ 後端資料層/API/會前資料/會後帶入、前端 live 模組與頁面（皆 TDD）。後端全綠、前端 108 測試全綠。發現 Deepgram 金鑰需 Member 權限才能簽短效金鑰 | `a634051..d9d2de4` |
