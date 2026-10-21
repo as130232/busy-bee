@@ -33,8 +33,8 @@ const NOTES_MANUAL_GAP_MS = 15_000
 /** 每秒量一次錄音峰值；連續 SILENCE_WARN_MS 都低於門檻視為「錄不到聲音」。 */
 const SILENCE_CHECK_MS = 1000
 const SILENCE_WARN_MS = 15_000
-/** 約 -54 dBFS：安靜房間的底噪也會超過，只有真正的數位靜音（如音訊未啟動）會低於。 */
-const SILENCE_PEAK = 0.002
+/** 約 -66 dBFS：麥克風底噪（含瀏覽器降噪後）通常仍高於此；只有真正的數位靜音（如音訊未啟動）會低於。 */
+const SILENCE_PEAK = 0.0005
 
 export type Who = 'remote' | 'local'
 

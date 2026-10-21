@@ -393,7 +393,7 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
   5. 會前資料（`meeting_contexts`）轉純文字後放 prompt 最前面（隱性快取），並抽術語合併進 Deepgram keyterm；會後摘要、行動項、AI 校正也帶入，附「只用來理解、內容只能來自逐字稿」規則；無資料時 prompt 不變。
   6. 錄音另以混音 MediaRecorder（32 kbps）每 10 秒寫入 IndexedDB，分頁意外關閉可救回上傳。
   7. 音訊來源抽象 `AudioSource`（v1 `MeetTabSource`），之後 Teams 桌面版新增來源即可。
-  8. （Phase 33）無聲偵測：每秒以 AnalyserNode 量混音錄音峰值，連續 15 秒低於約 -54 dBFS 顯示提醒、有聲音即解除；第一次觸發時隨心跳帶 `diagnostics`（AudioContext 狀態、音軌 readyState/muted、PCM 音框數、峰值 dB）寫 log `live.audio_diagnostics`，用來分辨分頁沒聲音／麥克風無訊號／瀏覽器音訊未啟動。只有狀態、不含音訊內容。
+  8. （Phase 33）無聲偵測：每秒以 AnalyserNode 量混音錄音峰值，連續 15 秒低於約 -66 dBFS 顯示提醒、有聲音即解除；第一次觸發時隨心跳帶 `diagnostics`（AudioContext 狀態、音軌 readyState/muted、PCM 音框數、峰值 dB）寫 log `live.audio_diagnostics`，用來分辨分頁沒聲音／麥克風無訊號／瀏覽器音訊未啟動。只有狀態、不含音訊內容。
 - **替代方案**：後端 WS 代轉 Deepgram（整場會議 instance 醒著、60 分鐘斷線，否決）；Gemini Live API 直接聽音訊（中文逐字稿與講者標示較差、按音訊 token 計費較貴、難控制更新頻率，否決）；`/live/ask` 用 SSE 串流（Firebase Hosting 轉 Cloud Run 是否緩衝未證實，v1 改一般請求，答案約 2–5 秒）。
 - **實測（2026-10-15）**：nova-3 `language=zh-TW` 串流可用且輸出繁體；nova-2 zh-TW 串流連線失敗 → 串流模型獨立設定 `DEEPGRAM_LIVE_MODEL`（預設 nova-3）。Gemini 即時重點約 1.8 秒、提問約 4.6 秒。
 

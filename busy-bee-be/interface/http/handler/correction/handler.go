@@ -3,6 +3,8 @@ package correction
 
 import (
 	"context"
+	"errors"
+	"io"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -49,11 +51,9 @@ func (h *Handler) Get(c *gin.Context) { h.run(c, h.get) }
 // body 選填：{replacements: [{from, to}], note}（錯字對照與補充說明，只用於校正、不進報告）；無 body 等同不補充。
 func (h *Handler) Start(c *gin.Context) {
 	var g domaincorrection.Guidance
-	if c.Request.ContentLength != 0 {
-		if err := c.ShouldBindJSON(&g); err != nil {
-			response.Fail(c, apperr.Wrap(err, errcode.Param, "body"))
-			return
-		}
+	if err := c.ShouldBindJSON(&g); err != nil && !errors.Is(err, io.EOF) { // 空 body = 不補充
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "body"))
+		return
 	}
 	h.run(c, stateFunc(func(ctx context.Context, userID, meetingID uuid.UUID) (domaincorrection.State, error) {
 		return h.start.Execute(ctx, userID, meetingID, g)
