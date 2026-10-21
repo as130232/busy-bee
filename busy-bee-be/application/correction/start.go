@@ -13,7 +13,7 @@ import (
 	"github.com/as130232/busy-bee/busy-bee-be/pkg/consts/errcode"
 )
 
-// StartUC 建立 AI 校正：驗證可校正 → 原子寫快照與 queued 紀錄 → 排入校正佇列。
+// StartUC 建立 AI 校正：驗證可校正與使用者補充 → 原子寫快照、補充與 queued 紀錄 → 排入校正佇列。
 type StartUC struct {
 	meetings MeetingReader
 	repo     correction.Repository
@@ -24,7 +24,11 @@ func NewStartUC(meetings MeetingReader, repo correction.Repository, queue Queue)
 	return &StartUC{meetings: meetings, repo: repo, queue: queue}
 }
 
-func (uc *StartUC) Execute(ctx context.Context, userID, meetingID uuid.UUID) (correction.State, error) {
+func (uc *StartUC) Execute(ctx context.Context, userID, meetingID uuid.UUID, g correction.Guidance) (correction.State, error) {
+	g, ok := g.Normalize()
+	if !ok {
+		return correction.State{}, apperr.New(errcode.Param, "guidance")
+	}
 	m, err := uc.meetings.GetForUser(ctx, meetingID, userID)
 	if err != nil {
 		if errors.Is(err, meeting.ErrNotFound) {
@@ -38,7 +42,7 @@ func (uc *StartUC) Execute(ctx context.Context, userID, meetingID uuid.UUID) (co
 	c, err := uc.repo.CreateWithSnapshot(ctx, m.ID, userID, correction.Snapshot{
 		Segments: m.TranscriptSegments, Transcript: m.Transcript,
 		SummarySections: m.SummarySections, Summary: m.Summary,
-	})
+	}, g)
 	switch {
 	case errors.Is(err, correction.ErrStatusConflict):
 		return correction.State{}, apperr.New(errcode.CorrectionLimitReached)

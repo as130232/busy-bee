@@ -19,11 +19,17 @@ type stateUC interface {
 	Execute(ctx context.Context, userID, meetingID uuid.UUID) (domaincorrection.State, error)
 }
 
-type Handler struct {
-	get, start, revert stateUC
+// startUC 開始校正，多帶使用者校正前的選填補充。
+type startUC interface {
+	Execute(ctx context.Context, userID, meetingID uuid.UUID, g domaincorrection.Guidance) (domaincorrection.State, error)
 }
 
-func NewHandler(get, start, revert stateUC) *Handler {
+type Handler struct {
+	get, revert stateUC
+	start       startUC
+}
+
+func NewHandler(get stateUC, start startUC, revert stateUC) *Handler {
 	return &Handler{get: get, start: start, revert: revert}
 }
 
@@ -40,7 +46,26 @@ type stateResponse struct {
 func (h *Handler) Get(c *gin.Context) { h.run(c, h.get) }
 
 // Start POST /api/v1/meetings/:id/correction — 建立 AI 校正並排入背景處理。
-func (h *Handler) Start(c *gin.Context) { h.run(c, h.start) }
+// body 選填：{replacements: [{from, to}], note}（錯字對照與補充說明，只用於校正、不進報告）；無 body 等同不補充。
+func (h *Handler) Start(c *gin.Context) {
+	var g domaincorrection.Guidance
+	if c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&g); err != nil {
+			response.Fail(c, apperr.Wrap(err, errcode.Param, "body"))
+			return
+		}
+	}
+	h.run(c, stateFunc(func(ctx context.Context, userID, meetingID uuid.UUID) (domaincorrection.State, error) {
+		return h.start.Execute(ctx, userID, meetingID, g)
+	}))
+}
+
+// stateFunc 讓閉包滿足 stateUC。
+type stateFunc func(ctx context.Context, userID, meetingID uuid.UUID) (domaincorrection.State, error)
+
+func (f stateFunc) Execute(ctx context.Context, userID, meetingID uuid.UUID) (domaincorrection.State, error) {
+	return f(ctx, userID, meetingID)
+}
 
 // Revert POST /api/v1/meetings/:id/correction/revert — 整份還原最新一次已完成的校正。
 func (h *Handler) Revert(c *gin.Context) { h.run(c, h.revert) }

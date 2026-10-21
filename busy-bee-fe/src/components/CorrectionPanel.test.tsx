@@ -86,6 +86,33 @@ describe('CorrectionPanel', () => {
     expect(await screen.findByText(/校正中/)).toBeInTheDocument()
   })
 
+  it('可選填錯字對照與補充說明，送出時一併帶給 API（並說明不會寫進報告）', async () => {
+    getMock.mockResolvedValue({ correction: state() })
+    startMock.mockResolvedValue({ correction: state({ status: 'queued', attemptsUsed: 1 }) })
+    render(<CorrectionPanel meeting={meeting()} onChanged={() => {}} startSignal={1} />)
+    await userEvent.click(await screen.findByRole('button', { name: '補充給 AI（選填）' }))
+    expect(screen.getByText(/不會寫進報告/)).toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText('錯字 1'), 'DBA')
+    await userEvent.type(screen.getByLabelText('正確寫法 1'), 'DVA')
+    await userEvent.click(screen.getByRole('button', { name: '新增一組' }))
+    await userEvent.type(screen.getByLabelText('補充說明'), '內部報告代號')
+    await userEvent.click(screen.getByRole('button', { name: '開始校正' }))
+    expect(startMock).toHaveBeenCalledWith('tok', 'm1', {
+      replacements: [{ from: 'DBA', to: 'DVA' }],
+      note: '內部報告代號',
+    })
+  })
+
+  it('錯字對照只填一邊時提示，不送出', async () => {
+    getMock.mockResolvedValue({ correction: state() })
+    render(<CorrectionPanel meeting={meeting()} onChanged={() => {}} startSignal={1} />)
+    await userEvent.click(await screen.findByRole('button', { name: '補充給 AI（選填）' }))
+    await userEvent.type(screen.getByLabelText('錯字 1'), 'DBA')
+    await userEvent.click(screen.getByRole('button', { name: '開始校正' }))
+    expect(screen.getByText('錯字對照請兩邊都填，或清空該列')).toBeInTheDocument()
+    expect(startMock).not.toHaveBeenCalled()
+  })
+
   it('紀錄未完成時不渲染', async () => {
     getMock.mockResolvedValue({ correction: state() })
     const { container } = render(<CorrectionPanel meeting={{ ...meeting(), status: 'analyzing' } as MeetingDetail} onChanged={() => {}} />)

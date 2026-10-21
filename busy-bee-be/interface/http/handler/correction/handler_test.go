@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -28,9 +29,20 @@ func (f *fakeUC) Execute(_ context.Context, userID, meetingID uuid.UUID) (domain
 	return f.state, f.err
 }
 
+// fakeStartUC 開始校正多帶使用者補充。
+type fakeStartUC struct {
+	fakeUC
+	gotGuidance domaincorrection.Guidance
+}
+
+func (f *fakeStartUC) Execute(ctx context.Context, userID, meetingID uuid.UUID, g domaincorrection.Guidance) (domaincorrection.State, error) {
+	f.gotGuidance = g
+	return f.fakeUC.Execute(ctx, userID, meetingID)
+}
+
 var testUserID = uuid.New()
 
-func router(get, start, revert *fakeUC) *gin.Engine {
+func router(get *fakeUC, start *fakeStartUC, revert *fakeUC) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	e := gin.New()
 	e.Use(func(c *gin.Context) {
@@ -58,8 +70,17 @@ type envelope struct {
 
 func do(t *testing.T, e *gin.Engine, method, path string) (*httptest.ResponseRecorder, envelope) {
 	t.Helper()
+	return doBody(t, e, method, path, "")
+}
+
+func doBody(t *testing.T, e *gin.Engine, method, path, body string) (*httptest.ResponseRecorder, envelope) {
+	t.Helper()
 	w := httptest.NewRecorder()
-	e.ServeHTTP(w, httptest.NewRequest(method, path, nil))
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	e.ServeHTTP(w, req)
 	var env envelope
 	if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
 		t.Fatalf("invalid JSON %s: %v", w.Body.String(), err)
@@ -68,7 +89,7 @@ func do(t *testing.T, e *gin.Engine, method, path string) (*httptest.ResponseRec
 }
 
 func TestStart_Returns200WithState(t *testing.T) {
-	start := &fakeUC{state: domaincorrection.State{Status: domaincorrection.StatusQueued, AttemptsUsed: 1}}
+	start := &fakeStartUC{fakeUC: fakeUC{state: domaincorrection.State{Status: domaincorrection.StatusQueued, AttemptsUsed: 1}}}
 	mid := uuid.New()
 	w, env := do(t, router(&fakeUC{}, start, &fakeUC{}), http.MethodPost, "/meetings/"+mid.String()+"/correction")
 	if w.Code != http.StatusOK {
@@ -84,7 +105,7 @@ func TestStart_Returns200WithState(t *testing.T) {
 }
 
 func TestStart_LimitReachedMaps409(t *testing.T) {
-	start := &fakeUC{err: apperr.New(errcode.CorrectionLimitReached)}
+	start := &fakeStartUC{fakeUC: fakeUC{err: apperr.New(errcode.CorrectionLimitReached)}}
 	w, env := do(t, router(&fakeUC{}, start, &fakeUC{}), http.MethodPost, "/meetings/"+uuid.NewString()+"/correction")
 	if w.Code != http.StatusConflict || env.ErrCode != int(errcode.CorrectionLimitReached) {
 		t.Errorf("status = %d errCode = %d", w.Code, env.ErrCode)
@@ -92,7 +113,7 @@ func TestStart_LimitReachedMaps409(t *testing.T) {
 }
 
 func TestGet_EmptyStateHasEmptyStatus(t *testing.T) {
-	w, env := do(t, router(&fakeUC{}, &fakeUC{}, &fakeUC{}), http.MethodGet, "/meetings/"+uuid.NewString()+"/correction")
+	w, env := do(t, router(&fakeUC{}, &fakeStartUC{}, &fakeUC{}), http.MethodGet, "/meetings/"+uuid.NewString()+"/correction")
 	if w.Code != http.StatusOK || env.Data.Correction.Status != "" || env.Data.Correction.AttemptsMax != 2 {
 		t.Errorf("status = %d correction = %+v", w.Code, env.Data.Correction)
 	}
@@ -100,14 +121,34 @@ func TestGet_EmptyStateHasEmptyStatus(t *testing.T) {
 
 func TestRevert_RoutesToRevertUC(t *testing.T) {
 	revert := &fakeUC{state: domaincorrection.State{Status: domaincorrection.StatusReverted, AttemptsUsed: 1}}
-	w, env := do(t, router(&fakeUC{}, &fakeUC{}, revert), http.MethodPost, "/meetings/"+uuid.NewString()+"/correction/revert")
+	w, env := do(t, router(&fakeUC{}, &fakeStartUC{}, revert), http.MethodPost, "/meetings/"+uuid.NewString()+"/correction/revert")
 	if w.Code != http.StatusOK || env.Data.Correction.Status != "reverted" {
 		t.Errorf("status = %d correction = %+v", w.Code, env.Data.Correction)
 	}
 }
 
 func TestGet_InvalidIDIs400(t *testing.T) {
-	w, _ := do(t, router(&fakeUC{}, &fakeUC{}, &fakeUC{}), http.MethodGet, "/meetings/abc/correction")
+	w, _ := do(t, router(&fakeUC{}, &fakeStartUC{}, &fakeUC{}), http.MethodGet, "/meetings/abc/correction")
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d", w.Code)
+	}
+}
+
+func TestStart_PassesGuidance(t *testing.T) {
+	start := &fakeStartUC{}
+	w, _ := doBody(t, router(&fakeUC{}, start, &fakeUC{}), http.MethodPost, "/meetings/"+uuid.NewString()+"/correction",
+		`{"replacements":[{"from":"DBA","to":"DVA"}],"note":"內部代號"}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
+	}
+	g := start.gotGuidance
+	if len(g.Replacements) != 1 || g.Replacements[0].From != "DBA" || g.Note != "內部代號" {
+		t.Errorf("guidance = %+v", g)
+	}
+}
+
+func TestStart_InvalidBodyIs400(t *testing.T) {
+	w, _ := doBody(t, router(&fakeUC{}, &fakeStartUC{}, &fakeUC{}), http.MethodPost, "/meetings/"+uuid.NewString()+"/correction", `{"note":`)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d", w.Code)
 	}

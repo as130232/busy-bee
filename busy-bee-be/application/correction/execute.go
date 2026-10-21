@@ -86,11 +86,13 @@ func (uc *ExecuteUC) Execute(ctx context.Context, id uuid.UUID) error {
 	}
 
 	// 切段以快照 segments 為準（索引穩定）；套用時才讀最新 segments。
-	base := c.Original.Segments
-	all, err := uc.correctAll(ctx, &c, m.AudioGCSPath, base, bg)
+	// 使用者的錯字對照先套在快照上再送模型；模型輸出再套一次，確保對照一定生效。
+	base := c.Guidance.Apply(c.Original.Segments)
+	llmPatches, err := uc.correctAll(ctx, &c, m.AudioGCSPath, base, bg)
 	if err != nil {
 		return err
 	}
+	all := GuidancePatches(c.Original.Segments, base, llmPatches, c.Guidance)
 
 	m, err = uc.d.Meetings.GetForUser(ctx, c.MeetingID, c.UserID) // 重讀：校正期間的人工編輯優先
 	if err != nil {
@@ -143,7 +145,7 @@ func (uc *ExecuteUC) correctAll(ctx context.Context, c *correction.Correction, a
 			defer cleanup()
 			fullAudio = p
 		}
-		patches, err := uc.correctChunk(ctx, fullAudio, base, all, ch, bg)
+		patches, err := uc.correctChunk(ctx, fullAudio, base, all, ch, bg, c.Guidance)
 		if err != nil {
 			return nil, err
 		}
@@ -171,7 +173,7 @@ func (uc *ExecuteUC) prepareAudio(ctx context.Context, objectPath string) (strin
 
 // correctChunk 剪片段 → 組上下文（上一段結尾，已套用先前 patch）與待校正段 → 呼叫模型 → 驗證。
 // 模型輸出無法解析時視為該段無修改（不重試）；其他錯誤回傳讓佇列重試。
-func (uc *ExecuteUC) correctChunk(ctx context.Context, audioPath string, base []meeting.TranscriptSegment, prior []correction.Patch, ch correction.Chunk, bg string) ([]correction.Patch, error) {
+func (uc *ExecuteUC) correctChunk(ctx context.Context, audioPath string, base []meeting.TranscriptSegment, prior []correction.Patch, ch correction.Chunk, bg string, g correction.Guidance) ([]correction.Patch, error) {
 	clipPath, cleanup, err := uc.d.Clipper.CutClip(ctx, audioPath, ch.ClipFromMs, ch.ClipToMs)
 	if err != nil {
 		return nil, fmt.Errorf("correction cut clip %d: %w", ch.Index, err)
@@ -190,6 +192,8 @@ func (uc *ExecuteUC) correctChunk(ctx context.Context, audioPath string, base []
 		ClipStartMs: ch.ClipFromMs,
 		Context:     patched[max(0, ch.First-contextSegments):ch.First],
 		Background:  bg,
+		Terms:       g.Replacements,
+		Note:        g.Note,
 	}
 	for i := ch.First; i <= ch.Last; i++ {
 		in.Segments = append(in.Segments, correction.IndexedSegment{I: i, Segment: base[i], Locked: base[i].ManuallyEdited})

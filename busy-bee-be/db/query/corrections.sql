@@ -1,8 +1,8 @@
 -- name: InsertCorrection :one
 INSERT INTO transcript_corrections (
     meeting_id, user_id, attempt, original_segments, original_transcript,
-    original_summary_sections, original_summary)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+    original_summary_sections, original_summary, guidance)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: GetCorrection :one

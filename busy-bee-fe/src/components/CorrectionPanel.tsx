@@ -8,6 +8,8 @@ import {
   type MeetingDetail,
 } from '../services/api/client'
 import { useApiCall } from '../hooks/useApiCall'
+import { CorrectionGuidanceFields } from './CorrectionGuidanceFields'
+import { emptyGuidanceDraft, toGuidance, type GuidanceDraft } from './correctionGuidance'
 import { Sheet } from './Sheet'
 
 /** 低信心比例達此門檻時建議使用者校正。 */
@@ -33,6 +35,9 @@ export function CorrectionPanel({
   const [confirming, setConfirming] = useState<null | 'start' | 'revert'>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [guidanceOpen, setGuidanceOpen] = useState(false)
+  const [guidance, setGuidance] = useState<GuidanceDraft>(emptyGuidanceDraft)
+  const [guidanceError, setGuidanceError] = useState<string | null>(null)
 
   const completed = meeting.status === 'completed'
   const refresh = useCallback(async () => {
@@ -52,10 +57,19 @@ export function CorrectionPanel({
   }, [startSignal])
 
   const start = useCallback(async () => {
+    const { guidance: g, error: gErr } = toGuidance(guidance)
+    if (gErr) {
+      setGuidanceError(gErr)
+      return
+    }
+    setGuidanceError(null)
     setBusy(true)
     setError(null)
     try {
-      setState((await call(startCorrection, meeting.id)).correction)
+      const res = g ? await call(startCorrection, meeting.id, g) : await call(startCorrection, meeting.id)
+      setState(res.correction)
+      setGuidance(emptyGuidanceDraft())
+      setGuidanceOpen(false)
     } catch (e) {
       // 例如另一台裝置已開始校正或次數已用完：提示並以伺服器狀態為準
       setError(e instanceof Error ? e.message : '無法開始校正')
@@ -64,7 +78,7 @@ export function CorrectionPanel({
       setConfirming(null)
       setBusy(false)
     }
-  }, [call, meeting.id, refresh])
+  }, [call, meeting.id, refresh, guidance])
 
   const revert = useCallback(async () => {
     setBusy(true)
@@ -132,6 +146,30 @@ export function CorrectionPanel({
           </p>
           <p className="mt-1 text-xs leading-5 text-muted">新版之前手動修改過的段落無法辨識，可能會被校正。</p>
           <p className="m-0 text-xs text-muted">{`已使用 ${state.attemptsUsed}/${state.attemptsMax} 次`}</p>
+          {guidanceOpen ? (
+            <CorrectionGuidanceFields
+              draft={guidance}
+              disabled={busy}
+              onChange={(d) => {
+                setGuidanceError(null)
+                setGuidance(d)
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              className="self-start text-sm text-accent"
+              disabled={busy || running || exhausted}
+              onClick={() => setGuidanceOpen(true)}
+            >
+              補充給 AI（選填）
+            </button>
+          )}
+          {guidanceError && (
+            <p role="alert" className="m-0 text-xs text-danger">
+              {guidanceError}
+            </p>
+          )}
           <button
             type="button"
             className="btn btn-primary mt-1 h-10 w-full"

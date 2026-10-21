@@ -25,24 +25,24 @@ func TestCorrectionRepo_CreateLimitsAndActive(t *testing.T) {
 	repo := NewCorrectionRepo(pool)
 	snap := domaincorrection.Snapshot{Transcript: "t"}
 
-	c1, err := repo.CreateWithSnapshot(ctx, m.ID, u.ID, snap)
+	c1, err := repo.CreateWithSnapshot(ctx, m.ID, u.ID, snap, domaincorrection.Guidance{})
 	if err != nil || c1.Attempt != 1 || c1.Status != domaincorrection.StatusQueued {
 		t.Fatalf("first create = %+v err %v", c1, err)
 	}
-	if _, err := repo.CreateWithSnapshot(ctx, m.ID, u.ID, snap); !errors.Is(err, domaincorrection.ErrActiveExists) {
+	if _, err := repo.CreateWithSnapshot(ctx, m.ID, u.ID, snap, domaincorrection.Guidance{}); !errors.Is(err, domaincorrection.ErrActiveExists) {
 		t.Fatalf("進行中再建立應 ErrActiveExists，got %v", err)
 	}
 	if _, err := repo.UpdateStatus(ctx, c1.ID, domaincorrection.StatusQueued, domaincorrection.StatusFailed, "x"); err != nil {
 		t.Fatalf("fail c1: %v", err)
 	}
-	c2, err := repo.CreateWithSnapshot(ctx, m.ID, u.ID, snap)
+	c2, err := repo.CreateWithSnapshot(ctx, m.ID, u.ID, snap, domaincorrection.Guidance{})
 	if err != nil || c2.Attempt != 2 {
 		t.Fatalf("second create = %+v err %v", c2, err)
 	}
 	if _, err := repo.UpdateStatus(ctx, c2.ID, domaincorrection.StatusQueued, domaincorrection.StatusFailed, "x"); err != nil {
 		t.Fatalf("fail c2: %v", err)
 	}
-	if _, err := repo.CreateWithSnapshot(ctx, m.ID, u.ID, snap); !errors.Is(err, domaincorrection.ErrStatusConflict) {
+	if _, err := repo.CreateWithSnapshot(ctx, m.ID, u.ID, snap, domaincorrection.Guidance{}); !errors.Is(err, domaincorrection.ErrStatusConflict) {
 		t.Fatalf("超過上限應 ErrStatusConflict，got %v", err)
 	}
 	if n, _ := repo.CountForMeeting(ctx, m.ID, u.ID); n != 2 {
@@ -84,7 +84,7 @@ func TestCorrectionRepo_ApplyAndRevert(t *testing.T) {
 
 	c, err := repo.CreateWithSnapshot(ctx, m.ID, u.ID, domaincorrection.Snapshot{
 		Segments: origSegs, Transcript: "A: 小娃", SummarySections: origSecs, Summary: "舊",
-	})
+	}, domaincorrection.Guidance{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestCorrectionRepo_ApplyAndRevertRespectConcurrentUserChanges(t *testing.T)
 	}
 	ai, _ := items.Insert(ctx, m.ID, u.ID, domainactionitem.Extracted{Description: "AI 項"}, 0)
 
-	c, _ := repo.CreateWithSnapshot(ctx, m.ID, u.ID, domaincorrection.Snapshot{Segments: orig, Transcript: "x"})
+	c, _ := repo.CreateWithSnapshot(ctx, m.ID, u.ID, domaincorrection.Snapshot{Segments: orig, Transcript: "x"}, domaincorrection.Guidance{})
 	c, _ = repo.UpdateStatus(ctx, c.ID, domaincorrection.StatusQueued, domaincorrection.StatusRunning, "")
 
 	// worker 讀完後、寫回前：使用者手改段落 1、勾選 AI 項
@@ -223,5 +223,29 @@ func TestCorrectionRepo_ApplyAndRevertRespectConcurrentUserChanges(t *testing.T)
 	}
 	if got.Transcript != "A: 校正後手改\nB: 使用者改的" {
 		t.Errorf("transcript = %q", got.Transcript)
+	}
+}
+
+// 使用者補充隨校正紀錄保存，worker 重試時讀回同樣內容。
+func TestCorrectionRepo_GuidanceRoundTrip(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	u := testUser(t, pool)
+	m, err := NewMeetingRepo(pool).Create(ctx, domainmeeting.Meeting{UserID: u.ID, Title: "補充", Status: domainmeeting.StatusCompleted, Transcript: "t"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := NewCorrectionRepo(pool)
+	g := domaincorrection.Guidance{Replacements: []domainmeeting.ReplaceRule{{From: "DBA", To: "DVA"}}, Note: "內部代號"}
+	c, err := repo.CreateWithSnapshot(ctx, m.ID, u.ID, domaincorrection.Snapshot{Transcript: "t"}, g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := repo.Get(ctx, c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Guidance.Replacements) != 1 || got.Guidance.Replacements[0].To != "DVA" || got.Guidance.Note != "內部代號" {
+		t.Errorf("guidance = %+v", got.Guidance)
 	}
 }

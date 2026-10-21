@@ -811,11 +811,32 @@ paths:
       tags: [meetings]
       summary: 建立 AI 錄音重新校正（背景處理）
       operationId: startCorrection
+      description: |
+        body 選填。錯字對照在送模型前先直接套用（人工修正過的段落除外），模型輸出也會再套用一次；
+        補充說明只放進校正 prompt 幫模型辨認用詞，不送進摘要與行動項、不會寫進報告。
       parameters:
         - name: id
           in: path
           required: true
           schema: { type: string, format: uuid }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                replacements:
+                  type: array
+                  maxItems: 20
+                  description: 錯字對照（兩邊皆空的列略過；只填一邊或兩邊相同回 40001）
+                  items:
+                    type: object
+                    required: [from, to]
+                    properties:
+                      from: { type: string, maxLength: 100 }
+                      to: { type: string, maxLength: 100 }
+                note: { type: string, maxLength: 1000, description: 補充說明（會議背景、專有名詞、哪段有誤） }
       responses:
         "200":
           description: 已建立並排入（status=queued）

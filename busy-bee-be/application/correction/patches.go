@@ -47,3 +47,27 @@ func stripSpeakerPrefix(text, speaker string) string {
 	}
 	return text
 }
+
+// GuidancePatches 合併使用者錯字對照與模型修正（original 為快照，applied 為已套用對照的版本）：
+// 模型有改的段落以模型版本為準並再套一次對照（模型改回原錯字也會被修正），其餘只因對照而變的段落另產生 patch。
+// 每段至多一個 patch；沒有對照時原樣回傳模型修正。
+func GuidancePatches(original, applied []meeting.TranscriptSegment, llm []correction.Patch, g correction.Guidance) []correction.Patch {
+	if len(g.Replacements) == 0 {
+		return llm
+	}
+	byI := make(map[int]string, len(llm))
+	for _, p := range llm {
+		byI[p.I] = g.ApplyText(p.Text)
+	}
+	out := make([]correction.Patch, 0, len(llm))
+	for i := range applied {
+		text, ok := byI[i]
+		if !ok {
+			text = applied[i].Text
+		}
+		if text != original[i].Text {
+			out = append(out, correction.Patch{I: i, Text: text})
+		}
+	}
+	return out
+}

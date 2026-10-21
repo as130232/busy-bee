@@ -32,7 +32,7 @@ func NewCorrectionRepo(pool *pgxpool.Pool) *CorrectionRepo {
 // pgUniqueViolation PostgreSQL unique_violation 錯誤碼。
 const pgUniqueViolation = "23505"
 
-func (r *CorrectionRepo) CreateWithSnapshot(ctx context.Context, meetingID, userID uuid.UUID, snap domaincorrection.Snapshot) (domaincorrection.Correction, error) {
+func (r *CorrectionRepo) CreateWithSnapshot(ctx context.Context, meetingID, userID uuid.UUID, snap domaincorrection.Snapshot, g domaincorrection.Guidance) (domaincorrection.Correction, error) {
 	segJSON, err := json.Marshal(snap.Segments)
 	if err != nil {
 		return domaincorrection.Correction{}, fmt.Errorf("db.CreateCorrection marshal segments: %w", err)
@@ -40,6 +40,10 @@ func (r *CorrectionRepo) CreateWithSnapshot(ctx context.Context, meetingID, user
 	secJSON, err := json.Marshal(snap.SummarySections)
 	if err != nil {
 		return domaincorrection.Correction{}, fmt.Errorf("db.CreateCorrection marshal sections: %w", err)
+	}
+	guidanceJSON, err := json.Marshal(g)
+	if err != nil {
+		return domaincorrection.Correction{}, fmt.Errorf("db.CreateCorrection marshal guidance: %w", err)
 	}
 	var out domaincorrection.Correction
 	err = pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
@@ -55,6 +59,7 @@ func (r *CorrectionRepo) CreateWithSnapshot(ctx context.Context, meetingID, user
 			MeetingID: meetingID, UserID: userID, Attempt: int32(n) + 1,
 			OriginalSegments: segJSON, OriginalTranscript: snap.Transcript,
 			OriginalSummarySections: secJSON, OriginalSummary: snap.Summary,
+			Guidance: guidanceJSON,
 		})
 		if err != nil {
 			var pgErr *pgconn.PgError
@@ -229,6 +234,11 @@ func toDomainCorrection(row sqlcgen.TranscriptCorrection) (domaincorrection.Corr
 	}
 	if err := json.Unmarshal(row.OriginalSummarySections, &c.Original.SummarySections); err != nil {
 		return domaincorrection.Correction{}, fmt.Errorf("db.toDomainCorrection sections: %w", err)
+	}
+	if len(row.Guidance) > 0 { // 欄位 NOT NULL DEFAULT '{}'；空值容忍以防手動組的 row
+		if err := json.Unmarshal(row.Guidance, &c.Guidance); err != nil {
+			return domaincorrection.Correction{}, fmt.Errorf("db.toDomainCorrection guidance: %w", err)
+		}
 	}
 	return c, nil
 }

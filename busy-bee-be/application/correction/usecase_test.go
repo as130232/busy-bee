@@ -23,16 +23,17 @@ import (
 // ---- fakes ----
 
 type fakeRepo struct {
-	mu        sync.Mutex
-	createErr error
-	gotSnap   correction.Snapshot
-	created   correction.Correction
-	stored    map[uuid.UUID]correction.Correction
-	latest    *correction.Correction
-	latestErr error
-	count     int
-	progress  []correction.Progress
-	applied   *correction.Result
+	mu          sync.Mutex
+	createErr   error
+	gotSnap     correction.Snapshot
+	gotGuidance correction.Guidance
+	created     correction.Correction
+	stored      map[uuid.UUID]correction.Correction
+	latest      *correction.Correction
+	latestErr   error
+	count       int
+	progress    []correction.Progress
+	applied     *correction.Result
 	// current 模擬 DB 落庫交易內讀到的當下 segments；appliedSegs 為合併結果
 	current     func() []meeting.TranscriptSegment
 	appliedSegs []meeting.TranscriptSegment
@@ -42,12 +43,12 @@ type fakeRepo struct {
 
 func newFakeRepo() *fakeRepo { return &fakeRepo{stored: map[uuid.UUID]correction.Correction{}} }
 
-func (f *fakeRepo) CreateWithSnapshot(_ context.Context, meetingID, userID uuid.UUID, snap correction.Snapshot) (correction.Correction, error) {
+func (f *fakeRepo) CreateWithSnapshot(_ context.Context, meetingID, userID uuid.UUID, snap correction.Snapshot, g correction.Guidance) (correction.Correction, error) {
 	if f.createErr != nil {
 		return correction.Correction{}, f.createErr
 	}
-	f.gotSnap = snap
-	f.created = correction.Correction{ID: uuid.New(), MeetingID: meetingID, UserID: userID, Attempt: f.count + 1, Status: correction.StatusQueued, Original: snap}
+	f.gotSnap, f.gotGuidance = snap, g
+	f.created = correction.Correction{ID: uuid.New(), MeetingID: meetingID, UserID: userID, Attempt: f.count + 1, Status: correction.StatusQueued, Original: snap, Guidance: g}
 	return f.created, nil
 }
 func (f *fakeRepo) Get(_ context.Context, id uuid.UUID) (correction.Correction, error) {
@@ -236,40 +237,40 @@ func completedMeeting() meeting.Meeting {
 func TestStart_RejectsNotCompleted(t *testing.T) {
 	m := completedMeeting()
 	m.Status = meeting.StatusAnalyzing
-	_, err := NewStartUC(&fakeMeetings{m: m}, newFakeRepo(), &fakeQueue{}).Execute(ctx, uid, mid)
+	_, err := NewStartUC(&fakeMeetings{m: m}, newFakeRepo(), &fakeQueue{}).Execute(ctx, uid, mid, correction.Guidance{})
 	assertErrCode(t, err, errcode.CorrectionNotAllowed)
 }
 
 func TestStart_RejectsNoAudio(t *testing.T) {
 	m := completedMeeting()
 	m.AudioGCSPath = ""
-	_, err := NewStartUC(&fakeMeetings{m: m}, newFakeRepo(), &fakeQueue{}).Execute(ctx, uid, mid)
+	_, err := NewStartUC(&fakeMeetings{m: m}, newFakeRepo(), &fakeQueue{}).Execute(ctx, uid, mid, correction.Guidance{})
 	assertErrCode(t, err, errcode.CorrectionNotAllowed)
 }
 
 func TestStart_NotFound(t *testing.T) {
-	_, err := NewStartUC(&fakeMeetings{err: meeting.ErrNotFound}, newFakeRepo(), &fakeQueue{}).Execute(ctx, uid, mid)
+	_, err := NewStartUC(&fakeMeetings{err: meeting.ErrNotFound}, newFakeRepo(), &fakeQueue{}).Execute(ctx, uid, mid, correction.Guidance{})
 	assertErrCode(t, err, errcode.NotFound)
 }
 
 func TestStart_LimitReached(t *testing.T) {
 	repo := newFakeRepo()
 	repo.createErr = correction.ErrStatusConflict
-	_, err := NewStartUC(&fakeMeetings{m: completedMeeting()}, repo, &fakeQueue{}).Execute(ctx, uid, mid)
+	_, err := NewStartUC(&fakeMeetings{m: completedMeeting()}, repo, &fakeQueue{}).Execute(ctx, uid, mid, correction.Guidance{})
 	assertErrCode(t, err, errcode.CorrectionLimitReached)
 }
 
 func TestStart_InProgress(t *testing.T) {
 	repo := newFakeRepo()
 	repo.createErr = correction.ErrActiveExists
-	_, err := NewStartUC(&fakeMeetings{m: completedMeeting()}, repo, &fakeQueue{}).Execute(ctx, uid, mid)
+	_, err := NewStartUC(&fakeMeetings{m: completedMeeting()}, repo, &fakeQueue{}).Execute(ctx, uid, mid, correction.Guidance{})
 	assertErrCode(t, err, errcode.CorrectionInProgress)
 }
 
 func TestStart_SnapshotsAndEnqueues(t *testing.T) {
 	m := completedMeeting()
 	repo, q := newFakeRepo(), &fakeQueue{}
-	st, err := NewStartUC(&fakeMeetings{m: m}, repo, q).Execute(ctx, uid, mid)
+	st, err := NewStartUC(&fakeMeetings{m: m}, repo, q).Execute(ctx, uid, mid, correction.Guidance{})
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -283,6 +284,28 @@ func TestStart_SnapshotsAndEnqueues(t *testing.T) {
 	if st.Status != correction.StatusQueued || st.AttemptsUsed != 1 || st.CanRevert {
 		t.Errorf("state = %+v", st)
 	}
+}
+
+func TestStart_StoresNormalizedGuidance(t *testing.T) {
+	repo := newFakeRepo()
+	_, err := NewStartUC(&fakeMeetings{m: completedMeeting()}, repo, &fakeQueue{}).Execute(ctx, uid, mid, correction.Guidance{
+		Replacements: []meeting.ReplaceRule{{From: " DBA ", To: "DVA"}},
+		Note:         " 討論 DVA 報告 ",
+	})
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	g := repo.gotGuidance
+	if len(g.Replacements) != 1 || g.Replacements[0].From != "DBA" || g.Note != "討論 DVA 報告" {
+		t.Errorf("guidance = %+v", g)
+	}
+}
+
+func TestStart_InvalidGuidanceParamError(t *testing.T) {
+	_, err := NewStartUC(&fakeMeetings{m: completedMeeting()}, newFakeRepo(), &fakeQueue{}).Execute(ctx, uid, mid, correction.Guidance{
+		Replacements: []meeting.ReplaceRule{{From: "DBA", To: ""}},
+	})
+	assertErrCode(t, err, errcode.Param)
 }
 
 // ---- Get ----
@@ -521,6 +544,46 @@ func TestExecute_AppliesValidatedPatchesAndMerges(t *testing.T) {
 	}
 	if f.corrector.calls[0].Segments[1].Locked != true {
 		t.Error("ManuallyEdited 段應以 Locked 送給模型")
+	}
+}
+
+// 錯字對照在送模型前先套用、模型改回也會再套用一次；補充說明只給校正模型，不進摘要與行動項。
+func TestExecute_GuidanceAppliedBeforeModelAndGuaranteed(t *testing.T) {
+	segs := []meeting.TranscriptSegment{
+		{Speaker: "A", Text: "DBA 報告", StartMs: 0, EndMs: 1000},
+		{Speaker: "B", Text: "小娃處理 DBA", StartMs: 1000, EndMs: 2000},
+		{Speaker: "A", Text: "好", StartMs: 2000, EndMs: 3000},
+	}
+	f := newExecFixture(segs)
+	f.c.Guidance = correction.Guidance{
+		Replacements: []meeting.ReplaceRule{{From: "DBA", To: "DVA"}},
+		Note:         "DVA 是公司內部報告代號",
+	}
+	f.repo.stored[f.c.ID] = f.c
+	f.corrector.byFirst[0] = []correction.Patch{{I: 1, Text: "小王處理 DBA"}} // 模型把對照改回去
+
+	if err := f.uc.Execute(ctx, f.c.ID); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	in := f.corrector.calls[0]
+	if in.Segments[0].Segment.Text != "DVA 報告" || in.Segments[1].Segment.Text != "小娃處理 DVA" {
+		t.Errorf("送模型前應先套用對照：%+v", in.Segments)
+	}
+	if in.Note != "DVA 是公司內部報告代號" || len(in.Terms) != 1 || in.Terms[0].To != "DVA" {
+		t.Errorf("note=%q terms=%+v", in.Note, in.Terms)
+	}
+	out := f.repo.appliedSegs
+	if out[0].Text != "DVA 報告" || out[0].OriginalText != "DBA 報告" {
+		t.Errorf("seg0 = %+v", out[0])
+	}
+	if out[1].Text != "小王處理 DVA" {
+		t.Errorf("seg1 = %q（模型輸出也要套用對照）", out[1].Text)
+	}
+	if out[2].Text != "好" || out[2].OriginalText != "" {
+		t.Errorf("seg2 不應變動：%+v", out[2])
+	}
+	if strings.Contains(f.summarize.gotBg, "代號") || strings.Contains(f.extractor.gotBg, "代號") {
+		t.Error("補充說明不得送進摘要與行動項")
 	}
 }
 

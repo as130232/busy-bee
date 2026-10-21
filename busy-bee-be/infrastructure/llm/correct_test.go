@@ -67,3 +67,20 @@ func TestBuildCorrectionPrompt_Background(t *testing.T) {
 		t.Errorf("背景資料需放最前面、原 prompt 不變：%q", got[:60])
 	}
 }
+
+// 使用者補充：錯字對照與說明附在 prompt 最後，並明示不得寫入音檔沒說的內容；沒有補充時 prompt 不變。
+func TestBuildCorrectionPrompt_UserGuidance(t *testing.T) {
+	in := correction.CorrectorInput{Segments: []correction.IndexedSegment{{I: 0, Segment: meeting.TranscriptSegment{Speaker: "A", Text: "DVA 報告"}}}}
+	plain := buildCorrectionPrompt(in)
+	in.Terms = []meeting.ReplaceRule{{From: "DBA", To: "DVA"}}
+	in.Note = "DVA 是內部報告代號"
+	got := buildCorrectionPrompt(in)
+	if !strings.HasPrefix(got, plain) {
+		t.Error("補充應附在原 prompt 之後")
+	}
+	for _, want := range []string{"DBA → DVA", "DVA 是內部報告代號", "不得"} {
+		if !strings.Contains(got[len(plain):], want) {
+			t.Errorf("補充段缺少 %q：%s", want, got[len(plain):])
+		}
+	}
+}

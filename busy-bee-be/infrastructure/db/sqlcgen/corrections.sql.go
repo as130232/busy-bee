@@ -28,7 +28,7 @@ func (q *Queries) CountCorrectionsForMeeting(ctx context.Context, arg CountCorre
 }
 
 const getCorrection = `-- name: GetCorrection :one
-SELECT id, meeting_id, user_id, attempt, status, progress, original_segments, original_transcript, original_summary_sections, original_summary, error_message, created_at, completed_at, reverted_at FROM transcript_corrections WHERE id = $1
+SELECT id, meeting_id, user_id, attempt, status, progress, original_segments, original_transcript, original_summary_sections, original_summary, error_message, created_at, completed_at, reverted_at, guidance FROM transcript_corrections WHERE id = $1
 `
 
 func (q *Queries) GetCorrection(ctx context.Context, id uuid.UUID) (TranscriptCorrection, error) {
@@ -49,12 +49,13 @@ func (q *Queries) GetCorrection(ctx context.Context, id uuid.UUID) (TranscriptCo
 		&i.CreatedAt,
 		&i.CompletedAt,
 		&i.RevertedAt,
+		&i.Guidance,
 	)
 	return i, err
 }
 
 const getLatestCorrectionForMeeting = `-- name: GetLatestCorrectionForMeeting :one
-SELECT id, meeting_id, user_id, attempt, status, progress, original_segments, original_transcript, original_summary_sections, original_summary, error_message, created_at, completed_at, reverted_at FROM transcript_corrections
+SELECT id, meeting_id, user_id, attempt, status, progress, original_segments, original_transcript, original_summary_sections, original_summary, error_message, created_at, completed_at, reverted_at, guidance FROM transcript_corrections
 WHERE meeting_id = $1 AND user_id = $2
 ORDER BY attempt DESC LIMIT 1
 `
@@ -82,6 +83,7 @@ func (q *Queries) GetLatestCorrectionForMeeting(ctx context.Context, arg GetLate
 		&i.CreatedAt,
 		&i.CompletedAt,
 		&i.RevertedAt,
+		&i.Guidance,
 	)
 	return i, err
 }
@@ -89,9 +91,9 @@ func (q *Queries) GetLatestCorrectionForMeeting(ctx context.Context, arg GetLate
 const insertCorrection = `-- name: InsertCorrection :one
 INSERT INTO transcript_corrections (
     meeting_id, user_id, attempt, original_segments, original_transcript,
-    original_summary_sections, original_summary)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, meeting_id, user_id, attempt, status, progress, original_segments, original_transcript, original_summary_sections, original_summary, error_message, created_at, completed_at, reverted_at
+    original_summary_sections, original_summary, guidance)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, meeting_id, user_id, attempt, status, progress, original_segments, original_transcript, original_summary_sections, original_summary, error_message, created_at, completed_at, reverted_at, guidance
 `
 
 type InsertCorrectionParams struct {
@@ -102,6 +104,7 @@ type InsertCorrectionParams struct {
 	OriginalTranscript      string
 	OriginalSummarySections []byte
 	OriginalSummary         string
+	Guidance                []byte
 }
 
 func (q *Queries) InsertCorrection(ctx context.Context, arg InsertCorrectionParams) (TranscriptCorrection, error) {
@@ -113,6 +116,7 @@ func (q *Queries) InsertCorrection(ctx context.Context, arg InsertCorrectionPara
 		arg.OriginalTranscript,
 		arg.OriginalSummarySections,
 		arg.OriginalSummary,
+		arg.Guidance,
 	)
 	var i TranscriptCorrection
 	err := row.Scan(
@@ -130,6 +134,7 @@ func (q *Queries) InsertCorrection(ctx context.Context, arg InsertCorrectionPara
 		&i.CreatedAt,
 		&i.CompletedAt,
 		&i.RevertedAt,
+		&i.Guidance,
 	)
 	return i, err
 }
@@ -196,7 +201,7 @@ SET status = $1::text,
     completed_at = CASE WHEN $1::text = 'completed' THEN now() ELSE completed_at END,
     reverted_at  = CASE WHEN $1::text = 'reverted'  THEN now() ELSE reverted_at END
 WHERE id = $3 AND status = $4::text
-RETURNING id, meeting_id, user_id, attempt, status, progress, original_segments, original_transcript, original_summary_sections, original_summary, error_message, created_at, completed_at, reverted_at
+RETURNING id, meeting_id, user_id, attempt, status, progress, original_segments, original_transcript, original_summary_sections, original_summary, error_message, created_at, completed_at, reverted_at, guidance
 `
 
 type UpdateCorrectionStatusParams struct {
@@ -229,6 +234,7 @@ func (q *Queries) UpdateCorrectionStatus(ctx context.Context, arg UpdateCorrecti
 		&i.CreatedAt,
 		&i.CompletedAt,
 		&i.RevertedAt,
+		&i.Guidance,
 	)
 	return i, err
 }

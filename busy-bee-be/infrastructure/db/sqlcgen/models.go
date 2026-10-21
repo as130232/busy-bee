@@ -110,6 +110,7 @@ type TranscriptCorrection struct {
 	CreatedAt               time.Time
 	CompletedAt             *time.Time
 	RevertedAt              *time.Time
+	Guidance                []byte
 }
 
 type User struct {

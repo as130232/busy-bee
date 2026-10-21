@@ -306,7 +306,11 @@ export interface paths {
         /** 取得最新一次 AI 校正狀態 */
         get: operations["getCorrection"];
         put?: never;
-        /** 建立 AI 錄音重新校正（背景處理） */
+        /**
+         * 建立 AI 錄音重新校正（背景處理）
+         * @description body 選填。錯字對照在送模型前先直接套用（人工修正過的段落除外），模型輸出也會再套用一次；
+         *     補充說明只放進校正 prompt 幫模型辨認用詞，不送進摘要與行動項、不會寫進報告。
+         */
         post: operations["startCorrection"];
         delete?: never;
         options?: never;
@@ -1699,7 +1703,19 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 錯字對照（兩邊皆空的列略過；只填一邊或兩邊相同回 40001） */
+                    replacements?: {
+                        from: string;
+                        to: string;
+                    }[];
+                    /** @description 補充說明（會議背景、專有名詞、哪段有誤） */
+                    note?: string;
+                };
+            };
+        };
         responses: {
             /** @description 已建立並排入（status=queued） */
             200: {

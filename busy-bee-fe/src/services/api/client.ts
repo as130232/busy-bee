@@ -216,8 +216,21 @@ export function getCorrection(idToken: string, meetingId: string): Promise<{ cor
 }
 
 /** 建立 AI 錄音重新校正（背景處理；每場最多 2 次，失敗也計次）。 */
-export function startCorrection(idToken: string, meetingId: string): Promise<{ correction: CorrectionState }> {
-  return request<{ correction: CorrectionState }>(`/api/v1/meetings/${meetingId}/correction`, { method: 'POST' }, idToken)
+/** AI 校正前的選填補充：錯字對照先直接套用；補充說明只給校正用，不會寫進報告。 */
+export interface CorrectionGuidance {
+  replacements: { from: string; to: string }[]
+  note: string
+}
+
+export function startCorrection(
+  idToken: string,
+  meetingId: string,
+  guidance?: CorrectionGuidance,
+): Promise<{ correction: CorrectionState }> {
+  const init: RequestInit = guidance
+    ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(guidance) }
+    : { method: 'POST' }
+  return request<{ correction: CorrectionState }>(`/api/v1/meetings/${meetingId}/correction`, init, idToken)
 }
 
 /** 整份還原最新一次已完成的 AI 校正（行動項不動）。 */

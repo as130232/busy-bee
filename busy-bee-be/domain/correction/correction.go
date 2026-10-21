@@ -65,13 +65,15 @@ type Snapshot struct {
 }
 
 type Correction struct {
-	ID           uuid.UUID
-	MeetingID    uuid.UUID
-	UserID       uuid.UUID
-	Attempt      int
-	Status       Status
-	Progress     Progress
-	Original     Snapshot
+	ID        uuid.UUID
+	MeetingID uuid.UUID
+	UserID    uuid.UUID
+	Attempt   int
+	Status    Status
+	Progress  Progress
+	Original  Snapshot
+	// Guidance 使用者校正前的選填補充（錯字對照、補充說明）。
+	Guidance     Guidance
 	ErrorMessage string
 	CreatedAt    time.Time
 	CompletedAt  *time.Time
@@ -95,6 +97,9 @@ type CorrectorInput struct {
 	Segments    []IndexedSegment
 	// Background 會前資料段落（F-LIVE）；幫助辨認專有名詞，空字串＝無。
 	Background string
+	// Terms 使用者指定的錯字對照（Segments 已先套用）；Note 使用者補充說明。皆只用於校正，不進報告。
+	Terms []meeting.ReplaceRule
+	Note  string
 }
 
 // Corrector 聽音訊片段修正逐字稿，只回傳有修改的段落（未驗證，由 application 層過濾）。
@@ -120,9 +125,9 @@ type Result struct {
 
 // Repository correction 存取；對使用者的讀取以 userID 過濾（worker 的 Get 以 correction ID 取用）。
 type Repository interface {
-	// CreateWithSnapshot 原子：計算 attempt、寫快照、insert queued。
+	// CreateWithSnapshot 原子：計算 attempt、寫快照與使用者補充、insert queued。
 	// 已達 MaxAttempts 回 ErrStatusConflict；已有進行中回 ErrActiveExists。
-	CreateWithSnapshot(ctx context.Context, meetingID, userID uuid.UUID, snap Snapshot) (Correction, error)
+	CreateWithSnapshot(ctx context.Context, meetingID, userID uuid.UUID, snap Snapshot, g Guidance) (Correction, error)
 	Get(ctx context.Context, id uuid.UUID) (Correction, error)
 	GetLatestForMeeting(ctx context.Context, meetingID, userID uuid.UUID) (Correction, error)
 	CountForMeeting(ctx context.Context, meetingID, userID uuid.UUID) (int, error)
