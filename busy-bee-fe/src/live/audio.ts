@@ -103,6 +103,8 @@ registerProcessor('pcm-capture', PcmCapture)
 
 export interface PcmCapture {
   stop(): void
+  /** AudioContext 狀態（running / suspended / closed），診斷無聲用。 */
+  contextState(): string
 }
 
 /** 以指定取樣率擷取單聲道 PCM（AudioContext 自動重新取樣），每約 128ms 回呼一次。 */
@@ -130,6 +132,7 @@ export async function startPcmCapture(
       node.disconnect()
       void ctx.close()
     },
+    contextState: () => ctx.state,
   }
 }
 
@@ -142,6 +145,10 @@ export interface MixedRecorder {
   mimeType: string
   /** 停止並等最後一塊資料送出。 */
   stop(): Promise<void>
+  /** 目前混音（實際錄進檔案的聲音）的峰值振幅 0–1；偵測「錄到的是靜音」用。 */
+  peak(): number
+  /** AudioContext 狀態，診斷無聲用。 */
+  contextState(): string
 }
 
 export function pickRecorderMime(): string {
@@ -156,9 +163,13 @@ export function startMixedRecorder(streams: MediaStream[], onChunk: (blob: Blob)
   const ctx = new AudioContext()
   void ctx.resume() // 非使用者手勢內建立時可能是 suspended，錄音會是無聲
   const dest = ctx.createMediaStreamDestination()
+  const analyser = ctx.createAnalyser()
+  analyser.fftSize = 2048
+  const samples = new Float32Array(analyser.fftSize)
   const sources = streams.map((s) => {
     const src = ctx.createMediaStreamSource(s)
     src.connect(dest)
+    src.connect(analyser)
     return src
   })
   const mimeType = pickRecorderMime()
@@ -169,6 +180,13 @@ export function startMixedRecorder(streams: MediaStream[], onChunk: (blob: Blob)
   recorder.start(CHUNK_MS)
   return {
     mimeType,
+    peak: () => {
+      analyser.getFloatTimeDomainData(samples)
+      let max = 0
+      for (const v of samples) max = Math.max(max, Math.abs(v))
+      return max
+    },
+    contextState: () => ctx.state,
     stop: () =>
       new Promise<void>((resolve) => {
         const finish = () => {

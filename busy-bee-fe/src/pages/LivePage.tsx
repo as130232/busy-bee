@@ -272,13 +272,18 @@ function LiveView({ state, session }: { state: SessionState; session: ReturnType
         </div>
       </header>
 
-      {(state.liveDisabled || state.micDenied || state.backupFailed || state.remoteState === 'failed') && (
+      {(state.liveDisabled || state.micDenied || state.noAudio || state.backupFailed || state.remoteState === 'failed') && (
         <div className="flex shrink-0 flex-col gap-1 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-700 dark:text-amber-300">
           {state.liveDisabled && <Notice>本月即時辨識額度已用完，錄音繼續，會後照常產生完整紀錄。</Notice>}
           {state.remoteState === 'failed' && !state.liveDisabled && (
             <Notice>即時辨識連線失敗已停用，錄音繼續，會後照常產生完整紀錄。</Notice>
           )}
           {state.micDenied && <Notice>沒有麥克風權限，這場只錄得到對方的聲音。</Notice>}
+          {state.noAudio && (
+            <Notice>
+              錄音收不到任何聲音：請確認分享的是正在播放聲音的 Meet 分頁（已勾選「分享分頁音訊」），且麥克風沒有被系統或其他程式靜音。
+            </Notice>
+          )}
           {state.backupFailed && <Notice>本機備份無法使用，請勿關閉這個分頁直到上傳完成。</Notice>}
         </div>
       )}

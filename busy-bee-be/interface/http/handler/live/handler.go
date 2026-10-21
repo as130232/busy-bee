@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -219,11 +220,18 @@ func (h *Handler) Heartbeat(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Seconds int `json:"seconds"`
+		Seconds     int              `json:"seconds"`
+		Diagnostics *audioDiagnostic `json:"diagnostics"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, apperr.Wrap(err, errcode.Param, "body"))
 		return
+	}
+	if d := req.Diagnostics; d != nil {
+		slog.WarnContext(c.Request.Context(), "live.audio_diagnostics",
+			"meeting_id", meetingID, "reason", clip(d.Reason), "recorder_ctx", clip(d.RecorderCtx),
+			"pcm_ctx", clip(d.PcmCtx), "pcm_frames", d.PcmFrames, "peak_db", d.PeakDB,
+			"tab_track", clip(d.TabTrack), "mic_track", clip(d.MicTrack), "mic_denied", d.MicDenied)
 	}
 	u, err := h.live.Heartbeat(c.Request.Context(), userID, meetingID, req.Seconds)
 	if err != nil {
@@ -231,6 +239,27 @@ func (h *Handler) Heartbeat(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"usage": fromUsage(u)})
+}
+
+// audioDiagnostic 前端偵測到錄音持續無聲時回報一次的瀏覽器端音訊狀態（只有狀態，不含音訊內容）。
+type audioDiagnostic struct {
+	Reason      string  `json:"reason"`
+	RecorderCtx string  `json:"recorderCtx"`
+	PcmCtx      string  `json:"pcmCtx"`
+	PcmFrames   int     `json:"pcmFrames"`
+	PeakDB      float64 `json:"peakDb"`
+	TabTrack    string  `json:"tabTrack"`
+	MicTrack    string  `json:"micTrack"`
+	MicDenied   bool    `json:"micDenied"`
+}
+
+// clip 限制使用者端字串進 log 的長度。
+func clip(s string) string {
+	const maxLen = 64
+	if len(s) > maxLen {
+		return s[:maxLen]
+	}
+	return s
 }
 
 // Notes POST /api/v1/meetings/:id/live/notes — 更新即時重點。

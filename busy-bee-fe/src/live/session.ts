@@ -8,6 +8,7 @@ import type {
   finishLive,
   getLiveToken,
   Language,
+  LiveAudioDiagnostics,
   LiveNotes,
   LiveQA,
   LiveSummary,
@@ -29,6 +30,11 @@ const HEARTBEAT_MS = 5 * 60_000
 const NOTES_INTERVAL_MS = 90_000
 const NOTES_MIN_CHARS = 200
 const NOTES_MANUAL_GAP_MS = 15_000
+/** 每秒量一次錄音峰值；連續 SILENCE_WARN_MS 都低於門檻視為「錄不到聲音」。 */
+const SILENCE_CHECK_MS = 1000
+const SILENCE_WARN_MS = 15_000
+/** 約 -54 dBFS：安靜房間的底噪也會超過，只有真正的數位靜音（如音訊未啟動）會低於。 */
+const SILENCE_PEAK = 0.002
 
 export type Who = 'remote' | 'local'
 
@@ -64,6 +70,8 @@ export interface SessionState {
   /** 額度用完或連線放棄：即時辨識已停，錄音照常。 */
   liveDisabled: boolean
   micDenied: boolean
+  /** 錄音持續收不到任何聲音（分享的分頁沒聲音、麥克風無訊號或瀏覽器音訊未啟動）。 */
+  noAudio: boolean
   backupFailed: boolean
   /** 使用者停止分享 / Meet 分頁關閉。 */
   sourceEnded: boolean
@@ -157,6 +165,7 @@ const initialState: SessionState = {
   usage: null,
   liveDisabled: false,
   micDenied: false,
+  noAudio: false,
   backupFailed: false,
   sourceEnded: false,
   contexts: [],
@@ -182,6 +191,10 @@ export class LiveSession {
   /** 即時辨識連線中的累計毫秒（心跳回報用）。 */
   private openSince: number | null = null
   private openAccumMs = 0
+  private silenceTimer: ReturnType<typeof setInterval> | undefined
+  private lastSoundAt = 0
+  private pcmFrames = 0
+  private diagnosticsSent = false
   private readonly deps: SessionDeps
 
   constructor(deps: SessionDeps) {
@@ -256,6 +269,8 @@ export class LiveSession {
     })
     this.scheduler.start()
     this.heartbeatTimer = setInterval(() => void this.heartbeat(), HEARTBEAT_MS)
+    this.lastSoundAt = Date.now()
+    this.silenceTimer = setInterval(() => this.checkSilence(), SILENCE_CHECK_MS)
 
     if (input.contexts.length > 0) void this.uploadContexts(input.contexts)
   }
@@ -280,7 +295,12 @@ export class LiveSession {
     })
     this.transcribers[who] = t
     try {
-      this.captures.push(await this.deps.startPcm(stream, SAMPLE_RATE, (f) => t.push(f)))
+      this.captures.push(
+        await this.deps.startPcm(stream, SAMPLE_RATE, (f) => {
+          this.pcmFrames++
+          t.push(f)
+        }),
+      )
     } catch {
       this.set({ [key]: 'failed' } as Partial<SessionState>)
       return
@@ -391,7 +411,41 @@ export class LiveSession {
     }
   }
 
-  private async heartbeat(): Promise<void> {
+  /** 錄音持續靜音時提醒使用者，並把瀏覽器端音訊狀態回報一次給後端日誌（排查用）。 */
+  private checkSilence(): void {
+    const peak = this.recorder?.peak() ?? 0
+    const now = Date.now()
+    if (peak >= SILENCE_PEAK) {
+      this.lastSoundAt = now
+      if (this.state.noAudio) this.set({ noAudio: false })
+      return
+    }
+    if (this.state.noAudio || now - this.lastSoundAt < SILENCE_WARN_MS) return
+    this.set({ noAudio: true })
+    if (!this.diagnosticsSent) {
+      this.diagnosticsSent = true
+      void this.heartbeat(this.audioDiagnostics(peak))
+    }
+  }
+
+  private audioDiagnostics(peak: number): LiveAudioDiagnostics {
+    const track = (s: MediaStream | null | undefined) => {
+      const t = s?.getAudioTracks?.()[0]
+      return t ? `${t.readyState}${t.muted ? '/muted' : ''}${t.enabled ? '' : '/disabled'}` : 'none'
+    }
+    return {
+      reason: 'no_audio',
+      recorderCtx: this.recorder?.contextState() ?? 'none',
+      pcmCtx: this.captures.map((c) => c.contextState()).join(',') || 'none',
+      pcmFrames: this.pcmFrames,
+      peakDb: peak > 0 ? Math.round(20 * Math.log10(peak)) : -120,
+      tabTrack: track(this.source?.remote),
+      micTrack: track(this.source?.local),
+      micDenied: this.state.micDenied,
+    }
+  }
+
+  private async heartbeat(diagnostics?: LiveAudioDiagnostics): Promise<void> {
     const id = this.state.meetingId
     if (!id || this.state.liveDisabled) return
     const now = Date.now()
@@ -402,7 +456,11 @@ export class LiveSession {
     }
     this.openAccumMs = 0
     try {
-      const { usage } = await this.deps.api.sendLiveHeartbeat(await this.deps.getIdToken(), id, Math.round(ms / 1000))
+      const idToken = await this.deps.getIdToken()
+      const seconds = Math.round(ms / 1000)
+      const { usage } = diagnostics
+        ? await this.deps.api.sendLiveHeartbeat(idToken, id, seconds, diagnostics)
+        : await this.deps.api.sendLiveHeartbeat(idToken, id, seconds)
       this.set({ usage })
       if (usage.overLimit) this.disableLive()
     } catch {
@@ -434,6 +492,7 @@ export class LiveSession {
     this.set({ phase: 'finishing' })
     await this.heartbeat()
     clearInterval(this.heartbeatTimer)
+    clearInterval(this.silenceTimer)
     this.stopLive()
     await this.recorder?.stop()
     this.recorder = null
@@ -465,6 +524,7 @@ export class LiveSession {
   /** 頁面卸載：停止一切但保留本機備份（可之後救回上傳）。 */
   dispose(): void {
     clearInterval(this.heartbeatTimer)
+    clearInterval(this.silenceTimer)
     this.stopLive()
     void this.recorder?.stop()
     this.source?.stop()

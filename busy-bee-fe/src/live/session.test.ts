@@ -42,9 +42,12 @@ function setup(over: Partial<SessionDeps> = {}) {
     stop: vi.fn(),
   }
   let onChunk: ((b: Blob) => void) | undefined
+  const audio = { peak: 0.1 }
   const recorder = {
     mimeType: 'audio/webm;codecs=opus',
     stop: vi.fn(async () => onChunk?.(new Blob(['tail']))),
+    peak: vi.fn(() => audio.peak),
+    contextState: () => 'running',
   }
   const api = {
     startLiveMeeting: vi.fn(async () => ({ meeting: { id: 'm1', title: '週會' } })),
@@ -75,7 +78,7 @@ function setup(over: Partial<SessionDeps> = {}) {
     startPcm: vi.fn(async (stream: MediaStream, _rate: number, onFrame: (f: ArrayBuffer) => void) => {
       pcmStreams.push(stream)
       onFrame(new ArrayBuffer(4))
-      return { stop: vi.fn() }
+      return { stop: vi.fn(), contextState: () => 'running' }
     }),
     startRecorder: (_streams, cb) => {
       onChunk = cb
@@ -92,7 +95,7 @@ function setup(over: Partial<SessionDeps> = {}) {
     ...over,
   }
   const session = new LiveSession(deps)
-  return { session, api, store, upload, transcribers, pcmStreams, source, recorder, chunks, ended: () => endedCb?.() }
+  return { session, api, store, upload, transcribers, pcmStreams, source, recorder, audio, chunks, ended: () => endedCb?.() }
 }
 
 const startInput = { title: '週會', scenario: 'meeting' as const, language: 'zh-TW' as const, micTranscription: false, contexts: [] }
@@ -244,6 +247,41 @@ describe('LiveSession', () => {
     await session.start(startInput)
     ended()
     expect(session.getState().sourceEnded).toBe(true)
+  })
+
+  it('持續收不到聲音時提醒並回報一次診斷，有聲音後解除提醒', async () => {
+    const { session, api, audio } = setup()
+    audio.peak = 0
+    await session.start(startInput)
+    await vi.advanceTimersByTimeAsync(14_000)
+    expect(session.getState().noAudio).toBe(false)
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(session.getState().noAudio).toBe(true)
+    expect(api.sendLiveHeartbeat).toHaveBeenCalledTimes(1)
+    expect(api.sendLiveHeartbeat).toHaveBeenCalledWith(
+      'id',
+      'm1',
+      expect.any(Number),
+      expect.objectContaining({ reason: 'no_audio', recorderCtx: 'running', pcmCtx: 'running', pcmFrames: 1 }),
+    )
+
+    audio.peak = 0.2
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(session.getState().noAudio).toBe(false)
+
+    audio.peak = 0
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(session.getState().noAudio).toBe(true)
+    expect(api.sendLiveHeartbeat).toHaveBeenCalledTimes(1) // 診斷只回報一次
+  })
+
+  it('有聲音時不提醒', async () => {
+    const { session, api, audio } = setup()
+    audio.peak = 0.05
+    await session.start(startInput)
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(session.getState().noAudio).toBe(false)
+    expect(api.sendLiveHeartbeat).not.toHaveBeenCalled()
   })
 
   it('開始前取音訊失敗 → 不建立紀錄', async () => {

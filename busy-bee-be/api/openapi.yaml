@@ -921,7 +921,23 @@ paths:
         required: true
         content:
           application/json:
-            schema: { type: object, required: [seconds], properties: { seconds: { type: integer } } }
+            schema:
+              type: object
+              required: [seconds]
+              properties:
+                seconds: { type: integer }
+                diagnostics:
+                  description: 前端偵測到錄音持續無聲時回報一次的瀏覽器端音訊狀態（只記 log，不含音訊內容；字串截斷 64 字元）
+                  type: object
+                  properties:
+                    reason: { type: string, enum: [no_audio] }
+                    recorderCtx: { type: string, description: 錄音混音 AudioContext 狀態 }
+                    pcmCtx: { type: string, description: 即時辨識 AudioContext 狀態（多路以逗號分隔） }
+                    pcmFrames: { type: integer, description: 已送出的 PCM 音框數 }
+                    peakDb: { type: number }
+                    tabTrack: { type: string, description: 分頁音軌狀態，如 live、live/muted、ended }
+                    micTrack: { type: string }
+                    micDenied: { type: boolean }
       responses:
         "200":
           description: 本月用量

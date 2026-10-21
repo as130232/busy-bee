@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -235,5 +236,46 @@ func TestPreferences(t *testing.T) {
 		jsonBody(map[string]any{"liveMicTranscription": true}))
 	if w.Code != 200 || !p.enabled || data["liveMicTranscription"] != true {
 		t.Errorf("prefs %d %v", w.Code, data)
+	}
+}
+
+// 前端偵測到持續無聲時隨心跳回報音訊診斷：記進 log（只有狀態欄位，字串截斷）。
+func TestHeartbeatLogsAudioDiagnostics(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	l := &fakeLive{}
+	e := router(l, &fakeContexts{}, &fakePrefs{})
+	w, _ := call(t, e, http.MethodPost, "/meetings/"+uuid.NewString()+"/live/heartbeat", "application/json",
+		jsonBody(map[string]any{"seconds": 15, "diagnostics": map[string]any{
+			"reason": "no_audio", "recorderCtx": "suspended", "pcmCtx": "running", "pcmFrames": 0,
+			"peakDb": -120, "tabTrack": "live/muted", "micTrack": strings.Repeat("x", 200), "micDenied": false,
+		}}))
+	if w.Code != 200 || l.seconds != 15 {
+		t.Fatalf("heartbeat %d seconds=%d", w.Code, l.seconds)
+	}
+	out := buf.String()
+	for _, want := range []string{`"msg":"live.audio_diagnostics"`, `"recorder_ctx":"suspended"`, `"tab_track":"live/muted"`, `"pcm_frames":0`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("log missing %s: %s", want, out)
+		}
+	}
+	if strings.Contains(out, strings.Repeat("x", 65)) {
+		t.Error("diagnostic strings should be truncated")
+	}
+}
+
+func TestHeartbeatWithoutDiagnosticsDoesNotLog(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	e := router(&fakeLive{}, &fakeContexts{}, &fakePrefs{})
+	call(t, e, http.MethodPost, "/meetings/"+uuid.NewString()+"/live/heartbeat", "application/json", jsonBody(map[string]any{"seconds": 1}))
+	if strings.Contains(buf.String(), "live.audio_diagnostics") {
+		t.Error("should not log diagnostics when absent")
 	}
 }
