@@ -1,11 +1,13 @@
 # Busy Bee 開發計畫與進度追蹤
 
 > 依 `docs/PRODUCT.md` 的 F-ID 與優先序切分 Phase，記錄任務狀態與進度。
-> 最後更新：2026-10-18
+> 最後更新：2026-10-21
 
 ---
 
 ## 當前焦點
+
+**2026-10-21 Phase 33 即時會議無聲排查與逐字稿修正工具**：程式完成於分支 `feat/edit-assist`，待合併部署。部署後請重測即時會議（30.10）——若仍無聲，查 log `live.audio_diagnostics` 判斷原因（33.2）。
 
 **2026-10-18 Phase 31 前端設計刷新、Phase 32 後端上線稽核修正已部署 production**（`0a8a723` 起，CI 含 govulncheck 全綠）。Phase 31 剩亮暗兩主題 × 手機／桌機的目視驗收（31.4）；Phase 32 剩 Android/iOS 推播訂閱實機確認（32.10）與 32.9 待決項目。
 
@@ -71,6 +73,7 @@
 | 🔄 | Phase 30 — 即時會議助理（F-LIVE） | post-MVP |
 | 🔄 | Phase 31 — 前端設計刷新 | post-MVP |
 | 🔄 | Phase 32 — 後端上線稽核修正 | post-MVP |
+| 🔄 | Phase 33 — 即時會議無聲排查 + 逐字稿修正工具（F-LIVE、F-DIARIZE、F-CORRECT） | post-MVP |
 
 > Phase 18–24 已 merge（`59ec949`）+ 部署（2026-07-27）；標 🔄 僅因各留最後一項裝置端 e2e 人工驗收待跑。
 
@@ -597,10 +600,25 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 
 ---
 
+## Phase 33：即時會議無聲排查 + 逐字稿修正工具
+> 里程碑：post-MVP | 🔄 程式完成，待部署與裝置端驗收
+> 對應：F-LIVE、F-DIARIZE、F-CORRECT
+> 來源：2026-10-21 使用者實測即時會議「選完分頁音訊後一直轉」——日誌顯示第一場 92 秒錄音全程 -90 dB（完全無聲）→ STT 空稿被重試 3 次約 8 分鐘才失敗；另回報英文縮寫辨識錯誤（DVA → DBA）無法一次修正。migration 000019。
+
+- 33.1 ✅ STT 轉不出任何文字時不重試，直接標失敗並提示檢查收音（`NonRetryable` / `ErrNoSpeech`）`0da4d69`
+- 33.2 ✅ 即時會議持續 15 秒收不到聲音時提醒，並隨心跳回報瀏覽器端音訊狀態（log `live.audio_diagnostics`）`faeada3`
+- 33.3 ✅ 逐字稿尋找與取代（`POST /meetings/:id/transcript/replace`，dryRun 預覽；可一併取代摘要與行動項）`78b015e`
+- 33.4 ✅ AI 校正前選填補充：錯字對照先套用、補充說明只給校正 prompt、不進報告（`transcript_corrections.guidance`）`d010cb2`
+- 33.5 ⬜ 部署後裝置端驗收：重測即時會議（分享有聲音的 Meet 分頁，看提醒與 log）、尋找與取代 DBA→DVA、帶補充的 AI 校正
+- 33.6 ⬜ 未做（待決）：個人術語表（取代時「記住這個詞」並送 Deepgram keyterm）、只重新產生摘要（不跑整套校正）
+
+---
+
 ## Session Log
 
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
+| 2026-10-21 | **Phase 33**：依 log 與實際錄音音量（全程 -90 dB）確認即時會議卡住是錄到無聲、非權限問題；使用者同意三項依序做：無聲偵測與空稿不重試、尋找與取代、AI 校正補充（補充不進報告）。皆 TDD；後端單元＋DB 整合、前端 122 測試全綠 | `0da4d69..d010cb2` |
 | 2026-10-18 | **套用 Dependabot PR #1–#4**：在 worktree cherry-pick 四個 PR（無衝突、無降版），`go` 指令改 1.27.2 讓 CI 測試與正式 image 同版；本機單元、DB/STT 整合、govulncheck、image 實建與工具煙霧測試皆通過 | 見 Phase 32.8 |
 | 2026-10-18 | **Phase 32 收尾**：govulncheck 首跑紅燈——stdlib 項目是 CI 用舊版 Go 的誤報（正式 image 為 1.26.9），模組漏洞屬實並升級；CI setup-go 啟用模組快取。部署後確認 `/version`、啟動 log、govulncheck 皆通過 | `0a8a723`、`2988435` |
 | 2026-10-18 | **Phase 32 後端上線稽核修正**：`/backend-launch-audit` 結論「尚無法確認可發布」（無阻斷；缺備份還原與依賴掃描證據），使用者授權修 B1–B8，全數 TDD。因另一個 session 共用工作目錄切換分支，後端 commit 曾落在 `feat/fe-design-refresh`，已 cherry-pick 回 `fix/launch-audit` 後依序合併文件升級、稽核修正、Phase 31 | `6e4ef53..e39f966` |

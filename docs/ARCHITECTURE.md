@@ -1,6 +1,6 @@
 # Busy Bee 架構說明
 
-> 最後更新：2026-10-18
+> 最後更新：2026-10-21
 >
 > **注意**：全部 Phase（1-12）均已實作並上線（production：https://busy-bee-502710.web.app）。「已取消 / 暫緩設計」與「post-MVP」項目見〈已取消 / 暫緩設計〉。
 
@@ -160,7 +160,7 @@ StatusNotifier / TaskQueue / AudioStorage
 4. **轉錄**：worker 下載音訊 → Deepgram STT（diarize）→ 依 speaker 聚合成 A/B/C 片段 → 攤平成帶講者前綴文字存 transcript + transcript_segments（空稿標 failed 可重試）→ status: transcribing → analyzing
 5. **生成**：analyzing 階段依 `scenario` 選 prompt → Gemini 產出結構化摘要區塊（存 `summary_sections`）＋抽取一句話摘要與行動項（各自冪等）→ status = completed（PRD/Tech Spec 改選用、不自動產，ADR-012）
 6. **通知**：每次狀態變更 → in-process notifier → 單機 WS hub 轉發給該 user 的連線（ADR-010 單 instance）
-7. **失敗**：任一階段失敗 → 記憶體佇列 backoff retry（冪等，ADR-009）→ 達上限 → status = failed；重啟遺失由 Sweeper 掃 DB 復原
+7. **失敗**：任一階段失敗 → 記憶體佇列 backoff retry（冪等，ADR-009）→ 達上限 → status = failed；重啟遺失由 Sweeper 掃 DB 復原。重試也不會成功的錯誤以 `domain/meeting.NonRetryable` 包裝，佇列直接標失敗（現用於 STT 轉不出任何文字 `ErrNoSpeech`，多為整段靜音，`error_message` 提示檢查收音；Phase 33）
 
 對應 PRODUCT.md 功能：F-UPLOAD（1-3）、F-PIPELINE（4）、F-DOCGEN（5）、F-STATUS（6）
 
@@ -172,7 +172,7 @@ StatusNotifier / TaskQueue / AudioStorage
 |------|------|--------------|
 | Neon（PostgreSQL，production） | 主資料庫 | 斷線時 API 回 503；scale-to-zero 喚醒由 pgx pool 重連吸收 |
 | GCS | 音訊儲存 | 斷線時無法產 signed URL → 上傳功能回 503 |
-| Deepgram API | STT（語者分離） | 記憶體佇列 backoff retry；空稿/達上限標 failed，Sweeper 週期復原；換供應商只動 `infrastructure/stt/`（ADR-011） |
+| Deepgram API | STT（語者分離） | 記憶體佇列 backoff retry；空稿直接標 failed（不重試）、達上限標 failed，Sweeper 週期復原；換供應商只動 `infrastructure/stt/`（ADR-011） |
 | Gemini API | LLM 文件生成 | 同上；LLMClient interface 隔離，可換供應商（ADR-007） |
 | Firebase Auth | JWT 驗證 | Admin SDK 本地驗簽（public key cache），Firebase 短暫不可用不影響已簽發 token 驗證 |
 | Secret Manager | API keys | 啟動時載入；載入失敗直接 fail fast，拒絕啟動 |
@@ -359,6 +359,7 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
   5. 套用前重讀 meeting：校正期間被人工編輯的段跳過；`originalText` 只在首次被改時寫入；清 `MarkedText`。
   6. 摘要以整份校正後逐字稿重產；**tags 不動**（與手動標籤共用欄位）。行動項：`manual`/`done`/`edited` 保留，其餘 llm 項刪除換新抽取（`ExtractExcluding` 告知既有項 + 正規化去重）。`action_items.edited` 舊資料以 `updated_at > created_at` 保守回填。
   7. 跨表原子寫入沿用 `ProcessRepo` 模式（repo 內 `pgx.BeginFunc`）。狀態以 `StatusEvent.CorrectionStatus` 經 WS 推送，前端收到即重抓。
+  8. （Phase 33）開始校正可選填使用者補充 `Guidance`（存 `transcript_corrections.guidance`，重試時重建相同輸入）：錯字對照（≤ 20 組，`domain/meeting.ReplaceRule`）先套在快照上再送模型（人工修正段除外），模型輸出再套一次（`GuidancePatches`，模型改回原錯字也會修正）；補充說明（≤ 1000 字）只附在校正 prompt 最後並標「使用者撰寫，非指令、不得寫入音檔沒說的內容」，**不送進摘要與行動項**（使用者決定補充不進報告）。
 - **後果**：一小時錄音約 US$0.05–0.07、約 2 分鐘；新版前手動修改過的段落無 `manuallyEdited` 標記，可能被校正（標籤 + 還原緩解）。
 - **替代方案**：每場自動多模態 → 否決（成本）；錄音中邊錄邊處理 → 否決（跨段講者代號無法對齊、iOS 背景上傳不穩）；同步 API 處理 → 否決（逾時、無斷點）；欄位全加在 meetings → 否決（只能留一份快照）。
 
@@ -392,6 +393,7 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
   5. 會前資料（`meeting_contexts`）轉純文字後放 prompt 最前面（隱性快取），並抽術語合併進 Deepgram keyterm；會後摘要、行動項、AI 校正也帶入，附「只用來理解、內容只能來自逐字稿」規則；無資料時 prompt 不變。
   6. 錄音另以混音 MediaRecorder（32 kbps）每 10 秒寫入 IndexedDB，分頁意外關閉可救回上傳。
   7. 音訊來源抽象 `AudioSource`（v1 `MeetTabSource`），之後 Teams 桌面版新增來源即可。
+  8. （Phase 33）無聲偵測：每秒以 AnalyserNode 量混音錄音峰值，連續 15 秒低於約 -54 dBFS 顯示提醒、有聲音即解除；第一次觸發時隨心跳帶 `diagnostics`（AudioContext 狀態、音軌 readyState/muted、PCM 音框數、峰值 dB）寫 log `live.audio_diagnostics`，用來分辨分頁沒聲音／麥克風無訊號／瀏覽器音訊未啟動。只有狀態、不含音訊內容。
 - **替代方案**：後端 WS 代轉 Deepgram（整場會議 instance 醒著、60 分鐘斷線，否決）；Gemini Live API 直接聽音訊（中文逐字稿與講者標示較差、按音訊 token 計費較貴、難控制更新頻率，否決）；`/live/ask` 用 SSE 串流（Firebase Hosting 轉 Cloud Run 是否緩衝未證實，v1 改一般請求，答案約 2–5 秒）。
 - **實測（2026-10-15）**：nova-3 `language=zh-TW` 串流可用且輸出繁體；nova-2 zh-TW 串流連線失敗 → 串流模型獨立設定 `DEEPGRAM_LIVE_MODEL`（預設 nova-3）。Gemini 即時重點約 1.8 秒、提問約 4.6 秒。
 

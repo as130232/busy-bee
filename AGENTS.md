@@ -1,6 +1,6 @@
 # Busy Bee 開發指南
 
-> 最後更新：2026-10-18
+> 最後更新：2026-10-21
 
 ## 文件分工
 
@@ -59,7 +59,7 @@ Clean Architecture（對齊 sport-hub），依賴方向由外往內：interface 
 | DB schema 變更 | `db/migrations/` + `db/query/*.sql` + 重跑 `sqlc generate` |
 | 新增 HTTP endpoint | `api/openapi.yaml` → handler → route |
 | prompt 調整 | `infrastructure/llm/prompts/`（不動 client 邏輯） |
-| AI 錄音校正（F-CORRECT） | 流程與規則在 `application/correction/`（切段/patch/行動項合併為純函式）；校正 prompt 在 `infrastructure/llm/prompts/correct_transcript.md`；見 `docs/ARCHITECTURE.md` ADR-016 |
+| AI 錄音校正（F-CORRECT） | 流程與規則在 `application/correction/`（切段/patch/行動項合併為純函式）；校正 prompt 在 `infrastructure/llm/prompts/correct_transcript.md`；使用者補充（`Guidance`）只能進校正 prompt，禁止送進摘要與行動項；見 `docs/ARCHITECTURE.md` ADR-016 |
 | 即時會議（F-LIVE） | 後端 `application/live/`（無狀態，ADR-018）、會前資料 `application/meetingcontext/`；前端核心邏輯 `busy-bee-fe/src/live/`（不依賴 React，可單元測試）、頁面 `pages/LivePage.tsx`；即時 prompt 在 `infrastructure/llm/prompts/live_*.md` |
 | 新增紀錄情境（如面試） | 新增 `prompts/summary_<scenario>.md` + 註冊 `gemini.go` 的 `scenarioPrompts` + `domain/meeting` 的 `Scenario` 常數與 CHECK migration（不動前端渲染器/管線，B-lite，見 `docs/ARCHITECTURE.md` ADR-012） |
 
@@ -95,6 +95,7 @@ Clean Architecture（對齊 sport-hub），依賴方向由外往內：interface 
 - worker 每階段開始前必須檢查 meeting status 與產物是否已存在，已完成階段一律跳過（冪等，ADR-009）
 - 狀態變更必須發布到 in-process notifier（F-STATUS 依賴此事件，ADR-010 單 instance）
 - 新增 goroutine 必須有明確退出條件（context cancel 或 channel close），禁止裸 `go func()`
+- 重試也不會成功的錯誤（如整段靜音）用 `domain/meeting.NonRetryable` 包裝，佇列直接標失敗，避免空轉重試（PLAN 33.1）
 
 ---
 
