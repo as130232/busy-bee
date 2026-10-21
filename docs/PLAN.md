@@ -610,6 +610,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 - 33.3 ✅ 逐字稿尋找與取代（`POST /meetings/:id/transcript/replace`，dryRun 預覽；可一併取代摘要與行動項）`78b015e`
 - 33.4 ✅ AI 校正前選填補充：錯字對照先套用、補充說明只給校正 prompt、不進報告（`transcript_corrections.guidance`）`d010cb2`
 - 33.5 ⬜ 部署後裝置端驗收：重測即時會議（分享有聲音的 Meet 分頁，看提醒與 log）、尋找與取代 DBA→DVA、帶補充的 AI 校正
+- 33.7 ✅ govulncheck 抓到 crypto/x509 漏洞（GO-2026-6809，go1.27.2）：基底映像與 `go` 指令升到 1.27.3 `（見本 commit）`
 - 33.6 ⬜ 未做（待決）：個人術語表（取代時「記住這個詞」並送 Deepgram keyterm）、只重新產生摘要（不跑整套校正）
 
 ---
