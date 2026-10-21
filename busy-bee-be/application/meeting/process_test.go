@@ -270,6 +270,33 @@ func TestMarkFailed_RecordsMessage(t *testing.T) {
 	}
 }
 
+// STT 轉不出任何文字（多為整段靜音）：重試不會改變結果，標為不可重試並給可行動的訊息。
+func TestProcess_EmptyTranscriptIsNonRetryableNoSpeech(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusPending, "")}
+	st := &processFakeStorage{content: "audio"}
+	stt := &fakeSTT{result: domainmeeting.TranscribeResult{Text: "  ", DurationSeconds: 92}}
+	uc := newTestProcessUC(repo, st, stt, &fakeNotifier{})
+
+	err := uc.Execute(context.Background(), repo.meeting.ID)
+	if !errors.Is(err, domainmeeting.ErrNoSpeech) {
+		t.Fatalf("err = %v, want ErrNoSpeech", err)
+	}
+	if !domainmeeting.IsNonRetryable(err) {
+		t.Error("empty transcript should be non-retryable")
+	}
+}
+
+func TestMarkFailed_NoSpeechHasSpecificMessage(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusTranscribing, "")}
+	uc := newTestProcessUC(repo, &processFakeStorage{}, &fakeSTT{}, &fakeNotifier{})
+
+	uc.MarkFailed(context.Background(), repo.meeting.ID, domainmeeting.NonRetryable(domainmeeting.ErrNoSpeech))
+
+	if !strings.Contains(repo.failedMessage, "沒有偵測到說話聲") {
+		t.Errorf("failedMessage = %q, want no-speech hint", repo.failedMessage)
+	}
+}
+
 // error_message 會經 API / WS 回給前端，禁止含外部錯誤原文（資料安全規範）。
 func TestMarkFailed_DoesNotExposeRawCause(t *testing.T) {
 	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusTranscribing, "")}

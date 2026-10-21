@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 )
 
 // testRetryDelays 測試用極短 backoff。
@@ -125,6 +127,38 @@ func TestMemory_RetriesThenMarksFailed(t *testing.T) {
 	}
 	if failedID != id || !errors.Is(failedErr, boom) {
 		t.Errorf("onFail(%v, %v), want (%v, boom)", failedID, failedErr, id)
+	}
+}
+
+// 重試也不會成功的錯誤（如整段靜音）直接標失敗，不空轉重試。
+func TestMemory_NonRetryableFailsImmediately(t *testing.T) {
+	var attempts atomic.Int32
+	var failedErr error
+	failed := make(chan struct{})
+	silent := errors.New("silent audio")
+
+	q := NewMemory(4, 0, testRetryDelays)
+	q.Start(context.Background(), 1, func(_ context.Context, _ uuid.UUID) error {
+		attempts.Add(1)
+		return domainmeeting.NonRetryable(silent)
+	}, func(_ context.Context, _ uuid.UUID, err error) {
+		failedErr = err
+		close(failed)
+	})
+	t.Cleanup(func() { q.Stop(time.Second) })
+
+	q.EnqueueProcessMeeting(context.Background(), uuid.New())
+
+	select {
+	case <-failed:
+	case <-time.After(3 * time.Second):
+		t.Fatal("onFail not called")
+	}
+	if got := attempts.Load(); got != 1 {
+		t.Errorf("attempts = %d, want 1", got)
+	}
+	if !errors.Is(failedErr, silent) {
+		t.Errorf("onFail err = %v, want wrapping silent", failedErr)
 	}
 }
 

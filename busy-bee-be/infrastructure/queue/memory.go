@@ -107,9 +107,10 @@ func (m *Memory) run(ctx context.Context, t task, handler Handler, onFail OnFail
 		return
 	}
 
-	if t.attempt >= len(m.retryDelays) {
+	if t.attempt >= len(m.retryDelays) || domainmeeting.IsNonRetryable(err) {
 		slog.ErrorContext(ctx, "queue.memory.exhausted",
-			"meeting_id", t.meetingID, "attempts", t.attempt+1, "err", err)
+			"meeting_id", t.meetingID, "attempts", t.attempt+1,
+			"non_retryable", domainmeeting.IsNonRetryable(err), "err", err)
 		onFail(ctx, t.meetingID, err)
 		m.release(t.meetingID)
 		return

@@ -218,9 +218,10 @@ func (uc *ProcessUC) transcribeStage(ctx context.Context, m domainmeeting.Meetin
 		if len(result.Segments) > 0 {
 			transcript = domainmeeting.FlattenSegments(result.Segments)
 		}
-		// 空結果保護：STT 轉不出任何文字時視為失敗（可重試），避免靜默完成並用空稿生成垃圾產物。
+		// 空結果保護：STT 轉不出任何文字時視為失敗，避免靜默完成並用空稿生成垃圾產物。
+		// 多為整段靜音，重試同一份音檔不會改變結果 → 不可重試，直接標失敗。
 		if strings.TrimSpace(transcript) == "" {
-			return m, fmt.Errorf("process transcribe: empty transcript (STT 未轉出內容，檢查音檔或供應商語言設定)")
+			return m, domainmeeting.NonRetryable(fmt.Errorf("process transcribe: empty transcript: %w", domainmeeting.ErrNoSpeech))
 		}
 		if m, err = uc.repo.SaveTranscript(ctx, m.ID, m.UserID, transcript, result.Segments, result.DurationSeconds); err != nil {
 			return m, fmt.Errorf("process save transcript: %w", err)
@@ -391,9 +392,16 @@ func (uc *ProcessUC) background(ctx context.Context, m domainmeeting.Meeting) (s
 // 外部錯誤原文只進 log，禁止暴露給用戶端（資料安全規範）。
 const failedUserMessage = "會議處理失敗，請重試"
 
-// MarkFailed 由 worker 在最後一次重試失敗後呼叫。
+// noSpeechUserMessage 音檔辨識不出任何文字（多為整段靜音），重試無效，提示檢查收音。
+const noSpeechUserMessage = "錄音裡沒有偵測到說話聲，請確認錄音時麥克風或分享的分頁有聲音"
+
+// MarkFailed 由 worker 在最後一次重試失敗（或不可重試錯誤）後呼叫。
 func (uc *ProcessUC) MarkFailed(ctx context.Context, meetingID uuid.UUID, cause error) {
-	m, err := uc.repo.SetFailed(ctx, meetingID, failedUserMessage)
+	msg := failedUserMessage
+	if errors.Is(cause, domainmeeting.ErrNoSpeech) {
+		msg = noSpeechUserMessage
+	}
+	m, err := uc.repo.SetFailed(ctx, meetingID, msg)
 	if err != nil {
 		slog.ErrorContext(ctx, "meeting.process.mark_failed_error", "meeting_id", meetingID, "err", err)
 		return
