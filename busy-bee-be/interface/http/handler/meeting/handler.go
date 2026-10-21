@@ -21,6 +21,7 @@ type HandlerUCs struct {
 	Schedule       *appmeeting.ScheduleUC
 	Manage         *appmeeting.ManageUC
 	EditSegment    *appmeeting.EditSegmentUC
+	ReplaceText    *appmeeting.ReplaceTextUC
 	Search         *appsearch.SearchUC // 選填；nil 時 List 維持純字面
 }
 

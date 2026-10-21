@@ -4,6 +4,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	appmeeting "github.com/as130232/busy-bee/busy-bee-be/application/meeting"
+	domainmeeting "github.com/as130232/busy-bee/busy-bee-be/domain/meeting"
 	domainuser "github.com/as130232/busy-bee/busy-bee-be/domain/user"
 	"github.com/as130232/busy-bee/busy-bee-be/interface/http/response"
 	"github.com/as130232/busy-bee/busy-bee-be/pkg/apperr"
@@ -121,6 +123,48 @@ func (h *Handler) EditSegment(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"meeting": toMeetingDetailResponse(m)})
+}
+
+// ReplaceText POST /api/v1/meetings/:id/transcript/replace — 逐字稿全部取代（可一併取代摘要與行動項；dryRun 只回計數）。
+func (h *Handler) ReplaceText(c *gin.Context) {
+	userID, ok := domainuser.IDFrom(c.Request.Context())
+	if !ok {
+		response.Fail(c, apperr.New(errcode.Unauthorized))
+		return
+	}
+	meetingID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "id"))
+		return
+	}
+	var req struct {
+		From           string `json:"from"`
+		To             string `json:"to"`
+		IncludeSummary bool   `json:"includeSummary"`
+		DryRun         bool   `json:"dryRun"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, apperr.Wrap(err, errcode.Param, "body"))
+		return
+	}
+
+	res, err := h.uc.ReplaceText.Execute(c.Request.Context(), userID, meetingID, appmeeting.ReplaceTextInput{
+		Rule:           domainmeeting.ReplaceRule{From: req.From, To: req.To},
+		IncludeSummary: req.IncludeSummary,
+		DryRun:         req.DryRun,
+	})
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.OK(c, gin.H{
+		"meeting": toMeetingDetailResponse(res.Meeting),
+		"counts": gin.H{
+			"transcript":  res.Counts.Transcript,
+			"summary":     res.Counts.Summary,
+			"actionItems": res.Counts.ActionItems,
+		},
+	})
 }
 
 // Delete DELETE /api/v1/meetings/:id — 刪除會議（任何狀態，本人限定；關聯資料連帶刪除）。

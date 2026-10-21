@@ -194,6 +194,7 @@ func main() {
 			Schedule:       appmeeting.NewScheduleUC(meetingRepo),
 			Manage:         appmeeting.NewManageUC(meetingRepo, audioStorage),
 			EditSegment:    appmeeting.NewEditSegmentUC(meetingRepo, indexUC),
+			ReplaceText:    appmeeting.NewReplaceTextUC(meetingRepo, actionItemRepo, indexUC),
 			Search:         appsearch.NewSearchUC(meetingRepo, llmClient, chunkRepo, meetingRepo),
 		}),
 		LiveHandler: livehandler.NewHandler(liveUC, contextUC, userRepo, int64(cfg.Live.MaxContextFileBytes)),

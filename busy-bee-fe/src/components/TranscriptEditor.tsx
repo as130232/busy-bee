@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pencil, Play } from 'lucide-react'
+import { Pencil, Play, Replace } from 'lucide-react'
 
 import {
   editMeetingSegment,
@@ -11,18 +11,23 @@ import { useApiCall } from '../hooks/useApiCall'
 import { formatClock } from '../utils/format'
 import { Sheet } from './Sheet'
 import { speakerColor } from './speakerColor'
+import { TranscriptReplaceSheet } from './TranscriptReplaceSheet'
 
-/** 分講者逐字稿：講者晶片可點擊改名（PATCH speakers），逐段顯示，可就地修正文字。 */
+/** 分講者逐字稿：講者晶片可點擊改名（PATCH speakers），逐段顯示，可就地修正文字或全部取代。 */
 export function TranscriptEditor({
   meeting,
   onUpdated,
+  onReplaced,
   onSeek,
 }: {
   meeting: MeetingDetail
   onUpdated: (m: MeetingDetail) => void
+  /** 全部取代完成（摘要與行動項可能也變了，頁面需重新載入）。 */
+  onReplaced?: () => void
   onSeek?: (seconds: number) => void
 }) {
   const [editing, setEditing] = useState<string | null>(null)
+  const [replacing, setReplacing] = useState(false)
 
   const names = meeting.speakerNames ?? {}
   const displayName = (code: string) => names[code]?.trim() || code
@@ -53,6 +58,16 @@ export function TranscriptEditor({
             <Pencil className="size-3 opacity-60" />
           </button>
         ))}
+        {meeting.status === 'completed' && (
+          <button
+            type="button"
+            className="ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs text-muted hover:bg-surface-hover hover:text-fg"
+            onClick={() => setReplacing(true)}
+          >
+            <Replace className="size-3.5" />
+            尋找與取代
+          </button>
+        )}
       </div>
 
       {/* 逐段內容：標頭（時間 · 講者 · ▶）整列可點跳播、✏️ 可修正文字 + 全寬文字 */}
@@ -70,6 +85,18 @@ export function TranscriptEditor({
           />
         ))}
       </div>
+
+      {replacing && (
+        <TranscriptReplaceSheet
+          meeting={meeting}
+          onClose={() => setReplacing(false)}
+          onDone={(m) => {
+            onUpdated(m)
+            onReplaced?.()
+            setReplacing(false)
+          }}
+        />
+      )}
 
       {editing && (
         <SpeakerRenameSheet

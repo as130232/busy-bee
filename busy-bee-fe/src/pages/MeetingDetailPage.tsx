@@ -273,7 +273,7 @@ export function MeetingDetailPage() {
             <p className="m-0 text-sm text-muted">處理完成後將顯示於此。</p>
           )
         ) : tab === 'transcript' && meeting.transcriptSegments.length > 0 ? (
-          <TranscriptEditor meeting={meeting} onUpdated={setMeeting} onSeek={seekAudio} />
+          <TranscriptEditor meeting={meeting} onUpdated={setMeeting} onReplaced={() => void reload()} onSeek={seekAudio} />
         ) : docContent ? (
           tab === 'transcript' ? (
             <p className="text-sm leading-7 whitespace-pre-wrap">{docContent}</p>

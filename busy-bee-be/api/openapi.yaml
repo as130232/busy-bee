@@ -655,6 +655,54 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
+  /api/v1/meetings/{id}/transcript/replace:
+    post:
+      tags: [meetings]
+      summary: 逐字稿全部取代（修正 STT 錯字；可一併取代摘要與行動項，dryRun 只回計數）
+      description: |
+        大小寫須相符；「取代前」以英數字開頭或結尾時，該側須落在字詞邊界（DBA 不會改到 DBAs、MyDBA）。
+        被取代的片段標記為人工修正，之後 AI 校正不會覆蓋。不呼叫 AI、不扣校正次數。僅限已完成的紀錄。
+      operationId: replaceMeetingText
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, to]
+              properties:
+                from: { type: string, maxLength: 100, description: 要取代的文字（去前後空白） }
+                to: { type: string, maxLength: 100, description: 取代為（不可為空、不可與 from 相同） }
+                includeSummary: { type: boolean, default: false, description: 一併取代摘要與行動項 }
+                dryRun: { type: boolean, default: false, description: 只計算符合筆數，不寫入 }
+      responses:
+        "200":
+          description: 取代結果（dryRun 時 meeting 為原內容）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [meeting, counts]
+                        properties:
+                          meeting: { $ref: "#/components/schemas/MeetingDetail" }
+                          counts:
+                            type: object
+                            required: [transcript, summary, actionItems]
+                            properties:
+                              transcript: { type: integer }
+                              summary: { type: integer }
+                              actionItems: { type: integer }
+        "400": { description: "40001 取代規則無效", content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { description: 不存在或非本人, content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
+        "409": { description: 紀錄尚未處理完成, content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } } }
   /api/v1/meetings/{id}/audio-url:
     get:
       tags: [meetings]

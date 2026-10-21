@@ -107,6 +107,7 @@ func NewEngine(cfg *config.Config, deps Deps) *gin.Engine {
 		authed.PATCH("/meetings/:id/speakers", deps.MeetingHandler.UpdateSpeakers)
 		authed.PATCH("/meetings/:id/tags", deps.MeetingHandler.UpdateTags)
 		authed.PATCH("/meetings/:id/transcript", deps.MeetingHandler.EditSegment)
+		authed.POST("/meetings/:id/transcript/replace", deps.MeetingHandler.ReplaceText)
 		authed.DELETE("/meetings/:id", deps.MeetingHandler.Delete)
 		authed.POST("/meetings/:id/complete-upload", deps.MeetingHandler.CompleteUpload)
 		authed.PATCH("/meetings/:id/schedule", deps.MeetingHandler.UpdateSchedule)

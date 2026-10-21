@@ -366,6 +366,29 @@ export function renameMeeting(
 
 export type TranscriptSegment = components['schemas']['TranscriptSegment']
 
+export interface ReplaceCounts {
+  transcript: number
+  summary: number
+  actionItems: number
+}
+
+/** 逐字稿全部取代（如 DBA → DVA）；includeSummary 一併取代摘要與行動項，dryRun 只回符合筆數。 */
+export function replaceMeetingText(
+  idToken: string,
+  meetingId: string,
+  input: { from: string; to: string; includeSummary: boolean; dryRun?: boolean },
+): Promise<{ meeting: MeetingDetail; counts: ReplaceCounts }> {
+  return request<{ meeting: MeetingDetail; counts: ReplaceCounts }>(
+    `/api/v1/meetings/${meetingId}/transcript/replace`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+    idToken,
+  )
+}
+
 /** 修正單一逐字稿片段文字（校正 STT 錯字），回傳含最新逐字稿的詳情 */
 export function editMeetingSegment(
   idToken: string,

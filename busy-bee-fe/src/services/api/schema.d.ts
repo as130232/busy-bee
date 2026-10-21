@@ -241,6 +241,27 @@ export interface paths {
         patch: operations["editMeetingSegment"];
         trace?: never;
     };
+    "/api/v1/meetings/{id}/transcript/replace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 逐字稿全部取代（修正 STT 錯字；可一併取代摘要與行動項，dryRun 只回計數）
+         * @description 大小寫須相符；「取代前」以英數字開頭或結尾時，該側須落在字詞邊界（DBA 不會改到 DBAs、MyDBA）。
+         *     被取代的片段標記為人工修正，之後 AI 校正不會覆蓋。不呼叫 AI、不扣校正次數。僅限已完成的紀錄。
+         */
+        post: operations["replaceMeetingText"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/meetings/{id}/audio-url": {
         parameters: {
             query?: never;
@@ -567,7 +588,7 @@ export interface components {
         /** @description 統一 response envelope */
         Envelope: {
             /**
-             * @description 0 = 成功；非 0 為業務錯誤碼（HTTP status 三碼 + 兩碼流水號）
+             * @description 0 = 成功；非 0 為業務錯誤碼（HTTP status 三碼 + 兩碼流水號）。所有端點的請求 body 上限 1MB（會前資料上傳依檔案上限），超過回 413 / 41302
              * @example 0
              */
             errCode: number;
@@ -1473,6 +1494,84 @@ export interface operations {
             };
         };
     };
+    replaceMeetingText: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description 要取代的文字（去前後空白） */
+                    from: string;
+                    /** @description 取代為（不可為空、不可與 from 相同） */
+                    to: string;
+                    /**
+                     * @description 一併取代摘要與行動項
+                     * @default false
+                     */
+                    includeSummary?: boolean;
+                    /**
+                     * @description 只計算符合筆數，不寫入
+                     * @default false
+                     */
+                    dryRun?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 取代結果（dryRun 時 meeting 為原內容） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            meeting: components["schemas"]["MeetingDetail"];
+                            counts: {
+                                transcript: number;
+                                summary: number;
+                                actionItems: number;
+                            };
+                        };
+                    };
+                };
+            };
+            /** @description 40001 取代規則無效 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description 不存在或非本人 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 紀錄尚未處理完成 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
     getMeetingAudioURL: {
         parameters: {
             query?: never;
@@ -1835,6 +1934,22 @@ export interface operations {
             content: {
                 "application/json": {
                     seconds: number;
+                    /** @description 前端偵測到錄音持續無聲時回報一次的瀏覽器端音訊狀態（只記 log，不含音訊內容；字串截斷 64 字元） */
+                    diagnostics?: {
+                        /** @enum {string} */
+                        reason?: "no_audio";
+                        /** @description 錄音混音 AudioContext 狀態 */
+                        recorderCtx?: string;
+                        /** @description 即時辨識 AudioContext 狀態（多路以逗號分隔） */
+                        pcmCtx?: string;
+                        /** @description 已送出的 PCM 音框數 */
+                        pcmFrames?: number;
+                        peakDb?: number;
+                        /** @description 分頁音軌狀態，如 live、live/muted、ended */
+                        tabTrack?: string;
+                        micTrack?: string;
+                        micDenied?: boolean;
+                    };
                 };
             };
         };
