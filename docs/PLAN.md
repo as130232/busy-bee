@@ -623,6 +623,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
+| 2026-11-03 | **套用 Dependabot PR #5**（iam 1.15.1、storage 1.70.0、genai 1.77.0）：cherry-pick 到最新 main，單元測試、govulncheck（0 項）、GCS 整合測試、新版 genai 實打 Gemini 皆通過；本機 Docker 未啟動，DB 整合測試與 image 建置交由 CI。另：firebase-tools 15.34.2 部署前查 serviceusage 造成 403，workflow 鎖定 15.34.0 | `b4e54dd`、見本 commit |
 | 2026-11-03 | **Phase 33 補強（33.8、33.9）**：使用者 16:00 iPhone 錄音轉檔失敗——日誌與 GCS 顯示 39 分鐘錄音只上傳 5 bytes（空 webm 結尾），Deepgram 回 400 後仍重試 4 次。同機 10/13–10/28 六次上傳皆正常，判斷為麥克風被占用（計時器照跑）。三項補強皆 TDD；後端全綠、前端 129 測試全綠 | `d3013b4` 起 |
 | 2026-10-21 | **Phase 33**：依 log 與實際錄音音量（全程 -90 dB）確認即時會議卡住是錄到無聲、非權限問題；使用者同意三項依序做：無聲偵測與空稿不重試、尋找與取代、AI 校正補充（補充不進報告）。皆 TDD；後端單元＋DB 整合、前端 122 測試全綠 | `0da4d69..d010cb2` |
 | 2026-10-18 | **套用 Dependabot PR #1–#4**：在 worktree cherry-pick 四個 PR（無衝突、無降版），`go` 指令改 1.27.2 讓 CI 測試與正式 image 同版；本機單元、DB/STT 整合、govulncheck、image 實建與工具煙霧測試皆通過 | 見 Phase 32.8 |
