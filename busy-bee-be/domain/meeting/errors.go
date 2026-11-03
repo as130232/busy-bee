@@ -9,6 +9,8 @@ var (
 	ErrStatusConflict = errors.New("meeting status conflict")
 	// ErrNoSpeech 音檔辨識不出任何文字（多為整段靜音）；重試不會改變結果。
 	ErrNoSpeech = errors.New("no speech in audio")
+	// ErrUnreadableAudio 音檔損毀或沒有聲音資料（如錄音時麥克風被系統占用），STT 無法解析；重試不會改變結果。
+	ErrUnreadableAudio = errors.New("audio unreadable")
 )
 
 // nonRetryable 標記重試也不會成功的錯誤。

@@ -157,7 +157,7 @@ func (c *DeepgramClient) Transcribe(ctx context.Context, audio io.Reader, sizeBy
 		return domainmeeting.TranscribeResult{}, fmt.Errorf("stt deepgram read response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return domainmeeting.TranscribeResult{}, fmt.Errorf("stt deepgram status %d: %.300s", resp.StatusCode, raw)
+		return domainmeeting.TranscribeResult{}, deepgramStatusError(resp.StatusCode, raw)
 	}
 
 	var dr deepgramResponse
@@ -312,4 +312,17 @@ func mergeKeywords(global, extra []string) []string {
 		}
 	}
 	return out
+}
+
+// deepgramStatusError 依狀態碼分類：400 是請求或音檔本身有問題，重試不會成功 → NonRetryable；
+// 音檔無法解析（損毀、空檔）再標 ErrUnreadableAudio，讓前端顯示對應提示。429 / 5xx 交由佇列重試。
+func deepgramStatusError(status int, raw []byte) error {
+	err := fmt.Errorf("stt deepgram status %d: %.300s", status, raw)
+	if status != http.StatusBadRequest {
+		return err
+	}
+	if strings.Contains(string(raw), "failed to process audio") {
+		err = fmt.Errorf("%w: %w", domainmeeting.ErrUnreadableAudio, err)
+	}
+	return domainmeeting.NonRetryable(err)
 }

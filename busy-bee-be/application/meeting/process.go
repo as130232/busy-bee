@@ -395,11 +395,17 @@ const failedUserMessage = "會議處理失敗，請重試"
 // noSpeechUserMessage 音檔辨識不出任何文字（多為整段靜音），重試無效，提示檢查收音。
 const noSpeechUserMessage = "錄音裡沒有偵測到說話聲，請確認錄音時麥克風或分享的分頁有聲音"
 
+// unreadableAudioUserMessage 音檔損毀或沒有聲音資料（常見於錄音時麥克風被通話或其他 App 占用），重試無效。
+const unreadableAudioUserMessage = "音檔沒有錄到聲音或已損毀，無法轉成文字。錄音時請避免同時通話或使用其他會用到麥克風的 App"
+
 // MarkFailed 由 worker 在最後一次重試失敗（或不可重試錯誤）後呼叫。
 func (uc *ProcessUC) MarkFailed(ctx context.Context, meetingID uuid.UUID, cause error) {
 	msg := failedUserMessage
-	if errors.Is(cause, domainmeeting.ErrNoSpeech) {
+	switch {
+	case errors.Is(cause, domainmeeting.ErrNoSpeech):
 		msg = noSpeechUserMessage
+	case errors.Is(cause, domainmeeting.ErrUnreadableAudio):
+		msg = unreadableAudioUserMessage
 	}
 	m, err := uc.repo.SetFailed(ctx, meetingID, msg)
 	if err != nil {

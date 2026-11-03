@@ -3,6 +3,7 @@ package stt
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -242,5 +243,42 @@ func TestTranscribe_MergesMeetingKeyterms(t *testing.T) {
 	}
 	if strings.Join(got, ",") != "Kubernetes,Stage,Jenkins" {
 		t.Errorf("keyterm = %v（全域優先、不分大小寫去重）", got)
+	}
+}
+
+func TestTranscribe_StatusErrors(t *testing.T) {
+	cases := []struct {
+		name         string
+		status       int
+		body         string
+		nonRetryable bool
+		unreadable   bool
+	}{
+		{"損毀音檔不重試且標為無法讀取", http.StatusBadRequest,
+			`{"err_code":"Bad Request","err_msg":"Bad Request: failed to process audio: corrupt or unsupported data"}`, true, true},
+		{"其他 400 不重試", http.StatusBadRequest, `{"err_code":"Bad Request","err_msg":"bad param"}`, true, false},
+		{"5xx 交由佇列重試", http.StatusBadGateway, `upstream`, false, false},
+		{"429 交由佇列重試", http.StatusTooManyRequests, `slow down`, false, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				w.Write([]byte(tc.body))
+			}))
+			defer srv.Close()
+
+			c := NewDeepgram("k", "nova-3", "zh-TW", nil, WithDeepgramBaseURL(srv.URL))
+			_, err := c.Transcribe(context.Background(), strings.NewReader("audio"), 5, "a.webm", domainmeeting.LanguageZhTW, nil)
+			if err == nil {
+				t.Fatal("Transcribe() error = nil, want error")
+			}
+			if got := domainmeeting.IsNonRetryable(err); got != tc.nonRetryable {
+				t.Errorf("IsNonRetryable = %v, want %v (err=%v)", got, tc.nonRetryable, err)
+			}
+			if got := errors.Is(err, domainmeeting.ErrUnreadableAudio); got != tc.unreadable {
+				t.Errorf("errors.Is(ErrUnreadableAudio) = %v, want %v", got, tc.unreadable)
+			}
+		})
 	}
 }

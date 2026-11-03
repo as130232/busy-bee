@@ -3,6 +3,7 @@ package meeting
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"slices"
 	"strings"
@@ -294,6 +295,18 @@ func TestMarkFailed_NoSpeechHasSpecificMessage(t *testing.T) {
 
 	if !strings.Contains(repo.failedMessage, "沒有偵測到說話聲") {
 		t.Errorf("failedMessage = %q, want no-speech hint", repo.failedMessage)
+	}
+}
+
+func TestMarkFailed_UnreadableAudioHasSpecificMessage(t *testing.T) {
+	repo := &processFakeRepo{meeting: newProcessMeeting(domainmeeting.StatusTranscribing, "")}
+	uc := newTestProcessUC(repo, &processFakeStorage{}, &fakeSTT{}, &fakeNotifier{})
+
+	cause := fmt.Errorf("process transcribe: %w", domainmeeting.NonRetryable(domainmeeting.ErrUnreadableAudio))
+	uc.MarkFailed(context.Background(), repo.meeting.ID, cause)
+
+	if !strings.Contains(repo.failedMessage, "音檔沒有錄到聲音或已損毀") {
+		t.Errorf("failedMessage = %q, want unreadable-audio hint", repo.failedMessage)
 	}
 }
 
