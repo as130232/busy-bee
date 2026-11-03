@@ -110,6 +110,11 @@ export function RecorderPanel({
           錄音因裝置休眠而中斷，可直接結束並上傳已錄部分。
         </p>
       )}
+      {!interrupted && rec.warning && (
+        <p role="alert" className="m-0 max-w-xs text-center text-sm text-warning">
+          {rec.warning}
+        </p>
+      )}
       <div className="flex items-center gap-3">
         {!interrupted &&
           (rec.phase === 'recording' ? (
