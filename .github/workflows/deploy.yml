@@ -148,6 +148,7 @@ jobs:
 
       - name: Deploy Firebase Hosting
         working-directory: busy-bee-fe
-        run: npx firebase-tools deploy --only hosting --project ${PROJECT_ID} --non-interactive
+        # 鎖定版本：15.34.2 起部署前會查 serviceusage，部署 SA 無此權限會 403（2026-11-03）
+        run: npx --yes firebase-tools@15.34.0 deploy --only hosting --project ${PROJECT_ID} --non-interactive
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
