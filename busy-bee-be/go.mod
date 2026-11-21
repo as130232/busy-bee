@@ -1,6 +1,6 @@
 module github.com/as130232/busy-bee/busy-bee-be
 
-go 1.27.3
+go 1.27.4
 
 require (
 	cloud.google.com/go/iam v1.15.1

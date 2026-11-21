@@ -7,7 +7,7 @@
 
 ## 當前焦點
 
-**2026-11-21 Phase 34 即時會議日誌檢查修正**（分支 `fix/live-log-review`，待 merge 與部署）：麥克風中途中斷提醒＋重新連接、刪除會議清本機備份、已完成會議詳情頁不再反覆重抓、log 補 Cloud Logging severity。部署後做 34.5 驗收。
+**2026-11-21 Phase 34 即時會議日誌檢查修正已部署 production**（`a3f8e4a`；Go 升 1.27.4 修 GO-2026-6859）：麥克風中途中斷提醒＋重新連接、刪除會議清本機備份、已完成會議詳情頁不再反覆重抓、log 補 Cloud Logging severity。部署後做 34.5 驗收。
 
 **2026-11-03 Phase 33 補強錄音沒錄到聲音（33.8、33.9）**：iPhone 錄音 39 分鐘只上傳 5 bytes（麥克風疑被占用，計時器照跑）。錄音中收不到聲音即提醒、空檔不上傳、Deepgram 400 不再重試。待部署後裝置端驗收（33.5）。
 
@@ -620,7 +620,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 - 33.6 ⬜ 未做（待決）：個人術語表（取代時「記住這個詞」並送 Deepgram keyterm）、只重新產生摘要（不跑整套校正）
 
 ## Phase 34：即時會議日誌檢查修正
-> 里程碑：post-MVP | 🔄 程式完成（分支 `fix/live-log-review`），待 merge、部署與驗收
+> 里程碑：post-MVP | 🔄 已部署 production，待驗收（34.5）
 > 對應：F-LIVE、F-STATUS、F-CORRECT
 > 來源：2026-11-21 檢查 11/04、11/18 兩場即時會議的 production log。11/18（20 分鐘）主流程正常，但 06:27 `live.audio_diagnostics` 顯示 `mic_track=ended`（麥克風中途斷掉，使用者沒有收到提示）；11/04 那場刪除後本機備份殘留，11/18 又跳出救回提示（DELETE 404）；已完成會議的詳情頁開著，會後 19 小時被重抓約 50 次、6 次冷啟動；app log 沒有 severity，`severity>=ERROR` 查不到。
 
@@ -628,6 +628,7 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 - 34.2 ✅ 刪除會議時一併清 IndexedDB 即時錄音備份 `1e3f9ed`
 - 34.3 ✅ 已完成／失敗且沒有校正進行中的詳情頁不連 WS、回前景不 resync（`useMeetingStatusSocket` 新增 `enabled`；重新啟用時補抓一次） `1e3f9ed`
 - 34.4 ✅ slog 頂層 `level` 改輸出 `severity`（WARN→WARNING），Cloud Logging 可用 severity 篩選 `a073f8c`
+- 34.7 ✅ govulncheck 抓到 net/http 漏洞（GO-2026-6859，go1.27.3）：`go.mod` 與基底映像 digest 升到 1.27.4（見本 commit）
 - 34.5 ⬜ 部署後驗收：即時會議中斷開藍牙耳機或拔掉麥克風，應看到提醒，重新連接後恢復；log 有 `reason=mic_ended` 且 `severity=WARNING`；已完成會議詳情頁開著切換分頁，不再出現重抓
 - 34.6 ⬜ 觀察：即時重點前三次 6–8.6 秒，之後約 3 秒（11/18），多累積幾場再判斷要不要處理
 
