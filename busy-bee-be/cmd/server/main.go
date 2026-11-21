@@ -248,5 +248,27 @@ func setupLogger(cfg *config.Config) {
 	if err := level.UnmarshalText([]byte(cfg.Log.Level)); err != nil {
 		level = slog.LevelInfo
 	}
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})))
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level, ReplaceAttr: cloudLoggingAttr})))
+}
+
+// cloudLoggingAttr 把頂層 level 改成 Cloud Logging 認得的 severity（WARN→WARNING），
+// 否則所有 app log 在 Cloud Logging 都是 DEFAULT，severity>=ERROR 查不到。msg 保留不動。
+func cloudLoggingAttr(groups []string, a slog.Attr) slog.Attr {
+	if len(groups) > 0 || a.Key != slog.LevelKey {
+		return a
+	}
+	sev := "DEFAULT"
+	if lv, ok := a.Value.Any().(slog.Level); ok {
+		switch {
+		case lv >= slog.LevelError:
+			sev = "ERROR"
+		case lv >= slog.LevelWarn:
+			sev = "WARNING"
+		case lv >= slog.LevelInfo:
+			sev = "INFO"
+		default:
+			sev = "DEBUG"
+		}
+	}
+	return slog.String("severity", sev)
 }
