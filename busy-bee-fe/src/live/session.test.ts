@@ -33,12 +33,16 @@ function setup(over: Partial<SessionDeps> = {}) {
   const pcmStreams: unknown[] = []
   const chunks: Blob[] = []
   let endedCb: (() => void) | undefined
+  let micEndedCb: (() => void) | undefined
+  const newMic = { id: 'mic2' } as unknown as MediaStream
   const source = {
     remote: { id: 'tab' } as unknown as MediaStream,
     local: { id: 'mic' } as unknown as MediaStream,
     micDenied: false,
     start: vi.fn(async () => {}),
     onEnded: (cb: () => void) => (endedCb = cb),
+    onLocalEnded: (cb: () => void) => (micEndedCb = cb),
+    reconnectMic: vi.fn(async () => newMic),
     stop: vi.fn(),
   }
   let onChunk: ((b: Blob) => void) | undefined
@@ -48,6 +52,7 @@ function setup(over: Partial<SessionDeps> = {}) {
     stop: vi.fn(async () => onChunk?.(new Blob(['tail']))),
     peak: vi.fn(() => audio.peak),
     contextState: () => 'running',
+    addStream: vi.fn(),
   }
   const api = {
     startLiveMeeting: vi.fn(async () => ({ meeting: { id: 'm1', title: '週會' } })),
@@ -95,7 +100,7 @@ function setup(over: Partial<SessionDeps> = {}) {
     ...over,
   }
   const session = new LiveSession(deps)
-  return { session, api, store, upload, transcribers, pcmStreams, source, recorder, audio, chunks, ended: () => endedCb?.() }
+  return { session, api, store, upload, transcribers, pcmStreams, source, recorder, audio, chunks, ended: () => endedCb?.(), micEnded: () => micEndedCb?.(), newMic }
 }
 
 const startInput = { title: '週會', scenario: 'meeting' as const, language: 'zh-TW' as const, micTranscription: false, contexts: [] }
@@ -290,5 +295,41 @@ describe('LiveSession', () => {
     await session.start(startInput)
     expect(api.startLiveMeeting).not.toHaveBeenCalled()
     expect(session.getState()).toMatchObject({ phase: 'idle', error: '沒有取得分頁音訊' })
+  })
+
+  it('麥克風中斷：提醒並立即回報 mic_ended 診斷（只報一次）', async () => {
+    const { session, api, micEnded } = setup()
+    await session.start(startInput)
+    micEnded()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(session.getState().micEnded).toBe(true)
+    expect(api.sendLiveHeartbeat).toHaveBeenCalledTimes(1)
+    expect(api.sendLiveHeartbeat).toHaveBeenCalledWith('id', 'm1', expect.any(Number), expect.objectContaining({ reason: 'mic_ended' }))
+    micEnded()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(api.sendLiveHeartbeat).toHaveBeenCalledTimes(1)
+  })
+
+  it('重新連接麥克風：接回錄音並換掉麥克風辨識', async () => {
+    const { session, source, recorder, transcribers, pcmStreams, micEnded, newMic } = setup()
+    await session.start({ ...startInput, micTranscription: true })
+    expect(transcribers).toHaveLength(2)
+    micEnded()
+    await session.reconnectMic()
+    expect(source.reconnectMic).toHaveBeenCalled()
+    expect(recorder.addStream).toHaveBeenCalledWith(newMic)
+    expect(transcribers[1].stopped).toBe(true)
+    expect(transcribers).toHaveLength(3)
+    expect(pcmStreams.at(-1)).toBe(newMic)
+    expect(session.getState()).toMatchObject({ micEnded: false, micReconnecting: false, micError: null })
+  })
+
+  it('重新連接失敗：保留提醒並顯示錯誤', async () => {
+    const { session, source, micEnded } = setup()
+    source.reconnectMic.mockRejectedValueOnce(new Error('找不到麥克風'))
+    await session.start(startInput)
+    micEnded()
+    await session.reconnectMic()
+    expect(session.getState()).toMatchObject({ micEnded: true, micError: '找不到麥克風', micReconnecting: false })
   })
 })

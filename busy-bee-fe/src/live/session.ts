@@ -70,6 +70,10 @@ export interface SessionState {
   /** 額度用完或連線放棄：即時辨識已停，錄音照常。 */
   liveDisabled: boolean
   micDenied: boolean
+  /** 麥克風音軌中途中斷：錄音收不到自己的聲音，需重新連接。 */
+  micEnded: boolean
+  micReconnecting: boolean
+  micError: string | null
   /** 錄音持續收不到任何聲音（分享的分頁沒聲音、麥克風無訊號或瀏覽器音訊未啟動）。 */
   noAudio: boolean
   backupFailed: boolean
@@ -165,6 +169,9 @@ const initialState: SessionState = {
   usage: null,
   liveDisabled: false,
   micDenied: false,
+  micEnded: false,
+  micReconnecting: false,
+  micError: null,
   noAudio: false,
   backupFailed: false,
   sourceEnded: false,
@@ -181,6 +188,7 @@ export class LiveSession {
   private source: (AudioSource & { micDenied?: boolean }) | null = null
   private transcribers: Partial<Record<Who, TranscriberLike>> = {}
   private captures: PcmCapture[] = []
+  private channelCaptures: Partial<Record<Who, PcmCapture>> = {}
   private recorder: MixedRecorder | null = null
   private memChunks: Blob[] = []
   private mimeType = 'audio/webm'
@@ -195,6 +203,7 @@ export class LiveSession {
   private lastSoundAt = 0
   private pcmFrames = 0
   private diagnosticsSent = false
+  private micDiagnosticsSent = false
   private readonly deps: SessionDeps
 
   constructor(deps: SessionDeps) {
@@ -226,6 +235,7 @@ export class LiveSession {
     }
     this.source = source
     source.onEnded(() => this.set({ sourceEnded: true }))
+    source.onLocalEnded?.(() => this.onMicEnded())
 
     const streams = [source.remote, source.local].filter((s): s is MediaStream => s !== null)
     let meetingId: string
@@ -295,12 +305,12 @@ export class LiveSession {
     })
     this.transcribers[who] = t
     try {
-      this.captures.push(
-        await this.deps.startPcm(stream, SAMPLE_RATE, (f) => {
-          this.pcmFrames++
-          t.push(f)
-        }),
-      )
+      const capture = await this.deps.startPcm(stream, SAMPLE_RATE, (f) => {
+        this.pcmFrames++
+        t.push(f)
+      })
+      this.captures.push(capture)
+      this.channelCaptures[who] = capture
     } catch {
       this.set({ [key]: 'failed' } as Partial<SessionState>)
       return
@@ -411,6 +421,41 @@ export class LiveSession {
     }
   }
 
+  /** 麥克風音軌中斷：提醒使用者，並立即回報一次診斷（無聲偵測只在整體靜音時才觸發，會漏掉這種情況）。 */
+  private onMicEnded(): void {
+    if (this.state.phase !== 'live' && this.state.phase !== 'starting') return
+    this.set({ micEnded: true, micError: null })
+    if (!this.micDiagnosticsSent && this.state.meetingId) {
+      this.micDiagnosticsSent = true
+      void this.heartbeat(this.audioDiagnostics(this.recorder?.peak() ?? 0, 'mic_ended'))
+    }
+  }
+
+  /** 重新取得麥克風：接回錄音；若有開麥克風辨識，一併換掉該路辨識。 */
+  async reconnectMic(): Promise<void> {
+    const source = this.source
+    if (this.state.phase !== 'live' || this.state.micReconnecting || !source?.reconnectMic) return
+    this.set({ micReconnecting: true, micError: null })
+    try {
+      const stream = await source.reconnectMic()
+      this.recorder?.addStream(stream)
+      const old = this.transcribers.local
+      if (old && !this.state.liveDisabled) {
+        old.stop()
+        const cap = this.channelCaptures.local
+        cap?.stop()
+        this.captures = this.captures.filter((c) => c !== cap)
+        delete this.channelCaptures.local
+        await this.startChannel('local', stream)
+      }
+      this.set({ micEnded: false, micDenied: false })
+    } catch (e) {
+      this.set({ micError: message(e, '無法重新連接麥克風') })
+    } finally {
+      this.set({ micReconnecting: false })
+    }
+  }
+
   /** 錄音持續靜音時提醒使用者，並把瀏覽器端音訊狀態回報一次給後端日誌（排查用）。 */
   private checkSilence(): void {
     const peak = this.recorder?.peak() ?? 0
@@ -424,17 +469,17 @@ export class LiveSession {
     this.set({ noAudio: true })
     if (!this.diagnosticsSent) {
       this.diagnosticsSent = true
-      void this.heartbeat(this.audioDiagnostics(peak))
+      void this.heartbeat(this.audioDiagnostics(peak, 'no_audio'))
     }
   }
 
-  private audioDiagnostics(peak: number): LiveAudioDiagnostics {
+  private audioDiagnostics(peak: number, reason: LiveAudioDiagnostics['reason']): LiveAudioDiagnostics {
     const track = (s: MediaStream | null | undefined) => {
       const t = s?.getAudioTracks?.()[0]
       return t ? `${t.readyState}${t.muted ? '/muted' : ''}${t.enabled ? '' : '/disabled'}` : 'none'
     }
     return {
-      reason: 'no_audio',
+      reason,
       recorderCtx: this.recorder?.contextState() ?? 'none',
       pcmCtx: this.captures.map((c) => c.contextState()).join(',') || 'none',
       pcmFrames: this.pcmFrames,

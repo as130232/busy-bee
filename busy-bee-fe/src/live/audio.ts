@@ -7,8 +7,14 @@ export interface AudioSource {
   start(): Promise<void>
   /** 來源結束（使用者停止分享、分頁關閉）。 */
   onEnded(cb: () => void): void
+  /** 麥克風音軌中斷（藍牙耳機斷線、拔除裝置、系統收回權限）。 */
+  onLocalEnded?(cb: () => void): void
+  /** 重新取得麥克風，取代原本的 local 並回傳新串流。 */
+  reconnectMic?(): Promise<MediaStream>
   stop(): void
 }
+
+const MIC_CONSTRAINTS: MediaStreamConstraints = { audio: { echoCancellation: true, noiseSuppression: true } }
 
 /** 分享時沒勾「分享分頁音訊」。 */
 export class NoTabAudioError extends Error {
@@ -32,6 +38,7 @@ export class MeetTabSource implements AudioSource {
   local: MediaStream | null = null
   micDenied = false
   private endedCbs: (() => void)[] = []
+  private localEndedCbs: (() => void)[] = []
 
   async start(): Promise<void> {
     const display = await navigator.mediaDevices.getDisplayMedia({
@@ -54,9 +61,7 @@ export class MeetTabSource implements AudioSource {
     this.remote = display
 
     try {
-      this.local = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-      })
+      this.local = await this.openMic()
     } catch {
       this.local = null
       this.micDenied = true
@@ -65,6 +70,26 @@ export class MeetTabSource implements AudioSource {
 
   onEnded(cb: () => void): void {
     this.endedCbs.push(cb)
+  }
+
+  onLocalEnded(cb: () => void): void {
+    this.localEndedCbs.push(cb)
+  }
+
+  async reconnectMic(): Promise<MediaStream> {
+    const stream = await this.openMic()
+    this.local?.getTracks().forEach((t) => t.stop())
+    this.local = stream
+    this.micDenied = false
+    return stream
+  }
+
+  private async openMic(): Promise<MediaStream> {
+    const stream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS)
+    stream.getAudioTracks()[0]?.addEventListener('ended', () => {
+      if (this.local === stream) this.localEndedCbs.forEach((cb) => cb())
+    })
+    return stream
   }
 
   stop(): void {
@@ -149,6 +174,8 @@ export interface MixedRecorder {
   peak(): number
   /** AudioContext 狀態，診斷無聲用。 */
   contextState(): string
+  /** 錄音中加入一路音訊（如麥克風斷線後重新取得的串流）。 */
+  addStream(stream: MediaStream): void
 }
 
 export function pickRecorderMime(): string {
@@ -166,12 +193,13 @@ export function startMixedRecorder(streams: MediaStream[], onChunk: (blob: Blob)
   const analyser = ctx.createAnalyser()
   analyser.fftSize = 2048
   const samples = new Float32Array(analyser.fftSize)
-  const sources = streams.map((s) => {
+  const connect = (s: MediaStream) => {
     const src = ctx.createMediaStreamSource(s)
     src.connect(dest)
     src.connect(analyser)
     return src
-  })
+  }
+  const sources = streams.map(connect)
   const mimeType = pickRecorderMime()
   const recorder = new MediaRecorder(dest.stream, { mimeType, audioBitsPerSecond: AUDIO_BITS_PER_SECOND })
   recorder.ondataavailable = (e) => {
@@ -187,6 +215,9 @@ export function startMixedRecorder(streams: MediaStream[], onChunk: (blob: Blob)
       return max
     },
     contextState: () => ctx.state,
+    addStream: (s) => {
+      sources.push(connect(s))
+    },
     stop: () =>
       new Promise<void>((resolve) => {
         const finish = () => {

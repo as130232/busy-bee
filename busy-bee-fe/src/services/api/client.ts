@@ -562,9 +562,9 @@ export function getLiveToken(idToken: string, meetingId: string): Promise<LiveTo
   return postJSON(`/api/v1/meetings/${meetingId}/live/token`, idToken, {})
 }
 
-/** 即時會議音訊診斷（偵測到持續無聲時回報一次，只含狀態不含內容）。 */
+/** 即時會議音訊診斷（持續無聲、麥克風中斷時各回報一次，只含狀態不含內容）。 */
 export interface LiveAudioDiagnostics {
-  reason: 'no_audio'
+  reason: 'no_audio' | 'mic_ended'
   recorderCtx: string
   pcmCtx: string
   pcmFrames: number

@@ -1950,10 +1950,10 @@ export interface operations {
             content: {
                 "application/json": {
                     seconds: number;
-                    /** @description 前端偵測到錄音持續無聲時回報一次的瀏覽器端音訊狀態（只記 log，不含音訊內容；字串截斷 64 字元） */
+                    /** @description 前端偵測到錄音持續無聲（no_audio）或麥克風音軌中斷（mic_ended）時各回報一次的瀏覽器端音訊狀態（只記 log，不含音訊內容；字串截斷 64 字元） */
                     diagnostics?: {
                         /** @enum {string} */
-                        reason?: "no_audio";
+                        reason?: "no_audio" | "mic_ended";
                         /** @description 錄音混音 AudioContext 狀態 */
                         recorderCtx?: string;
                         /** @description 即時辨識 AudioContext 狀態（多路以逗號分隔） */
