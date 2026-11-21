@@ -12,7 +12,7 @@ export interface ScenarioTheme {
   ring: string
   /** 錄音鈕外的呼吸光暈 */
   glow: string
-  /** 整頁背景暈染（大範圍柔光） */
+  /** 整頁背景暈染的放射漸層起始色（from-*；RecordPage 以 bg-radial 繪製，不用 blur） */
   tint: string
   /** 錄音鈕漸層 + 陰影色 */
   button: string
@@ -32,7 +32,7 @@ export const scenarioThemes: Record<Scenario, ScenarioTheme> = {
   meeting: {
     ring: 'border-amber-400/40',
     glow: 'bg-amber-400/25',
-    tint: 'bg-amber-500/15',
+    tint: 'from-amber-500/15',
     button: 'from-amber-400 to-amber-500 shadow-amber-400/60',
     buttonHover: 'group-hover:shadow-amber-400/80',
     toggleActive: 'bg-amber-400 text-zinc-900',
@@ -43,7 +43,7 @@ export const scenarioThemes: Record<Scenario, ScenarioTheme> = {
   casual: {
     ring: 'border-sky-400/40',
     glow: 'bg-sky-400/25',
-    tint: 'bg-sky-500/15',
+    tint: 'from-sky-500/15',
     button: 'from-sky-400 to-sky-500 shadow-sky-400/60',
     buttonHover: 'group-hover:shadow-sky-400/80',
     toggleActive: 'bg-sky-400 text-zinc-900',
@@ -54,7 +54,7 @@ export const scenarioThemes: Record<Scenario, ScenarioTheme> = {
   interview: {
     ring: 'border-emerald-400/40',
     glow: 'bg-emerald-400/25',
-    tint: 'bg-emerald-500/15',
+    tint: 'from-emerald-500/15',
     button: 'from-emerald-400 to-emerald-500 shadow-emerald-400/60',
     buttonHover: 'group-hover:shadow-emerald-400/80',
     toggleActive: 'bg-emerald-400 text-zinc-900',
@@ -65,7 +65,7 @@ export const scenarioThemes: Record<Scenario, ScenarioTheme> = {
   idea: {
     ring: 'border-violet-400/40',
     glow: 'bg-violet-400/25',
-    tint: 'bg-violet-500/15',
+    tint: 'from-violet-500/15',
     button: 'from-violet-400 to-violet-500 shadow-violet-400/60',
     buttonHover: 'group-hover:shadow-violet-400/80',
     toggleActive: 'bg-violet-400 text-zinc-900',

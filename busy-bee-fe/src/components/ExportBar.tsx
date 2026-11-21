@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Check, Copy, Download, Share2 } from 'lucide-react'
 
-/** 文件匯出工具列：複製 Markdown / 下載 .md / 系統分享。 */
+import { downloadFile, safeFilename, shareOrDownload } from '../services/shareFile'
+
+/** 文件匯出工具列：複製 Markdown / 下載 .md / 系統分享（以 .md 檔分享，AirDrop 到電腦即為檔案）。 */
 export function ExportBar({ content, filename }: { content: string; filename: string }) {
   const [copied, setCopied] = useState(false)
   const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
@@ -16,21 +18,15 @@ export function ExportBar({ content, filename }: { content: string; filename: st
     }
   }
 
-  const download = () => {
-    const url = URL.createObjectURL(new Blob([content], { type: 'text/markdown' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename.endsWith('.md') ? filename : `${filename}.md`
-    a.click()
-    URL.revokeObjectURL(url)
+  const toFile = () => {
+    const base = safeFilename(filename.replace(/\.md$/i, ''))
+    return new File([content], `${base}.md`, { type: 'text/markdown' })
   }
 
+  const download = () => downloadFile(toFile())
+
   const share = async () => {
-    try {
-      await navigator.share({ title: filename, text: content })
-    } catch (e) {
-      if (e instanceof Error && e.name === 'AbortError') return // 用戶取消
-    }
+    await shareOrDownload(toFile())
   }
 
   return (

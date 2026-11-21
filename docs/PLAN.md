@@ -632,12 +632,23 @@ Phase 7 / 8 / 9 完成 Phase 6 後可平行進行
 - 34.5 ⬜ 部署後驗收：即時會議中斷開藍牙耳機或拔掉麥克風，應看到提醒，重新連接後恢復；log 有 `reason=mic_ended` 且 `severity=WARNING`；已完成會議詳情頁開著切換分頁，不再出現重抓
 - 34.6 ⬜ 觀察：即時重點前三次 6–8.6 秒，之後約 3 秒（11/18），多累積幾場再判斷要不要處理
 
+## Phase 35：分享改善（.md 檔、錄音檔）＋ 錄音頁黑塊
+> 里程碑：post-MVP | 🔄 程式完成（分支 `feat/share-files`），待 merge、部署與 iPhone 驗收
+> 對應：F-EXPORT、F-RECORD
+> 來源：2026-11-21 使用者回報 iPhone AirDrop 逐字稿到 Mac 出現「未設定應用程式來打開 URL A:…」（原本以純文字分享，開頭「A:」被 macOS 當成 URL scheme）；希望也能分享錄音檔給 AI agent 分析；錄音中畫面左上出現黑色方塊。
+
+- 35.1 ✅ 匯出列「分享」改以 `.md` 檔分享（`navigator.share({ files })`），不支援時改為下載；共用 `services/shareFile.ts`（見本 commit）
+- 35.2 ✅ 詳情頁「⋯」新增「分享錄音檔」：先下載（顯示進度），再點「分享」／「下載」（iOS 的 share 必須在點按當下呼叫）；副檔名依 Content-Type（m4a／webm）（見本 commit）
+- 35.3 ✅ 錄音頁背景光暈改用放射漸層，不再用大面積 blur 濾鏡（疑為 iOS Safari 繪製出黑色方塊的原因）（見本 commit）
+- 35.4 ⬜ iPhone 驗收：AirDrop 逐字稿到 Mac 收到 .md 檔；分享錄音檔可 AirDrop 並播放；錄音中黑色方塊不再出現
+
 ---
 
 ## Session Log
 
 | 日期 | 完成事項 | Commit |
 |------|---------|--------|
+| 2026-11-21 | **分享改善（Phase 35）**：逐字稿／摘要改以 .md 檔分享（修 AirDrop 被當成 URL）、新增分享錄音檔、錄音頁光暈改漸層修 iOS 黑塊；前端 142 測試、typecheck、lint、build 全綠 | 見本 commit |
 | 2026-11-21 | **即時會議日誌檢查（Phase 34）**：檢查 11/04、11/18 兩場的 Cloud Run log，修正麥克風中斷無提示、刪除會議殘留本機備份、已完成詳情頁反覆重抓造成冷啟動、log 缺 severity 四項；前端 135 測試、typecheck、lint、後端 `go test ./...` 全綠 | `a073f8c`、`bf4ec57`、`1e3f9ed` |
 | 2026-11-03 | **套用 Dependabot PR #5**（iam 1.15.1、storage 1.70.0、genai 1.77.0）：cherry-pick 到最新 main，單元測試、govulncheck（0 項）、GCS 整合測試、新版 genai 實打 Gemini 皆通過；本機 Docker 未啟動，DB 整合測試與 image 建置交由 CI。另：firebase-tools 15.34.2 部署前查 serviceusage 造成 403，workflow 鎖定 15.34.0 | `b4e54dd`、見本 commit |
 | 2026-11-03 | **Phase 33 補強（33.8、33.9）**：使用者 16:00 iPhone 錄音轉檔失敗——日誌與 GCS 顯示 39 分鐘錄音只上傳 5 bytes（空 webm 結尾），Deepgram 回 400 後仍重試 4 次。同機 10/13–10/28 六次上傳皆正常，判斷為麥克風被占用（計時器照跑）。三項補強皆 TDD；後端全綠、前端 129 測試全綠 | `d3013b4` 起 |

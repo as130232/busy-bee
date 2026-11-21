@@ -1,12 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { ChevronLeft, ChevronRight, FileText, MoreHorizontal, Sparkles, Trash2, X } from 'lucide-react'
+import { AudioLines, ChevronLeft, ChevronRight, FileText, MoreHorizontal, Sparkles, Trash2, X } from 'lucide-react'
 
 import { formatClock } from '../utils/format'
 import { ActionItemList } from '../components/ActionItemList'
 import { AppShell } from '../components/AppShell'
 import { AudioPlayer } from '../components/AudioPlayer'
+import { AudioShareSheet } from '../components/AudioShareSheet'
 import { EditableMeetingTitle } from '../components/EditableMeetingTitle'
 import { ExportBar } from '../components/ExportBar'
 import { Loader } from '../components/Loader'
@@ -80,7 +81,7 @@ export function MeetingDetailPage() {
   const [tab, setTab] = useState<Tab>('summary')
   const [confirmDelete, setConfirmDelete] = useState(false)
   // 「⋯」選單與其子視窗：低頻動作（AI 校正、會前資料、刪除）收進這裡，讓內文更早出現。
-  const [menu, setMenu] = useState<null | 'actions' | 'contexts'>(null)
+  const [menu, setMenu] = useState<null | 'actions' | 'contexts' | 'audio'>(null)
   const [correctionSignal, setCorrectionSignal] = useState(0)
   const audioRef = useRef<HTMLAudioElement>(null)
 
@@ -313,6 +314,14 @@ export function MeetingDetailPage() {
                 }}
               />
             )}
+            {meeting.status !== 'pending' && (
+              <MenuItem
+                icon={<AudioLines className="size-5 text-muted" />}
+                label="分享錄音檔"
+                hint="AirDrop 或存到檔案，可交給其他工具分析"
+                onClick={() => setMenu('audio')}
+              />
+            )}
             <MenuItem
               icon={<FileText className="size-5 text-muted" />}
               label="會前資料"
@@ -330,6 +339,10 @@ export function MeetingDetailPage() {
             />
           </ul>
         </Sheet>
+      )}
+
+      {menu === 'audio' && (
+        <AudioShareSheet meetingId={meeting.id} title={meeting.title} onClose={() => setMenu(null)} />
       )}
 
       {menu === 'contexts' && (

@@ -69,10 +69,11 @@ export function RecordPage() {
   return (
     // 情境切換靠上、錄音鈕置中、匯入捷徑貼底（整頁一屏，不需捲動）
     <div className="relative isolate flex h-full flex-1 flex-col">
-      {/* 隨情境變色的背景暈染（大範圍柔光，切換時漸變） */}
+      {/* 隨情境變色的背景暈染（大範圍柔光）。用放射漸層而非 blur 濾鏡：
+          iOS Safari 繪製大面積 blur 時偶爾會出現黑色方塊（錄音中每秒重繪時特別明顯） */}
       <span
         aria-hidden
-        className={`pointer-events-none absolute top-1/2 left-1/2 -z-10 size-[28rem] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-70 blur-3xl transition-colors duration-500 ${theme.tint}`}
+        className={`pointer-events-none absolute top-1/2 left-1/2 -z-10 size-[36rem] -translate-x-1/2 -translate-y-1/2 bg-radial ${theme.tint} to-transparent to-60% opacity-70`}
       />
 
       <div className="flex flex-wrap items-center justify-center gap-2 pt-3">
