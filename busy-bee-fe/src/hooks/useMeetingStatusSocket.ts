@@ -24,17 +24,27 @@ const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'scroll', 'touchstart'] as co
  * 因此「沒在使用」時主動斷線且不重連——分頁背景超過 HIDDEN_GRACE_MS，
  * 或可見但無操作超過 IDLE_TIMEOUT_MS；使用者回來時重連並呼叫 onResync，
  * 讓呼叫端重新載入以補上斷線期間漏掉的狀態事件。
+ *
+ * enabled=false 時完全不連線（如已完成／失敗的會議詳情頁不會再有狀態事件，
+ * 連線與回前景 resync 只會白白喚醒 instance）；變回 true 時連線並 resync 一次。
  */
 export function useMeetingStatusSocket(
   onEvent: (e: MeetingStatusEvent) => void,
   onResync?: () => void,
+  enabled = true,
 ) {
   const onEventRef = useRef(onEvent)
   onEventRef.current = onEvent
   const onResyncRef = useRef(onResync)
   onResyncRef.current = onResync
 
+  const wasDisabledRef = useRef(false)
+
   useEffect(() => {
+    if (!enabled) {
+      wasDisabledRef.current = true
+      return
+    }
     let ws: WebSocket | null = null
     let attempt = 0
     let closed = false // unmount
@@ -143,7 +153,10 @@ export function useMeetingStatusSocket(
     } else {
       connect()
       armIdleTimer()
+      // 從停用恢復：補上停用期間可能漏掉的事件（如校正剛開始就完成）
+      if (wasDisabledRef.current) onResyncRef.current?.()
     }
+    wasDisabledRef.current = false
 
     return () => {
       closed = true
@@ -154,5 +167,5 @@ export function useMeetingStatusSocket(
       ACTIVITY_EVENTS.forEach((ev) => window.removeEventListener(ev, onActivity))
       ws?.close()
     }
-  }, [])
+  }, [enabled])
 }

@@ -143,4 +143,38 @@ describe('useMeetingStatusSocket', () => {
     )
     expect(onEvent).toHaveBeenCalledWith({ meetingId: 'm1', status: 'done', errorMessage: undefined })
   })
+
+  it('enabled=false 不連線、回前景也不 resync；變回 true 才連線並 resync 一次', () => {
+    const onResync = vi.fn()
+    const { rerender } = renderHook(({ on }) => useMeetingStatusSocket(() => {}, onResync, on), {
+      initialProps: { on: false },
+    })
+    expect(FakeWebSocket.instances).toHaveLength(0)
+    act(() => setVisibility('hidden'))
+    act(() => vi.advanceTimersByTime(HIDDEN_GRACE_MS))
+    act(() => setVisibility('visible'))
+    expect(FakeWebSocket.instances).toHaveLength(0)
+    expect(onResync).not.toHaveBeenCalled()
+
+    rerender({ on: true })
+    expect(openSockets()).toHaveLength(1)
+    expect(onResync).toHaveBeenCalledTimes(1)
+  })
+
+  it('從 true 變 false 會關閉既有連線且不重連', () => {
+    const { rerender } = renderHook(({ on }) => useMeetingStatusSocket(() => {}, undefined, on), {
+      initialProps: { on: true },
+    })
+    expect(openSockets()).toHaveLength(1)
+    rerender({ on: false })
+    act(() => vi.advanceTimersByTime(20_000))
+    expect(openSockets()).toHaveLength(0)
+    expect(FakeWebSocket.instances).toHaveLength(1)
+  })
+
+  it('首次掛載就啟用時不呼叫 resync', () => {
+    const onResync = vi.fn()
+    renderHook(() => useMeetingStatusSocket(() => {}, onResync, true))
+    expect(onResync).not.toHaveBeenCalled()
+  })
 })

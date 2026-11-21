@@ -61,6 +61,8 @@ function buildSummaryMarkdown(meeting: MeetingDetail): string {
 
 export function MeetingDetailPage() {
   const { id } = useParams<{ id: string }>()
+  // AI 校正進行中：已完成的會議仍要訂閱狀態事件，才收得到校正完成通知
+  const [correctionRunning, setCorrectionRunning] = useState(false)
   const {
     meeting,
     setMeeting,
@@ -74,7 +76,7 @@ export function MeetingDetailPage() {
     toggleItem,
     editItem,
     removeItem,
-  } = useMeetingDetail(id)
+  } = useMeetingDetail(id, correctionRunning)
   const [tab, setTab] = useState<Tab>('summary')
   const [confirmDelete, setConfirmDelete] = useState(false)
   // 「⋯」選單與其子視窗：低頻動作（AI 校正、會前資料、刪除）收進這裡，讓內文更早出現。
@@ -223,7 +225,12 @@ export function MeetingDetailPage() {
         )}
       </div>
 
-      <CorrectionPanel meeting={meeting} onChanged={() => void reload()} startSignal={correctionSignal} />
+      <CorrectionPanel
+        meeting={meeting}
+        onChanged={() => void reload()}
+        startSignal={correctionSignal}
+        onRunningChange={setCorrectionRunning}
+      />
 
       {meeting.liveNotes && <LiveNotesSection notes={meeting.liveNotes} />}
 

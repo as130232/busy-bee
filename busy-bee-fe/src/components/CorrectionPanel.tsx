@@ -25,10 +25,13 @@ export function CorrectionPanel({
   meeting,
   onChanged,
   startSignal = 0,
+  onRunningChange,
 }: {
   meeting: MeetingDetail
   onChanged: () => void
   startSignal?: number
+  /** 校正排隊/進行中與否；詳情頁據此決定已完成的會議是否仍需訂閱狀態事件（校正完成靠 WS 通知）。 */
+  onRunningChange?: (running: boolean) => void
 }) {
   const call = useApiCall()
   const [state, setState] = useState<CorrectionState | null>(null)
@@ -55,6 +58,11 @@ export function CorrectionPanel({
   useEffect(() => {
     if (startSignal > 0) setConfirming('start')
   }, [startSignal])
+
+  const isRunning = state?.status === 'queued' || state?.status === 'running'
+  useEffect(() => {
+    onRunningChange?.(isRunning)
+  }, [isRunning, onRunningChange])
 
   const start = useCallback(async () => {
     const { guidance: g, error: gErr } = toGuidance(guidance)

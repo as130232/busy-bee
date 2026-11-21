@@ -14,14 +14,17 @@ import {
   type Artifact,
   type MeetingDetail,
 } from '../services/api/client'
+import { recordingStore } from '../live/defaults'
 import { useApiCall } from './useApiCall'
 import { useMeetingStatusSocket } from './useMeetingStatusSocket'
+
+const TERMINAL_STATUSES = new Set(['completed', 'failed'])
 
 /**
  * 會議詳情頁的資料層：載入詳情/文件/待辦、狀態事件重載、待辦與刪除的操作。
  * 由 MeetingDetailPage 拆分而來（原內嵌於元件），集中資料流並改用 useApiCall 注入 token。
  */
-export function useMeetingDetail(id: string | undefined) {
+export function useMeetingDetail(id: string | undefined, correctionRunning = false) {
   const navigate = useNavigate()
   const call = useApiCall()
   const [meeting, setMeeting] = useState<MeetingDetail | null>(null)
@@ -52,9 +55,12 @@ export function useMeetingDetail(id: string | undefined) {
 
   // 本會議狀態變更時重新載入（完成時文件才會出現）
   // 閒置斷線後回來：重載補上漏掉的狀態
+  // 已完成／失敗且沒有校正進行中，就不會再有狀態事件：不連線也不 resync（避免開著分頁反覆重抓、喚醒 Cloud Run）；
+  // 按「重新處理」或開始校正後會自動重新啟用。
+  const watching = meeting === null || !TERMINAL_STATUSES.has(meeting.status) || correctionRunning
   useMeetingStatusSocket((e) => {
     if (e.meetingId === id) void load()
-  }, () => void load())
+  }, () => void load(), watching)
 
   const retry = useCallback(async () => {
     if (!id) return
@@ -71,6 +77,8 @@ export function useMeetingDetail(id: string | undefined) {
     if (!id) return false
     try {
       await call(deleteMeeting, id)
+      // 即時會議可能留有本機錄音備份；不清會在之後跳出「救回」提示（非即時會議無資料，無妨）
+      await recordingStore.remove(id).catch(() => {})
       navigate('/meetings')
       return true
     } catch (e) {
