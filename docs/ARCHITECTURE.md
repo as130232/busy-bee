@@ -394,6 +394,7 @@ Transaction boundary 一律在 application 層（`WithTx` pattern），repositor
   6. 錄音另以混音 MediaRecorder（32 kbps）每 10 秒寫入 IndexedDB，分頁意外關閉可救回上傳。
   7. 音訊來源抽象 `AudioSource`（v1 `MeetTabSource`），之後 Teams 桌面版新增來源即可。
   8. （Phase 33）無聲偵測：每秒以 AnalyserNode 量混音錄音峰值，連續 15 秒低於約 -66 dBFS 顯示提醒、有聲音即解除；第一次觸發時隨心跳帶 `diagnostics`（AudioContext 狀態、音軌 readyState/muted、PCM 音框數、峰值 dB）寫 log `live.audio_diagnostics`，用來分辨分頁沒聲音／麥克風無訊號／瀏覽器音訊未啟動。只有狀態、不含音訊內容。
+  9. （Phase 34）麥克風中斷：監聽麥克風音軌 `ended`（藍牙耳機斷線、拔除裝置），顯示提醒並立即回報 `reason=mic_ended` 診斷；「重新連接麥克風」重新 `getUserMedia`，以 `MixedRecorder.addStream` 接回錄音，若有開麥克風辨識則換掉那一路。
 - **替代方案**：後端 WS 代轉 Deepgram（整場會議 instance 醒著、60 分鐘斷線，否決）；Gemini Live API 直接聽音訊（中文逐字稿與講者標示較差、按音訊 token 計費較貴、難控制更新頻率，否決）；`/live/ask` 用 SSE 串流（Firebase Hosting 轉 Cloud Run 是否緩衝未證實，v1 改一般請求，答案約 2–5 秒）。
 - **實測（2026-10-15）**：nova-3 `language=zh-TW` 串流可用且輸出繁體；nova-2 zh-TW 串流連線失敗 → 串流模型獨立設定 `DEEPGRAM_LIVE_MODEL`（預設 nova-3）。Gemini 即時重點約 1.8 秒、提問約 4.6 秒。
 
@@ -481,7 +482,7 @@ CI（`.github/workflows/deploy.yml`）在部署前跑後端 vet + 單元 + 整�
 
 ## 16. 可觀測性
 
-- 結構化 log：`slog` JSON 輸出到 stdout（Cloud Logging 收集），等級由 `LOG_LEVEL` 控制。
+- 結構化 log：`slog` JSON 輸出到 stdout（Cloud Logging 收集），等級由 `LOG_LEVEL` 控制；`ReplaceAttr` 把頂層 `level` 改成 Cloud Logging 的 `severity`（WARN→WARNING），`msg` 不變。
 - 每個請求由 `middleware.RequestID` 產生 traceId，`RequestLogger` 記錄；錯誤回應帶 `traceId` 方便對照 log。
 - 處理管線、校正、即時會議只記 `meeting_id` 等識別欄位與數量、耗時；不記 token、逐字稿全文、會前資料內容。
 - `GET /version` 回傳線上 commit 與建置時間，部署後用來確認版本。

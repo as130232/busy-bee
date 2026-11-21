@@ -12,7 +12,7 @@
 | 後端 | Cloud Run `busy-bee-api`，region `asia-east1`，GCP 專案 `busy-bee-502710` |
 | WebSocket | 前端直連 Cloud Run（`VITE_WS_BASE`），不經 Hosting |
 | 健康檢查 | `GET /health`；版本 `GET /version`（回傳線上 commit） |
-| 日誌 | Cloud Logging（Cloud Run 服務 `busy-bee-api`），JSON 結構化 log，可用 `traceId`、`meeting_id` 搜尋 |
+| 日誌 | Cloud Logging（Cloud Run 服務 `busy-bee-api`），JSON 結構化 log，可用 `traceId`、`meeting_id` 搜尋；等級在 `severity`（2026-11-21 Phase 34 之前的 log 沒有 severity，要改用 `jsonPayload.level`） |
 | 部署 | push `main` 觸發 GitHub Actions（見 ARCHITECTURE〈部署與回滾〉） |
 | 機敏設定 | Secret Manager（專案 `busy-bee-502710`），金鑰值不寫在文件 |
 
